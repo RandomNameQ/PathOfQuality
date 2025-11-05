@@ -7,6 +7,8 @@ import cv2
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
+from src.detector.library_matcher import LibraryMatcher
+from src.ui.icon_mirrors import IconMirrorsOverlay
 from src.ui.hud import BuffHUD
 from src.ui.roi_selector import select_roi
 from src.ui.overlay import OverlayHighlighter
@@ -25,7 +27,7 @@ def load_settings(path: str) -> dict:
         "roi": {"mode": "top_right", "width": 400, "height": 180, "top": 0, "left": 0},
         "threshold": 0.9,
         "scan_interval_ms": 50,
-        "ui": {"keep_on_top": True, "alpha": 1.0, "grab_anywhere": True},
+        "ui": {"keep_on_top": False, "alpha": 1.0, "grab_anywhere": True},
         "language": "en",
         "templates_dir": "assets/templates",
     }
@@ -93,6 +95,7 @@ def main():
 
     templates_dir = settings.get("templates_dir", "assets/templates")
     matcher = TemplateMatcher(templates_dir=templates_dir, threshold=float(settings.get("threshold", 0.9)))
+    lib_matcher = LibraryMatcher(threshold=float(settings.get("threshold", 0.9)))
 
     print(f"Загружено шаблонов: {len(matcher.templates)} из '{templates_dir}'")
     if len(matcher.templates) > 0:
@@ -103,7 +106,7 @@ def main():
     ui_cfg = settings.get("ui", {})
     hud = BuffHUD(
         templates=matcher.get_template_infos(),
-        keep_on_top=bool(ui_cfg.get("keep_on_top", True)),
+        keep_on_top=bool(ui_cfg.get("keep_on_top", False)),
         alpha=float(ui_cfg.get("alpha", 1.0)),
         grab_anywhere=bool(ui_cfg.get("grab_anywhere", True)),
     )
@@ -113,7 +116,9 @@ def main():
 
     # Оверлей-подсветка зоны анализа
     overlay = OverlayHighlighter(hud.get_root())
+    mirrors = IconMirrorsOverlay(hud.get_root())
     overlay_enabled_last = False
+    positioning_enabled_last = False
 
     # Системный трей
     tray = TrayIcon()
@@ -143,6 +148,12 @@ def main():
             event = hud.read(timeout=scan_interval_ms)
             if event == 'EXIT' or tray.is_exit_requested():
                 break
+            if event == 'LIBRARY_UPDATED':
+                # Перезагрузим список активных шаблонов
+                try:
+                    lib_matcher.refresh()
+                except Exception:
+                    pass
 
             # Переключение подсветки зоны анализа
             overlay_enabled_curr = hud.get_overlay_enabled()
@@ -152,6 +163,20 @@ def main():
                 else:
                     overlay.hide()
                 overlay_enabled_last = overlay_enabled_curr
+
+            # Переключение режима глобального позиционирования иконок
+            positioning_enabled_curr = hud.get_positioning_enabled()
+            if positioning_enabled_curr != positioning_enabled_last:
+                try:
+                    if positioning_enabled_curr:
+                        print("[UI] Включён режим позиционирования активных иконок")
+                        mirrors.enable_positioning_mode()
+                    else:
+                        print("[UI] Выключен режим позиционирования, сохраняю координаты")
+                        mirrors.disable_positioning_mode(save_changes=True)
+                except Exception as e:
+                    print("[UI] Ошибка переключения позиционирования:", e)
+                positioning_enabled_last = positioning_enabled_curr
 
             # Выбор зоны анализа по кнопке «Выделить зону»
             if event == 'SELECT_ROI':
@@ -176,7 +201,12 @@ def main():
                 continue
             gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
             found = matcher.match(gray)
+            lib_results = lib_matcher.match(gray)
             hud.update(found)
+            try:
+                mirrors.update(lib_results, frame_bgr, (roi.left, roi.top, roi.width, roi.height))
+            except Exception:
+                pass
             if found != last_found:
                 print("Найдены шаблоны:", ", ".join(found) if found else "—")
                 last_found = found
@@ -185,6 +215,15 @@ def main():
         try:
             overlay.hide()
             overlay.close()
+        except Exception:
+            pass
+        try:
+            # Если уходили из приложения в режиме позиционирования — сохраним координаты
+            mirrors.disable_positioning_mode(save_changes=True)
+        except Exception:
+            pass
+        try:
+            mirrors.close()
         except Exception:
             pass
         try:

@@ -17,11 +17,17 @@
   "buffs.location": "Location",
   "buffs.size": "Size",
   "buffs.transparency": "Transparency",
+  "buffs.edit": "Edit",
+  "buffs.search": "Search",
   "dialog.create": "Create",
   "dialog.save": "Save",
   "dialog.cancel": "Cancel",
   "dialog.localize": "Localize",
   "dialog.choose_language": "Choose Language",
   "error.name_required": "Name is required",
-  "error.image_required": "Image is required"
+  "error.image_required": "Image is required",
+  "info.select_item": "Select an item to edit"
+  ,"button.clear": "Clear",
+  "actions.activate": "Activate",
+  "actions.position": "Position"
 }

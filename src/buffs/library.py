@@ -20,6 +20,7 @@ class BuffEntry:
     position: Dict[str, int]  # {"left": int, "top": int}
     size: Dict[str, int]      # {"width": int, "height": int}
     transparency: float       # 0.0..1.0
+    active: bool
 
 
 def _ensure_file():
@@ -38,6 +39,14 @@ def load_library() -> Dict[str, List[Dict]]:
             return {"buffs": [], "debuffs": []}
         data.setdefault('buffs', [])
         data.setdefault('debuffs', [])
+        # миграция полей по умолчанию
+        for bucket in ('buffs', 'debuffs'):
+            for item in data.get(bucket, []):
+                if 'active' not in item:
+                    item['active'] = False
+                item.setdefault('position', {"left": 0, "top": 0})
+                item.setdefault('size', {"width": 0, "height": 0})
+                item.setdefault('transparency', 1.0)
         return data
     except Exception:
         return {"buffs": [], "debuffs": []}
@@ -56,6 +65,40 @@ def add_entry(entry: BuffEntry) -> None:
     bucket = 'buffs' if entry.type == 'buff' else 'debuffs'
     lib[bucket].append(asdict(entry))
     save_library(lib)
+
+
+def update_entry(entry_id: str, entry_type: str, updates: Dict) -> bool:
+    """Update an existing entry by id.
+
+    Returns True if updated, False if not found.
+    """
+    lib = load_library()
+    bucket = 'buffs' if entry_type == 'buff' else 'debuffs'
+    arr = lib.get(bucket, [])
+    for i, item in enumerate(arr):
+        if item.get('id') == entry_id:
+            # keep id and type, update other fields
+            item['name'] = updates.get('name') or item.get('name', {})
+            item['image_path'] = updates.get('image_path') or item.get('image_path', '')
+            item['description'] = updates.get('description') or item.get('description', {})
+            item['sound_on'] = updates.get('sound_on')
+            item['sound_off'] = updates.get('sound_off')
+            item['position'] = {
+                'left': int(updates.get('left', item.get('position', {}).get('left', 0))),
+                'top': int(updates.get('top', item.get('position', {}).get('top', 0))),
+            }
+            item['size'] = {
+                'width': int(updates.get('width', item.get('size', {}).get('width', 0))),
+                'height': int(updates.get('height', item.get('size', {}).get('height', 0))),
+            }
+            item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
+            if 'active' in updates:
+                item['active'] = bool(updates.get('active'))
+            arr[i] = item
+            lib[bucket] = arr
+            save_library(lib)
+            return True
+    return False
 
 
 def make_entry(
@@ -82,4 +125,5 @@ def make_entry(
         position={"left": int(left), "top": int(top)},
         size={"width": int(width), "height": int(height)},
         transparency=float(transparency),
+        active=False,
     )

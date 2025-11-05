@@ -1,4 +1,52 @@
 {
-  "buffs": [],
+  "buffs": [
+    {
+      "id": "a56dc9c3-0c3c-4a54-83b1-49ef9c835d11",
+      "type": "buff",
+      "name": {
+        "en": "Frenzy Chargesssss",
+        "ru": "Заряд ярости"
+      },
+      "image_path": "C:/Users/user/Downloads/Screenshot_5.png",
+      "description": {
+        "en": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss11111111111sssaaaaaaaaaaaaaaaaaaaa\n\n\nssssssssssssss\nssssssssssssss"
+      },
+      "sound_on": null,
+      "sound_off": null,
+      "position": {
+        "left": 896,
+        "top": 608
+      },
+      "size": {
+        "width": 64,
+        "height": 64
+      },
+      "transparency": 0.5219298245614035,
+      "active": true
+    },
+    {
+      "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
+      "type": "buff",
+      "name": {
+        "en": "еуык"
+      },
+      "image_path": "C:/Users/user/Downloads/Screenshot_3.png",
+      "description": {
+        "en": ""
+      },
+      "sound_on": null,
+      "sound_off": null,
+      "position": {
+        "left": 960,
+        "top": 608
+      },
+      "size": {
+        "width": 64,
+        "height": 64
+      },
+      "transparency": 1.0,
+      "active": true
+    }
+  ],
   "debuffs": []
 }

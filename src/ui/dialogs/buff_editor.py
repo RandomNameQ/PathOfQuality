@@ -3,14 +3,26 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Optional, Dict
 from src.i18n.locale import t, get_lang
+try:
+    from PIL import Image, ImageTk
+except Exception:
+    Image = None
+    ImageTk = None
 
 
 class BuffEditorDialog:
-    def __init__(self, master: tk.Tk, entry_type: str = 'buff') -> None:
+    def __init__(self, master: tk.Tk, entry_type: str = 'buff', initial: Optional[dict] = None) -> None:
         self._master = master
         self._type = 'buff' if entry_type == 'buff' else 'debuff'
         self._name_texts: Dict[str, str] = {}
         self._desc_texts: Dict[str, str] = {}
+        self._initial = initial or {}
+
+        # preload localized texts if initial provided
+        if isinstance(self._initial.get('name'), dict):
+            self._name_texts.update(self._initial.get('name'))
+        if isinstance(self._initial.get('description'), dict):
+            self._desc_texts.update(self._initial.get('description'))
 
         self._result: Optional[dict] = None
 
@@ -37,7 +49,13 @@ class BuffEditorDialog:
         name_row = ttk.Frame(frm)
         name_row.pack(fill='x', pady=(0, 4))
         ttk.Label(name_row, text=t('buffs.name', 'Name')).pack(side='left')
-        name_var = tk.StringVar(value='')
+        curr_lang = get_lang()
+        init_name = ''
+        try:
+            init_name = self._name_texts.get(curr_lang) or self._name_texts.get('en', '')
+        except Exception:
+            init_name = ''
+        name_var = tk.StringVar(value=init_name)
         name_entry = ttk.Entry(name_row, textvariable=name_var)
         name_entry.pack(side='left', fill='x', expand=True, padx=(6, 6))
         loc_btn1 = ttk.Button(name_row, text=t('dialog.localize', 'Localize'), command=lambda: self._open_loc(self._name_texts, name_var))
@@ -47,7 +65,7 @@ class BuffEditorDialog:
         img_row = ttk.Frame(frm)
         img_row.pack(fill='x', pady=(0, 4))
         ttk.Label(img_row, text=t('buffs.image', 'Image')).pack(side='left')
-        img_var = tk.StringVar(value='')
+        img_var = tk.StringVar(value=self._initial.get('image_path', ''))
         img_entry = ttk.Entry(img_row, textvariable=img_var)
         img_entry.pack(side='left', fill='x', expand=True, padx=(6, 6))
         def choose_img():
@@ -55,6 +73,41 @@ class BuffEditorDialog:
             if path:
                 img_var.set(path)
         ttk.Button(img_row, text='...', width=3, command=choose_img).pack(side='left')
+
+        # Preview under image field
+        preview_row = ttk.Frame(frm)
+        preview_row.pack(fill='x', pady=(0, 6))
+        preview_label = tk.Label(preview_row, relief='sunken')
+        preview_label.pack(anchor='w')
+
+        self._img_preview_photo = None
+        def update_preview(path: str):
+            try:
+                if not path or not os.path.isfile(path):
+                    preview_label.configure(image='', text='')
+                    self._img_preview_photo = None
+                    return
+                if Image is None or ImageTk is None:
+                    # Fallback: try Tk PhotoImage (PNG only)
+                    photo = tk.PhotoImage(file=path)
+                    self._img_preview_photo = photo
+                    preview_label.configure(image=photo)
+                    return
+                img = Image.open(path)
+                img = img.convert('RGBA')
+                # Fit into 128x128 thumbnail keeping aspect
+                img.thumbnail((128, 128), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self._img_preview_photo = photo
+                preview_label.configure(image=photo)
+            except Exception:
+                preview_label.configure(image='', text='')
+                self._img_preview_photo = None
+
+        def _on_img_path_change(*args):
+            update_preview(img_var.get().strip())
+        img_var.trace_add('write', _on_img_path_change)
+        update_preview(img_var.get().strip())
 
         # Description (multiline) + localization
         desc_row = ttk.Frame(frm)
@@ -67,6 +120,12 @@ class BuffEditorDialog:
         scroll = ttk.Scrollbar(text_frame, orient='vertical', command=desc_text.yview)
         scroll.pack(side='right', fill='y')
         desc_text.configure(yscrollcommand=scroll.set)
+        try:
+            init_desc = self._desc_texts.get(curr_lang) or self._desc_texts.get('en', '')
+            if init_desc:
+                desc_text.insert('1.0', init_desc)
+        except Exception:
+            pass
         loc_btn2 = ttk.Button(desc_row, text=t('dialog.localize', 'Localize'), command=lambda: self._open_loc_text(self._desc_texts, desc_text))
         loc_btn2.pack(anchor='e', pady=(6, 0))
 
@@ -74,7 +133,7 @@ class BuffEditorDialog:
         sound_on_row = ttk.Frame(frm)
         sound_on_row.pack(fill='x', pady=(0, 4))
         ttk.Label(sound_on_row, text=t('buffs.sound_on', 'Appear Sound')).pack(side='left')
-        sound_on_var = tk.StringVar(value='')
+        sound_on_var = tk.StringVar(value=self._initial.get('sound_on') or '')
         ttk.Entry(sound_on_row, textvariable=sound_on_var).pack(side='left', fill='x', expand=True, padx=(6, 6))
         def choose_sound_on():
             path = filedialog.askopenfilename(parent=dlg, filetypes=[('Audio', '*.wav;*.mp3;*.ogg')])
@@ -85,7 +144,7 @@ class BuffEditorDialog:
         sound_off_row = ttk.Frame(frm)
         sound_off_row.pack(fill='x', pady=(0, 4))
         ttk.Label(sound_off_row, text=t('buffs.sound_off', 'Disappear Sound')).pack(side='left')
-        sound_off_var = tk.StringVar(value='')
+        sound_off_var = tk.StringVar(value=self._initial.get('sound_off') or '')
         ttk.Entry(sound_off_row, textvariable=sound_off_var).pack(side='left', fill='x', expand=True, padx=(6, 6))
         def choose_sound_off():
             path = filedialog.askopenfilename(parent=dlg, filetypes=[('Audio', '*.wav;*.mp3;*.ogg')])
@@ -97,8 +156,8 @@ class BuffEditorDialog:
         loc_row = ttk.Frame(frm)
         loc_row.pack(fill='x', pady=(0, 4))
         ttk.Label(loc_row, text=t('buffs.location', 'Location')).pack(side='left')
-        left_var = tk.IntVar(value=0)
-        top_var = tk.IntVar(value=0)
+        left_var = tk.IntVar(value=int(self._initial.get('position', {}).get('left', 0)))
+        top_var = tk.IntVar(value=int(self._initial.get('position', {}).get('top', 0)))
         ttk.Label(loc_row, text='Left').pack(side='left', padx=(6, 2))
         ttk.Entry(loc_row, textvariable=left_var, width=8).pack(side='left')
         ttk.Label(loc_row, text='Top').pack(side='left', padx=(6, 2))
@@ -108,8 +167,8 @@ class BuffEditorDialog:
         size_row = ttk.Frame(frm)
         size_row.pack(fill='x', pady=(0, 4))
         ttk.Label(size_row, text=t('buffs.size', 'Size')).pack(side='left')
-        width_var = tk.IntVar(value=0)
-        height_var = tk.IntVar(value=0)
+        width_var = tk.IntVar(value=int(self._initial.get('size', {}).get('width', 0)))
+        height_var = tk.IntVar(value=int(self._initial.get('size', {}).get('height', 0)))
         ttk.Label(size_row, text='W').pack(side='left', padx=(6, 2))
         ttk.Entry(size_row, textvariable=width_var, width=8).pack(side='left')
         ttk.Label(size_row, text='H').pack(side='left', padx=(6, 2))
@@ -119,7 +178,7 @@ class BuffEditorDialog:
         tr_row = ttk.Frame(frm)
         tr_row.pack(fill='x', pady=(0, 8))
         ttk.Label(tr_row, text=t('buffs.transparency', 'Transparency')).pack(side='left')
-        tr_var = tk.DoubleVar(value=1.0)
+        tr_var = tk.DoubleVar(value=float(self._initial.get('transparency', 1.0)))
         ttk.Scale(tr_row, variable=tr_var, from_=0.0, to=1.0, orient='horizontal').pack(side='left', fill='x', expand=True, padx=(6, 6))
 
         # Buttons
@@ -127,7 +186,6 @@ class BuffEditorDialog:
         btns.pack(fill='x')
         def on_create():
             # validation
-            curr_lang = get_lang()
             name_text = name_var.get().strip()
             if name_text:
                 self._name_texts[curr_lang] = name_text
@@ -161,7 +219,9 @@ class BuffEditorDialog:
             self._result = None
             dlg.destroy()
 
-        ttk.Button(btns, text=t('dialog.create', 'Create'), command=on_create).pack(side='left')
+        # Button text: Save if editing, Create otherwise
+        btn_text = t('dialog.save', 'Save') if self._initial else t('dialog.create', 'Create')
+        ttk.Button(btns, text=btn_text, command=on_create).pack(side='left')
         ttk.Button(btns, text=t('dialog.cancel', 'Cancel'), command=on_cancel).pack(side='right')
 
         dlg.wait_window()
@@ -188,3 +248,13 @@ class BuffEditorDialog:
         if lang == get_lang():
             widget.delete('1.0', 'end')
             widget.insert('1.0', text)
+
+        # Initialize description widget with current language from initial
+        try:
+            curr_lang = get_lang()
+            init_desc = self._desc_texts.get(curr_lang) or self._desc_texts.get('en', '')
+            if init_desc:
+                widget.delete('1.0', 'end')
+                widget.insert('1.0', init_desc)
+        except Exception:
+            pass
