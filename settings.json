@@ -1,0 +1,20 @@
+{
+  "capture": {
+    "provider": "mss"
+  },
+  "roi": {
+    "mode": "absolute",
+    "width": 1382,
+    "height": 75,
+    "top": 8,
+    "left": 7
+  },
+  "threshold": 0.9,
+  "scan_interval_ms": 50,
+  "ui": {
+    "keep_on_top": true,
+    "alpha": 1.0,
+    "grab_anywhere": true
+  },
+  "templates_dir": "assets/templates"
+}
