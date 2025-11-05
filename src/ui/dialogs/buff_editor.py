@@ -42,6 +42,35 @@ class BuffEditorDialog:
         except Exception:
             pass
 
+        # Настраиваем стили для кнопок Save (яркая зелёная) и Cancel (яркая красная)
+        style = ttk.Style(dlg)
+        try:
+            # Яркая зелёная кнопка Save с жирным белым текстом
+            style.configure('Save.TButton',
+                          padding=[20, 10],
+                          font=('Segoe UI', 10, 'bold'),  # Жирный шрифт для лучшей видимости
+                          background='#10b981',  # Яркий зелёный
+                          foreground='#ffffff',  # Яркий белый текст
+                          borderwidth=0,
+                          focuscolor='none')
+            style.map('Save.TButton',
+                     background=[('active', '#059669'), ('pressed', '#047857')],
+                     foreground=[('active', '#ffffff'), ('pressed', '#ffffff')])
+            
+            # Яркая красная кнопка Cancel с жирным белым текстом
+            style.configure('Cancel.TButton',
+                          padding=[20, 10],
+                          font=('Segoe UI', 10, 'bold'),  # Жирный шрифт для лучшей видимости
+                          background='#ef4444',  # Яркий красный
+                          foreground='#ffffff',  # Яркий белый текст
+                          borderwidth=0,
+                          focuscolor='none')
+            style.map('Cancel.TButton',
+                     background=[('active', '#dc2626'), ('pressed', '#b91c1c')],
+                     foreground=[('active', '#ffffff'), ('pressed', '#ffffff')])
+        except Exception:
+            pass
+
         frm = ttk.Frame(dlg, padding=8)
         frm.pack(fill='both', expand=True)
 
@@ -221,8 +250,20 @@ class BuffEditorDialog:
 
         # Button text: Save if editing, Create otherwise
         btn_text = t('dialog.save', 'Save') if self._initial else t('dialog.create', 'Create')
-        ttk.Button(btns, text=btn_text, command=on_create).pack(side='left')
-        ttk.Button(btns, text=t('dialog.cancel', 'Cancel'), command=on_cancel).pack(side='right')
+        # Используем обычные tk.Button для гарантированного отображения цветов
+        save_btn = tk.Button(btns, text=btn_text, command=on_create, 
+                            bg='#10b981', fg='#ffffff', font=('Segoe UI', 10, 'bold'),
+                            padx=20, pady=10, relief='flat', borderwidth=0,
+                            activebackground='#059669', activeforeground='#ffffff',
+                            cursor='hand2')
+        save_btn.pack(side='left', padx=(0, 8))
+        
+        cancel_btn = tk.Button(btns, text=t('dialog.cancel', 'Cancel'), command=on_cancel,
+                              bg='#ef4444', fg='#ffffff', font=('Segoe UI', 10, 'bold'),
+                              padx=20, pady=10, relief='flat', borderwidth=0,
+                              activebackground='#dc2626', activeforeground='#ffffff',
+                              cursor='hand2')
+        cancel_btn.pack(side='right')
 
         dlg.wait_window()
         return self._result

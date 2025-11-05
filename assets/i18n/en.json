@@ -30,4 +30,7 @@
   ,"button.clear": "Clear",
   "actions.activate": "Activate",
   "actions.position": "Position"
+  ,"monitoring.scan": "Scan"
+  ,"monitoring.scanning_on": "Scanning"
+  ,"monitoring.scanning_off": "Not scanning"
 }

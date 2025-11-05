@@ -196,20 +196,29 @@ def main():
                     if overlay_enabled_curr:
                         overlay.update((left, top, width, height))
 
-            frame_bgr = cap.grab(roi)
-            if frame_bgr is None:
-                continue
-            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-            found = matcher.match(gray)
-            lib_results = lib_matcher.match(gray)
-            hud.update(found)
-            try:
-                mirrors.update(lib_results, frame_bgr, (roi.left, roi.top, roi.width, roi.height))
-            except Exception:
-                pass
-            if found != last_found:
-                print("Найдены шаблоны:", ", ".join(found) if found else "—")
-                last_found = found
+            # Сканиуем только если включено
+            if hud.get_scanning_enabled():
+                frame_bgr = cap.grab(roi)
+                if frame_bgr is None:
+                    hud.update([])
+                    continue
+                gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+                found = matcher.match(gray)
+                lib_results = lib_matcher.match(gray)
+                hud.update(found)
+                try:
+                    mirrors.update(lib_results, frame_bgr, (roi.left, roi.top, roi.width, roi.height))
+                except Exception:
+                    pass
+                if found != last_found:
+                    print("Найдены шаблоны:", ", ".join(found) if found else "—")
+                    last_found = found
+            else:
+                # Не сканируем — очищаем найденные и обновляем статус
+                if last_found:
+                    print("Найдены шаблоны: —")
+                    last_found = []
+                hud.update([])
     finally:
         hud.close()
         try:

@@ -30,4 +30,7 @@
   ,"button.clear": "Очистить",
   "actions.activate": "Активировать",
   "actions.position": "Позиционировать"
+  ,"monitoring.scan": "Сканировать"
+  ,"monitoring.scanning_on": "Идёт сканирование"
+  ,"monitoring.scanning_off": "Сканирование выключено"
 }
