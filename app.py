@@ -219,6 +219,11 @@ def main():
                     print("Найдены шаблоны: —")
                     last_found = []
                 hud.update([])
+                try:
+                    # Спрячем все зеркала иконок, чтобы картинки исчезли с экрана
+                    mirrors.update([], None, (roi.left, roi.top, roi.width, roi.height))
+                except Exception:
+                    pass
     finally:
         hud.close()
         try:
