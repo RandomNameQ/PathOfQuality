@@ -169,23 +169,36 @@ class IconMirrorsOverlay:
             pos = item.get('position', {"left": 0, "top": 0})
             size = item.get('size', {"width": 0, "height": 0})
             alpha = float(item.get('transparency', 1.0))
+            extend_bottom = int(item.get('extend_bottom', 0))
+            if extend_bottom < 0:
+                extend_bottom = 0
 
-            # Вырезаем найденную область из ROI кадра
-            x, y, w, h = r.get('x', 0), r.get('y', 0), r.get('w', 0), r.get('h', 0)
+            # Вырезаем найденную область из ROI кадра, удлиняя вниз на extend_bottom
+            x, y, w, h = int(r.get('x', 0)), int(r.get('y', 0)), int(r.get('w', 0)), int(r.get('h', 0))
             try:
-                crop_bgr = frame_bgr[y:y + h, x:x + w]
+                frame_h, frame_w = frame_bgr.shape[:2]
+                x0 = max(0, x)
+                y0 = max(0, y)
+                x1 = min(x + w, frame_w)
+                y1 = min(y + h + extend_bottom, frame_h)
+                if x1 <= x0 or y1 <= y0:
+                    continue
+                crop_bgr = frame_bgr[y0:y1, x0:x1]
                 crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
             except Exception:
                 continue
 
             try:
                 img = Image.fromarray(crop_rgb)
-                out_w = int(size.get('width') or w)
-                out_h = int(size.get('height') or h)
+                # Размер вывода берём из библиотеки, по умолчанию 64x64,
+                # и удлиняем вниз на extend_bottom
+                out_w = int(size.get('width', 0))
+                out_h = int(size.get('height', 0))
                 if out_w <= 0:
-                    out_w = w
+                    out_w = 64
                 if out_h <= 0:
-                    out_h = h
+                    out_h = 64
+                out_h = max(1, out_h + extend_bottom)
                 img = img.resize((out_w, out_h), Image.LANCZOS)
             except Exception:
                 continue

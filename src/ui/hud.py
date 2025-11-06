@@ -669,6 +669,8 @@ class BuffHUD:
             position={'left': res['left'], 'top': res['top']},
             size={'width': res['width'], 'height': res['height']},
             transparency=res['transparency'],
+            active=False,
+            extend_bottom=int(res.get('extend_bottom', 0)),
         )
         # используем фабрику для корректной генерации id
         from src.buffs.library import make_entry
@@ -684,6 +686,7 @@ class BuffHUD:
             width=res['width'],
             height=res['height'],
             transparency=res['transparency'],
+            extend_bottom=int(res.get('extend_bottom', 0)),
         )
         # перенесём локализации, если были не на en
         entry2.name.update(res['name'])

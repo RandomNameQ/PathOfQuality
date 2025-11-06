@@ -14,15 +14,16 @@
       "sound_on": null,
       "sound_off": null,
       "position": {
-        "left": 896,
-        "top": 608
+        "left": 448,
+        "top": 528
       },
       "size": {
         "width": 64,
         "height": 64
       },
       "transparency": 0.5219298245614035,
-      "active": true
+      "active": true,
+      "extend_bottom": 15
     },
     {
       "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
@@ -37,15 +38,40 @@
       "sound_on": null,
       "sound_off": null,
       "position": {
-        "left": 896,
-        "top": 672
+        "left": 512,
+        "top": 528
       },
       "size": {
         "width": 64,
         "height": 64
       },
       "transparency": 1.0,
-      "active": true
+      "active": true,
+      "extend_bottom": 30
+    },
+    {
+      "id": "4d28a603-5ab7-4cfc-bd1e-a787d2b5820c",
+      "type": "buff",
+      "name": {
+        "en": "as"
+      },
+      "image_path": "C:/Users/user/Downloads/Screenshot_6.png",
+      "description": {
+        "en": ""
+      },
+      "sound_on": null,
+      "sound_off": null,
+      "position": {
+        "left": 512,
+        "top": 528
+      },
+      "size": {
+        "width": 64,
+        "height": 64
+      },
+      "transparency": 1.0,
+      "active": true,
+      "extend_bottom": 30
     }
   ],
   "debuffs": []

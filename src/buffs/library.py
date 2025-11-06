@@ -21,6 +21,7 @@ class BuffEntry:
     size: Dict[str, int]      # {"width": int, "height": int}
     transparency: float       # 0.0..1.0
     active: bool
+    extend_bottom: int        # extra pixels to extend capture/output downward
 
 
 def _ensure_file():
@@ -45,8 +46,11 @@ def load_library() -> Dict[str, List[Dict]]:
                 if 'active' not in item:
                     item['active'] = False
                 item.setdefault('position', {"left": 0, "top": 0})
-                item.setdefault('size', {"width": 0, "height": 0})
+                # По умолчанию размер 64x64
+                item.setdefault('size', {"width": 64, "height": 64})
                 item.setdefault('transparency', 1.0)
+                # Новое поле: дополнительная высота снизу
+                item.setdefault('extend_bottom', 0)
         return data
     except Exception:
         return {"buffs": [], "debuffs": []}
@@ -92,6 +96,7 @@ def update_entry(entry_id: str, entry_type: str, updates: Dict) -> bool:
                 'height': int(updates.get('height', item.get('size', {}).get('height', 0))),
             }
             item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
+            item['extend_bottom'] = int(updates.get('extend_bottom', item.get('extend_bottom', 0)))
             if 'active' in updates:
                 item['active'] = bool(updates.get('active'))
             arr[i] = item
@@ -110,9 +115,10 @@ def make_entry(
     sound_off: Optional[str] = None,
     left: int = 0,
     top: int = 0,
-    width: int = 0,
-    height: int = 0,
+    width: int = 64,
+    height: int = 64,
     transparency: float = 1.0,
+    extend_bottom: int = 0,
 ) -> BuffEntry:
     return BuffEntry(
         id=str(uuid.uuid4()),
@@ -126,4 +132,5 @@ def make_entry(
         size={"width": int(width), "height": int(height)},
         transparency=float(transparency),
         active=False,
+        extend_bottom=int(extend_bottom),
     )

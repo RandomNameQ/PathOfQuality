@@ -210,6 +210,13 @@ class BuffEditorDialog:
         tr_var = tk.DoubleVar(value=float(self._initial.get('transparency', 1.0)))
         ttk.Scale(tr_row, variable=tr_var, from_=0.0, to=1.0, orient='horizontal').pack(side='left', fill='x', expand=True, padx=(6, 6))
 
+        # Extend bottom (pixels)
+        ext_row = ttk.Frame(frm)
+        ext_row.pack(fill='x', pady=(0, 8))
+        ttk.Label(ext_row, text=t('buffs.extend_bottom', 'Extend bottom (px)')).pack(side='left')
+        extend_var = tk.IntVar(value=int(self._initial.get('extend_bottom', 0)))
+        ttk.Entry(ext_row, textvariable=extend_var, width=8).pack(side='left', padx=(6, 0))
+
         # Buttons
         btns = ttk.Frame(frm)
         btns.pack(fill='x')
@@ -241,6 +248,7 @@ class BuffEditorDialog:
                 'width': int(width_var.get()),
                 'height': int(height_var.get()),
                 'transparency': float(tr_var.get()),
+                'extend_bottom': int(extend_var.get()),
             }
             dlg.destroy()
 
