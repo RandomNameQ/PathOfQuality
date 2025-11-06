@@ -4,10 +4,10 @@
   },
   "roi": {
     "mode": "absolute",
-    "width": 1382,
-    "height": 75,
-    "top": 8,
-    "left": 7
+    "width": 966,
+    "height": 82,
+    "top": 1,
+    "left": 6
   },
   "threshold": 0.9,
   "scan_interval_ms": 50,
@@ -16,5 +16,6 @@
     "alpha": 1.0,
     "grab_anywhere": true
   },
+  "language": "en",
   "templates_dir": "assets/templates"
 }
