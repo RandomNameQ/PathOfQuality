@@ -6,12 +6,23 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Tuple, Optional
 from src.i18n.locale import t, get_lang, set_lang
-from src.buffs.library import load_library, update_entry, add_entry, make_entry
+from src.buffs.library import (
+    load_library,
+    update_entry,
+    add_entry,
+    make_entry,
+    add_copy_area_entry,
+    update_copy_area_entry,
+    make_copy_area_entry,
+)
 from src.ui.styles import configure_modern_styles, BG_COLOR
 from src.ui.tabs.monitoring_tab import MonitoringTab
 from src.ui.tabs.settings_tab import SettingsTab
 from src.ui.tabs.library_tab import LibraryTab
+from src.ui.tabs.copy_area_tab import CopyAreaTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
+from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
+from src.ui.roi_selector import select_roi
 
 
 class BuffHUD:
@@ -70,6 +81,7 @@ class BuffHUD:
         self._tab_settings_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_buffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_debuffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
+        self._tab_copy_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
@@ -88,12 +100,19 @@ class BuffHUD:
             on_edit=lambda: self._on_edit_entry('debuff'),
             on_toggle_active=self._on_toggle_active
         )
+        self._copy_tab = CopyAreaTab(
+            self._tab_copy_frame,
+            on_add=self._on_add_copy_area,
+            on_edit=self._on_edit_copy_area,
+            on_toggle_active=self._on_toggle_copy_active,
+        )
         
         # Add tabs to notebook
         self._notebook.add(self._tab_monitor_frame, text=t('tab.monitoring', 'Monitoring'))
         self._notebook.add(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
         self._notebook.add(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
         self._notebook.add(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+        self._notebook.add(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
         
         # Load templates into monitoring tab
         self._monitoring_tab.load_templates(templates)
@@ -101,7 +120,9 @@ class BuffHUD:
         # Set up callbacks
         self._monitoring_tab.set_scan_command(self._on_toggle_scan)
         self._monitoring_tab.set_positioning_command(self._on_toggle_positioning)
+        self._monitoring_tab.set_copy_area_command(self._on_toggle_copy_area_enabled)
         self._monitoring_tab.set_exit_command(self._on_exit)
+        self._monitoring_tab.update_copy_area_status()
         
         self._settings_tab.set_select_command(self._on_select_roi)
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
@@ -116,6 +137,10 @@ class BuffHUD:
             'write', 
             lambda *args: self._reload_library()
         )
+        self._copy_tab.get_search_var().trace_add(
+            'write',
+            lambda *args: self._reload_library()
+        )
         
         # Load library
         self._reload_library()
@@ -123,7 +148,7 @@ class BuffHUD:
         # Enable grab-anywhere if requested
         if grab_anywhere:
             for widget in (self._root, self._tab_monitor_frame, self._tab_settings_frame,
-                          self._tab_buffs_frame, self._tab_debuffs_frame):
+                          self._tab_buffs_frame, self._tab_debuffs_frame, self._tab_copy_frame):
                 widget.bind('<ButtonPress-1>', self._start_move)
                 widget.bind('<B1-Motion>', self._on_motion)
                 
@@ -185,6 +210,10 @@ class BuffHUD:
             else 'POSITIONING_OFF'
         )
         
+    def _on_toggle_copy_area_enabled(self, state: Optional[bool] = None) -> None:
+        """Handle copy area toggle."""
+        self._events.append('COPY_AREA_TOGGLE')
+
     def _on_toggle_active(self, entry_id: str, entry_type: str, var: tk.BooleanVar) -> None:
         """Handle entry active toggle."""
         try:
@@ -264,9 +293,11 @@ class BuffHUD:
         """Reload library data in tabs."""
         buffs_query = self._buffs_tab.get_tree_view().get_search_var().get()
         debuffs_query = self._debuffs_tab.get_tree_view().get_search_var().get()
+        copy_query = self._copy_tab.get_search_var().get()
         
         self._buffs_tab.reload_library(buffs_query)
         self._debuffs_tab.reload_library(debuffs_query)
+        self._copy_tab.reload(copy_query)
         
     def _refresh_texts(self) -> None:
         """Refresh all translatable texts."""
@@ -275,6 +306,7 @@ class BuffHUD:
             self._notebook.tab(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
             self._notebook.tab(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
             self._notebook.tab(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+            self._notebook.tab(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
         except Exception:
             pass
             
@@ -282,7 +314,105 @@ class BuffHUD:
         self._settings_tab.refresh_texts()
         self._buffs_tab.refresh_texts()
         self._debuffs_tab.refresh_texts()
-        
+        self._copy_tab.refresh_texts()
+        self._copy_tab.reload(self._copy_tab.get_search_var().get())
+
+    def _on_add_copy_area(self) -> None:
+        dlg = CopyAreaEditorDialog(self._root)
+        res = dlg.show()
+        if res is None:
+            return
+
+        name_en = res['name'].get('en') or res['name'].get(get_lang(), '')
+        if not name_en:
+            name_en = next(iter(res['name'].values()), '')
+
+        capture_cfg = res.get('capture') or {}
+        cap_w = int(capture_cfg.get('width', 0))
+        cap_h = int(capture_cfg.get('height', 0))
+
+        display_w = int(res.get('width', 0)) or cap_w or 200
+        display_h = int(res.get('height', 0)) or cap_h or 200
+        display_w = max(50, display_w)
+        display_h = max(50, display_h)
+
+        screen_w = self._root.winfo_screenwidth()
+        screen_h = self._root.winfo_screenheight()
+        default_left = max(0, (screen_w - display_w) // 2)
+        default_top = max(0, (screen_h - display_h) // 2)
+
+        left = int(res.get('left', 0))
+        top = int(res.get('top', 0))
+        if left == 0 and top == 0:
+            left, top = default_left, default_top
+
+        entry = make_copy_area_entry(
+            name_en=name_en,
+            image_path=res['image_path'],
+            references=res.get('references'),
+            capture=capture_cfg,
+            left=left,
+            top=top,
+            width=display_w,
+            height=display_h,
+            topmost=res.get('topmost', True),
+        )
+        entry.name.update(res['name'])
+        entry.active = True
+        add_copy_area_entry(entry)
+        self._events.append('COPY_UPDATED')
+        self._reload_library()
+
+    def _on_edit_copy_area(self) -> None:
+        area_id = self._copy_tab.get_selected_id()
+        if not area_id:
+            try:
+                messagebox.showinfo(
+                    title='Info',
+                    message=t('info.select_item', 'Select an item to edit'),
+                )
+            except Exception:
+                pass
+            return
+
+        library = load_library()
+        current = None
+        for item in library.get('copy_areas', []):
+            if item.get('id') == area_id:
+                current = item
+                break
+
+        if current is None:
+            return
+
+        dlg = CopyAreaEditorDialog(self._root, initial=current)
+        res = dlg.show()
+        if res is None:
+            return
+
+        update_copy_area_entry(
+            area_id,
+            {
+                'name': res['name'],
+                'image_path': res['image_path'],
+                'references': res['references'],
+                'capture': res['capture'],
+                'left': res['left'],
+                'top': res['top'],
+                'width': res['width'],
+                'height': res['height'],
+                'topmost': res.get('topmost', True),
+            },
+        )
+        self._events.append('COPY_UPDATED')
+        self._reload_library()
+
+    def _on_toggle_copy_active(self, entry_id: str, var: tk.BooleanVar) -> None:
+        try:
+            update_copy_area_entry(entry_id, {'active': bool(var.get())})
+        except Exception:
+            pass
+
     def read(self, timeout: int = 0) -> Optional[str]:
         """
         Read events from the UI.
@@ -334,6 +464,10 @@ class BuffHUD:
     def get_scanning_enabled(self) -> bool:
         """Check if scanning is enabled."""
         return bool(self._monitoring_tab.get_scanning_var().get())
+
+    def get_copy_area_enabled(self) -> bool:
+        """Check if copy area overlay is enabled."""
+        return bool(self._monitoring_tab.get_copy_area_var().get())
         
     def set_roi_info(self, left: int, top: int, width: int, height: int) -> None:
         """

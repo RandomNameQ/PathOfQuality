@@ -3,6 +3,7 @@
   "tab.settings": "Настройки",
   "tab.buffs": "Баффы",
   "tab.debuffs": "Дебаффы",
+  "tab.copy_area": "Области копирования",
   "settings.select_zone": "Выделить зону",
   "settings.show_analysis": "Показать зону анализа",
   "settings.roi": "ROI",
@@ -33,4 +34,19 @@
   ,"monitoring.scan": "Сканировать"
   ,"monitoring.scanning_on": "Идёт сканирование"
   ,"monitoring.scanning_off": "Сканирование выключено"
+  ,"monitoring.copy_area": "Включить область копирования"
+  ,"monitoring.copy_area_enable": "Включить область копирования"
+  ,"monitoring.copy_area_disable": "Выключить область копирования"
+  ,"copy_area.add": "Добавить область"
+  ,"copy_area.edit": "Редактировать"
+  ,"copy_area.search": "Поиск"
+  ,"copy_area.name": "Имя"
+  ,"copy_area.links": "Связанные элементы"
+  ,"copy_area.position": "Позиция"
+  ,"copy_area.size": "Размер"
+  ,"copy_area.image": "Картинка"
+  ,"copy_area.preview": "Предпросмотр"
+  ,"copy_area.targets": "Связанные баффы / дебаффы"
+  ,"copy_area.select_area": "Выбрать область"
+  ,"copy_area.capture": "Область копирования"
 }

@@ -14,11 +14,11 @@
       "sound_on": null,
       "sound_off": null,
       "position": {
-        "left": 448,
+        "left": 444,
         "top": 528
       },
       "size": {
-        "width": 64,
+        "width": 68,
         "height": 64
       },
       "transparency": 0.5219298245614035,
@@ -29,7 +29,7 @@
       "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
       "type": "buff",
       "name": {
-        "en": "еуык"
+        "en": "Shit"
       },
       "image_path": "C:/Users/user/Downloads/Screenshot_3.png",
       "description": {
@@ -38,7 +38,7 @@
       "sound_on": null,
       "sound_off": null,
       "position": {
-        "left": 512,
+        "left": 413,
         "top": 528
       },
       "size": {
@@ -53,7 +53,7 @@
       "id": "4d28a603-5ab7-4cfc-bd1e-a787d2b5820c",
       "type": "buff",
       "name": {
-        "en": "as"
+        "en": "Sgit1"
       },
       "image_path": "C:/Users/user/Downloads/Screenshot_6.png",
       "description": {
@@ -63,7 +63,7 @@
       "sound_off": null,
       "position": {
         "left": 512,
-        "top": 528
+        "top": 576
       },
       "size": {
         "width": 64,
@@ -74,5 +74,35 @@
       "extend_bottom": 30
     }
   ],
-  "debuffs": []
+  "debuffs": [],
+  "copy_areas": [
+    {
+      "id": "f632167b-b960-40cf-84db-11dc88f5f446",
+      "name": {
+        "en": "Test"
+      },
+      "image_path": "C:/Users/user/Downloads/FR.png",
+      "references": {
+        "buffs": [],
+        "debuffs": []
+      },
+      "position": {
+        "left": 413,
+        "top": 609
+      },
+      "size": {
+        "width": 31,
+        "height": 31
+      },
+      "capture": {
+        "left": 1468,
+        "top": 1025,
+        "width": 51,
+        "height": 48
+      },
+      "active": true,
+      "transparency": 1.0,
+      "topmost": true
+    }
+  ]
 }

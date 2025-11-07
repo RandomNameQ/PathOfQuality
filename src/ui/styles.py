@@ -121,6 +121,25 @@ def configure_modern_styles(root) -> None:
         style.map('DebuffTree.Treeview', 
                  background=[('selected', '#fef2f2')],
                  foreground=[('selected', '#1f2937')])
+
+        # Treeview styles for copy areas
+        style.configure('CopyArea.Treeview',
+                      rowheight=64,
+                      background='#ffffff',
+                      fieldbackground='#ffffff',
+                      foreground=FG_COLOR,
+                      borderwidth=1,
+                      relief='flat')
+        style.configure('CopyArea.Treeview.Heading',
+                      font=('Segoe UI', 10, 'bold'),
+                      background='#f8f9fa',
+                      foreground='#1f2937',
+                      relief='flat',
+                      borderwidth=0,
+                      padding=[8, 8])
+        style.map('CopyArea.Treeview',
+                 background=[('selected', '#d1fae5')],
+                 foreground=[('selected', '#1f2937')])
                  
     except Exception:
         pass

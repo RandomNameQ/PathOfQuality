@@ -3,6 +3,7 @@
   "tab.settings": "Settings",
   "tab.buffs": "Buffs",
   "tab.debuffs": "Debuffs",
+  "tab.copy_area": "Copy Area",
   "settings.select_zone": "Select Area",
   "settings.show_analysis": "Show Analysis Area",
   "settings.roi": "ROI",
@@ -33,4 +34,19 @@
   ,"monitoring.scan": "Scan"
   ,"monitoring.scanning_on": "Scanning"
   ,"monitoring.scanning_off": "Not scanning"
+  ,"monitoring.copy_area": "Enable copy area"
+  ,"monitoring.copy_area_enable": "Enable copy area"
+  ,"monitoring.copy_area_disable": "Disable copy area"
+  ,"copy_area.add": "Add copy area"
+  ,"copy_area.edit": "Edit"
+  ,"copy_area.search": "Search"
+  ,"copy_area.name": "Name"
+  ,"copy_area.links": "Linked items"
+  ,"copy_area.position": "Position"
+  ,"copy_area.size": "Size"
+  ,"copy_area.image": "Image"
+  ,"copy_area.preview": "Preview"
+  ,"copy_area.targets": "Linked buffs / debuffs"
+  ,"copy_area.select_area": "Select area"
+  ,"copy_area.capture": "Capture area"
 }

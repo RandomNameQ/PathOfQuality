@@ -83,6 +83,7 @@ class Application:
         # Initialize overlays
         self.overlay = OverlayHighlighter(self.hud.get_root())
         self.mirrors = IconMirrorsOverlay(self.hud.get_root())
+        self.mirrors.set_copy_enabled(self.hud.get_copy_area_enabled())
         
         # Initialize tray
         self.tray = TrayIcon()
@@ -123,6 +124,31 @@ class Application:
                         self.lib_matcher.refresh()
                     except Exception:
                         pass
+                    continue
+
+                if event == 'COPY_UPDATED':
+                    try:
+                        self.mirrors.update(
+                            [],
+                            None,
+                            (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+                        )
+                    except Exception:
+                        pass
+                    continue
+
+                if event == 'COPY_AREA_TOGGLE':
+                    enabled = self.hud.get_copy_area_enabled()
+                    self.mirrors.set_copy_enabled(enabled)
+                    try:
+                        self.mirrors.update(
+                            [],
+                            None,
+                            (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+                        )
+                    except Exception:
+                        pass
+                    continue
                         
                 # Handle overlay toggle
                 self._handle_overlay_toggle()

@@ -4,9 +4,11 @@ Displays detected buff/debuff icons as overlay windows.
 """
 import tkinter as tk
 import cv2
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Set
 from PIL import Image
-from src.buffs.library import load_library, update_entry
+from src.buffs.library import load_library, update_entry, update_copy_area_entry
+from src.capture.base_capture import Region
+from src.capture.mss_capture import MSSCapture
 from src.ui.mirror_window import MirrorWindow
 from src.ui.positioning import PositioningHelper
 
@@ -27,6 +29,8 @@ class IconMirrorsOverlay:
         self._positioning: bool = False
         self._entry_types: Dict[str, str] = {}
         self._positioning_helper = PositioningHelper(grid_size=16, snap_threshold=8)
+        self._copy_capture: Optional[MSSCapture] = None
+        self._copy_enabled: bool = True
         
     def _get_or_create(self, entry_id: str) -> MirrorWindow:
         """Get existing or create new mirror window."""
@@ -35,6 +39,143 @@ class IconMirrorsOverlay:
             m = MirrorWindow(self._master)
             self._mirrors[entry_id] = m
         return m
+
+    def set_copy_enabled(self, enabled: bool) -> None:
+        """Enable or disable copy area rendering."""
+        self._copy_enabled = bool(enabled)
+
+    def _ensure_copy_capture(self) -> MSSCapture:
+        if self._copy_capture is None:
+            self._copy_capture = MSSCapture()
+        return self._copy_capture
+
+    def _grab_copy_region(self, left: int, top: int, width: int, height: int):
+        if width <= 0 or height <= 0:
+            return None
+        try:
+            capture = self._ensure_copy_capture()
+            region = Region(left=int(left), top=int(top), width=int(width), height=int(height))
+            return capture.grab(region)
+        except Exception:
+            return None
+
+    def _build_copy_preview(self, item: Dict) -> Image.Image:
+        capture_cfg = item.get('capture', {}) or {}
+        left = int(capture_cfg.get('left', 0))
+        top = int(capture_cfg.get('top', 0))
+        width = int(capture_cfg.get('width', 0))
+        height = int(capture_cfg.get('height', 0))
+
+        frame = self._grab_copy_region(left, top, width, height)
+        if frame is None:
+            base_w = max(1, int(item.get('size', {}).get('width', max(64, width))))
+            base_h = max(1, int(item.get('size', {}).get('height', max(64, height))))
+            placeholder = Image.new('RGBA', (base_w, base_h), (0, 255, 0, 90))
+            return placeholder
+
+        try:
+            rgba = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+            img = Image.fromarray(rgba)
+        except Exception:
+            img = Image.new('RGBA', (max(1, width), max(1, height)), (0, 0, 0, 0))
+
+        size_cfg = item.get('size', {}) or {}
+        out_w = int(size_cfg.get('width', img.width))
+        out_h = int(size_cfg.get('height', img.height))
+        out_w = max(1, out_w)
+        out_h = max(1, out_h)
+
+        try:
+            img = img.resize((out_w, out_h), Image.LANCZOS)
+        except Exception:
+            pass
+
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+        return img
+
+    def _update_copy_areas(
+        self,
+        copy_areas: List[Dict],
+        visible_ids: Set[str],
+        show_ids: List[str],
+    ) -> None:
+        if not self._copy_enabled and not self._positioning:
+            return
+
+        for area in copy_areas:
+            area_id = area.get('id')
+            if not area_id:
+                continue
+
+            m = self._mirrors.get(area_id)
+
+            if not bool(area.get('active', False)):
+                if m is not None:
+                    m.hide()
+                continue
+
+            refs = area.get('references', {}) or {}
+            linked_ids: Set[str] = set()
+            linked_ids.update(str(x) for x in refs.get('buffs', []))
+            linked_ids.update(str(x) for x in refs.get('debuffs', []))
+
+            if not self._positioning and linked_ids and linked_ids & visible_ids:
+                if m is not None:
+                    m.hide()
+                continue
+
+            capture_cfg = area.get('capture', {}) or {}
+            cap_left = int(capture_cfg.get('left', 0))
+            cap_top = int(capture_cfg.get('top', 0))
+            cap_width = int(capture_cfg.get('width', 0))
+            cap_height = int(capture_cfg.get('height', 0))
+
+            frame = self._grab_copy_region(cap_left, cap_top, cap_width, cap_height)
+            if frame is None:
+                img = self._build_copy_preview(area)
+            else:
+                try:
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(rgb)
+                except Exception:
+                    img = self._build_copy_preview(area)
+
+            size_cfg = area.get('size', {}) or {}
+            out_w = int(size_cfg.get('width', cap_width))
+            out_h = int(size_cfg.get('height', cap_height))
+            out_w = max(1, out_w)
+            out_h = max(1, out_h)
+
+            try:
+                img = img.resize((out_w, out_h), Image.LANCZOS)
+            except Exception:
+                pass
+
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+
+            m = self._get_or_create(area_id)
+            if m.is_hovered():
+                continue
+
+            pos_cfg = area.get('position', {}) or {}
+            alpha = float(area.get('transparency', 1.0))
+            topmost_flag = bool(area.get('topmost', True))
+
+            m.update_image(img)
+            m.show(
+                int(pos_cfg.get('left', 0)),
+                int(pos_cfg.get('top', 0)),
+                int(img.width),
+                int(img.height),
+                alpha=alpha,
+                topmost=topmost_flag or self._positioning,
+            )
+            show_ids.append(area_id)
         
     def update(
         self, 
@@ -60,6 +201,8 @@ class IconMirrorsOverlay:
         for bucket in ("buffs", "debuffs"):
             for it in lib.get(bucket, []):
                 entries[it.get('id')] = it
+                it['__topmost_flag'] = True
+                it['__topmost_flag'] = True
                 
         show_ids: List[str] = []
         
@@ -71,9 +214,14 @@ class IconMirrorsOverlay:
             pos = item.get('position', {"left": 0, "top": 0})
             size = item.get('size', {"width": 64, "height": 64})
             alpha = float(item.get('transparency', 1.0))
+            topmost_flag = bool(item.get('__topmost_flag', True))
             extend_bottom = int(item.get('extend_bottom', 0))
             if extend_bottom < 0:
                 extend_bottom = 0
+
+            m = self._get_or_create(entry_id)
+            if m.is_hovered():
+                continue
                 
             # Extract detected region from frame
             x, y, w, h = (
@@ -114,16 +262,19 @@ class IconMirrorsOverlay:
             except Exception:
                 continue
                 
-            m = self._get_or_create(entry_id)
             m.update_image(img)
             m.show(
                 int(pos.get('left', 0)),
                 int(pos.get('top', 0)),
                 int(img.width),
                 int(img.height),
-                alpha=alpha
+                alpha=alpha,
+                topmost=topmost_flag or self._positioning,
             )
             
+        visible_ids = set(x for x in show_ids if x)
+        self._update_copy_areas(lib.get('copy_areas', []), visible_ids, show_ids)
+
         # Hide windows not in current results
         for k, m in list(self._mirrors.items()):
             if k not in show_ids:
@@ -149,23 +300,35 @@ class IconMirrorsOverlay:
                     self._entry_types[it.get('id')] = (
                         'buff' if bucket == 'buffs' else 'debuff'
                     )
+
+        for it in lib.get('copy_areas', []):
+            # copy areas доступны для позиционирования всегда,
+            # даже если ещё не активированы в общем режиме
+            active_items.append(it)
+            self._entry_types[it.get('id')] = 'copy'
                     
         for it in active_items:
             entry_id = it.get('id')
             pos = it.get('position', {"left": 0, "top": 0})
             size = it.get('size', {"width": 64, "height": 64})
             alpha = float(it.get('transparency', 1.0))
-            path = it.get('image_path') or ''
-            
-            try:
-                base_img = Image.open(path).convert('RGBA') if path else \
-                          Image.new('RGBA', (64, 64), (0, 0, 0, 0))
-            except Exception:
-                base_img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
-                
-            # Ensure minimum comfortable size
-            size_w = max(64, int(size.get('width', 64)))
-            size_h = max(64, int(size.get('height', 64)))
+            entry_type = self._entry_types.get(entry_id, 'buff')
+
+            if entry_type == 'copy':
+                base_img = self._build_copy_preview(it)
+                size_w = max(1, int(size.get('width', base_img.width)))
+                size_h = max(1, int(size.get('height', base_img.height)))
+            else:
+                path = it.get('image_path') or ''
+
+                try:
+                    base_img = Image.open(path).convert('RGBA') if path else \
+                              Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+                except Exception:
+                    base_img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+
+                size_w = max(64, int(size.get('width', 64)))
+                size_h = max(64, int(size.get('height', 64)))
             
             m = self._get_or_create(entry_id)
             m.enable_positioning(
@@ -179,14 +342,9 @@ class IconMirrorsOverlay:
                 int(pos.get('top', 0)),
                 size_w,
                 size_h,
-                alpha=alpha
+                alpha=alpha,
+                topmost=True
             )
-            
-            try:
-                m.top.lift()
-                m.top.attributes('-topmost', True)
-            except Exception:
-                pass
                 
         self._positioning = True
         
@@ -206,12 +364,20 @@ class IconMirrorsOverlay:
                 entry_type = self._entry_types.get(entry_id) or 'buff'
                 
                 try:
-                    update_entry(entry_id, entry_type, {
-                        'left': int(left),
-                        'top': int(top),
-                        'width': int(width),
-                        'height': int(height),
-                    })
+                    if entry_type == 'copy':
+                        update_copy_area_entry(entry_id, {
+                            'left': int(left),
+                            'top': int(top),
+                            'width': int(width),
+                            'height': int(height),
+                        })
+                    else:
+                        update_entry(entry_id, entry_type, {
+                            'left': int(left),
+                            'top': int(top),
+                            'width': int(width),
+                            'height': int(height),
+                        })
                 except Exception:
                     pass
                     
@@ -227,4 +393,10 @@ class IconMirrorsOverlay:
         for m in list(self._mirrors.values()):
             m.close()
         self._mirrors.clear()
+        if self._copy_capture is not None:
+            try:
+                self._copy_capture.close()
+            except Exception:
+                pass
+            self._copy_capture = None
 

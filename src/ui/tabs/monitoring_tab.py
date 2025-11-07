@@ -48,6 +48,37 @@ class MonitoringTab:
             style='Toggle.TCheckbutton',
         )
         self._btn_positioning.pack(padx=12, pady=(0, 12))
+
+        # Copy area enable toggle
+        copy_frame = tk.Frame(self.frame, bg=BG_COLOR)
+        copy_frame.pack(padx=12, pady=(0, 12))
+
+        self._copy_area_var = tk.BooleanVar(value=False)
+        self._copy_area_callback = None
+        self._btn_copy_area = ttk.Button(
+            copy_frame,
+            text=t('monitoring.copy_area_disable', 'Disable copy area'),
+            style='Action.TButton',
+            command=self._on_copy_area_click,
+        )
+        self._btn_copy_area.pack(side='left')
+
+        self._copy_canvas = tk.Canvas(
+            copy_frame,
+            width=16,
+            height=16,
+            highlightthickness=0,
+            bg=BG_COLOR,
+        )
+        self._copy_canvas.pack(side='left', padx=(8, 0))
+        self._copy_circle = self._copy_canvas.create_oval(
+            2,
+            2,
+            14,
+            14,
+            fill='#10b981',
+            outline='#9ca3af',
+        )
         
         # Icons frame for detected buffs
         self._icons_frame = tk.Frame(self.frame, bg=BG_COLOR)
@@ -106,6 +137,11 @@ class MonitoringTab:
             style='Modern.TButton'
         )
         self._btn_exit.pack(padx=12, pady=(8, 12))
+
+        self.update_copy_area_status()
+
+        # Sync indicator colors
+        self.update_copy_area_status()
         
     def load_templates(self, templates: List[Tuple[str, str]]) -> None:
         """
@@ -157,12 +193,14 @@ class MonitoringTab:
             text=f"Найдены: {', '.join(found_names) if found_names else '—'}"
         )
         
-        # Update circle color
+        # Update indicators
         try:
             color = '#10b981' if self._scanning_var.get() else '#ef4444'
             self._scan_canvas.itemconfig(self._scan_circle, fill=color)
         except Exception:
             pass
+
+        self.update_copy_area_status()
             
     def set_scan_command(self, command) -> None:
         """Set scan button command callback."""
@@ -171,6 +209,10 @@ class MonitoringTab:
     def set_positioning_command(self, command) -> None:
         """Set positioning toggle command callback."""
         self._btn_positioning.configure(command=command)
+
+    def set_copy_area_command(self, command) -> None:
+        """Set copy area toggle command callback."""
+        self._copy_area_callback = command
         
     def set_exit_command(self, command) -> None:
         """Set exit button command callback."""
@@ -183,12 +225,35 @@ class MonitoringTab:
     def get_positioning_var(self) -> tk.BooleanVar:
         """Get positioning state variable."""
         return self._positioning_var
+
+    def get_copy_area_var(self) -> tk.BooleanVar:
+        """Get copy area state variable."""
+        return self._copy_area_var
         
     def update_scan_status(self, scanning: bool) -> None:
         """Update scan status display."""
         color = '#10b981' if scanning else '#ef4444'
         try:
             self._scan_canvas.itemconfig(self._scan_circle, fill=color)
+        except Exception:
+            pass
+
+        self.update_copy_area_status()
+
+    def update_copy_area_status(self) -> None:
+        """Update copy area indicator color."""
+        try:
+            copy_color = '#10b981' if self._copy_area_var.get() else '#ef4444'
+            self._copy_canvas.itemconfig(self._copy_circle, fill=copy_color)
+        except Exception:
+            pass
+
+        try:
+            if self._copy_area_var.get():
+                text = t('monitoring.copy_area_disable', 'Disable copy area')
+            else:
+                text = t('monitoring.copy_area_enable', 'Enable copy area')
+            self._btn_copy_area.configure(text=text)
         except Exception:
             pass
             
@@ -229,6 +294,18 @@ class MonitoringTab:
                 self._scan_status.configure(text=t('monitoring.scanning_on', 'Scanning'))
             else:
                 self._scan_status.configure(text=t('monitoring.scanning_off', 'Not scanning'))
+            self.update_copy_area_status()
         except Exception:
             pass
+
+    def _on_copy_area_click(self) -> None:
+        new_state = not self._copy_area_var.get()
+        self._copy_area_var.set(new_state)
+        self.update_copy_area_status()
+        callback = self._copy_area_callback
+        if callable(callback):
+            try:
+                callback(new_state)
+            except TypeError:
+                callback()
 
