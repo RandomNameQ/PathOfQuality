@@ -68,6 +68,8 @@ class MirrorWindow:
         self._scale: float = 1.0
         self._position_width: int = 0
         self._position_height: int = 0
+        self._last_geometry: Optional[Tuple[int, int, int, int]] = None
+        self._last_topmost: Optional[bool] = None
 
         self._init_clickthrough()
         self._apply_clickthrough(True)
@@ -161,11 +163,20 @@ class MirrorWindow:
             height: Window height
             alpha: Transparency (0.0 to 1.0)
         """
-        self.top.geometry(f"{width}x{height}+{left}+{top}")
+        was_visible = self.visible
+        topmost_changed = False
+        
+        new_geom = (int(width), int(height), int(left), int(top))
+        if self._last_geometry != new_geom:
+            self.top.geometry(f"{new_geom[0]}x{new_geom[1]}+{new_geom[2]}+{new_geom[3]}")
+            self._last_geometry = new_geom
         
         try:
             self.top.attributes('-alpha', float(alpha))
-            self.top.attributes('-topmost', bool(topmost))
+            if self._last_topmost != bool(topmost):
+                self.top.attributes('-topmost', bool(topmost))
+                self._last_topmost = bool(topmost)
+                topmost_changed = True
         except Exception:
             pass
 
@@ -182,6 +193,13 @@ class MirrorWindow:
         if not self.visible:
             self.top.deiconify()
             self.visible = True
+        
+        # Lift window only when first shown or topmost changed to ensure proper z-ordering
+        if not was_visible or topmost_changed:
+            try:
+                self.top.lift()
+            except Exception:
+                pass
             
     def update_image(self, img: Image.Image) -> None:
         """
@@ -256,6 +274,16 @@ class MirrorWindow:
             scaled = base_img
             
         self.update_image(scaled)
+        try:
+            self.label.configure(
+                highlightthickness=3,
+                highlightbackground='#ef4444',
+                highlightcolor='#ef4444',
+                bd=0,
+                relief='solid',
+            )
+        except Exception:
+            pass
 
         def _apply_resize(new_w: int, new_h: int) -> None:
             new_w = max(8, int(new_w))
@@ -362,6 +390,11 @@ class MirrorWindow:
         self._on_snap = None
         self._positioning_enabled = False
         self._apply_clickthrough(True)
+        try:
+            self.label.configure(highlightthickness=0)
+        except Exception:
+            pass
+        self._last_topmost = None
         
     def get_geometry(self) -> Tuple[int, int, int, int]:
         """

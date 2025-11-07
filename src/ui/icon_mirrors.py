@@ -99,11 +99,19 @@ class IconMirrorsOverlay:
         copy_areas: List[Dict],
         visible_ids: Set[str],
         show_ids: List[str],
-    ) -> None:
+        topmost_filter: Optional[bool] = None,
+    ) -> List[str]:
+        """Update copy areas and return list of IDs that should be lifted."""
         if not self._copy_enabled and not self._positioning:
-            return
+            return []
 
+        lifted_ids: List[str] = []
         for area in copy_areas:
+            # Filter by topmost flag if specified
+            if topmost_filter is not None:
+                area_topmost = bool(area.get('topmost', True))
+                if area_topmost != topmost_filter:
+                    continue
             area_id = area.get('id')
             if not area_id:
                 continue
@@ -164,7 +172,6 @@ class IconMirrorsOverlay:
 
             pos_cfg = area.get('position', {}) or {}
             alpha = float(area.get('transparency', 1.0))
-            topmost_flag = bool(area.get('topmost', True))
 
             m.update_image(img)
             m.show(
@@ -173,9 +180,15 @@ class IconMirrorsOverlay:
                 int(img.width),
                 int(img.height),
                 alpha=alpha,
-                topmost=topmost_flag or self._positioning,
+                topmost=True,
             )
             show_ids.append(area_id)
+            
+            # Track IDs that should be lifted (topmost=True copy areas)
+            if topmost_filter is True:
+                lifted_ids.append(area_id)
+        
+        return lifted_ids
         
     def update(
         self, 
@@ -201,20 +214,23 @@ class IconMirrorsOverlay:
         for bucket in ("buffs", "debuffs"):
             for it in lib.get(bucket, []):
                 entries[it.get('id')] = it
-                it['__topmost_flag'] = True
-                it['__topmost_flag'] = True
                 
         show_ids: List[str] = []
+        visible_ids: Set[str] = set()
         
+        # First pass: show copy areas with topmost=False (they should be below buffs/debuffs)
+        _ = self._update_copy_areas(lib.get('copy_areas', []), visible_ids, show_ids, topmost_filter=False)
+        
+        # Process buffs/debuffs
         for r in results:
             entry_id = r.get('id')
             show_ids.append(entry_id)
+            visible_ids.add(entry_id)  # Track visible buffs/debuffs
             
             item = entries.get(entry_id) or {}
             pos = item.get('position', {"left": 0, "top": 0})
             size = item.get('size', {"width": 64, "height": 64})
             alpha = float(item.get('transparency', 1.0))
-            topmost_flag = bool(item.get('__topmost_flag', True))
             extend_bottom = int(item.get('extend_bottom', 0))
             if extend_bottom < 0:
                 extend_bottom = 0
@@ -269,11 +285,21 @@ class IconMirrorsOverlay:
                 int(img.width),
                 int(img.height),
                 alpha=alpha,
-                topmost=topmost_flag or self._positioning,
+                topmost=True,
             )
-            
-        visible_ids = set(x for x in show_ids if x)
-        self._update_copy_areas(lib.get('copy_areas', []), visible_ids, show_ids)
+        
+        # Second pass: show copy areas with topmost=True (they should be above buffs/debuffs)
+        topmost_copy_ids = self._update_copy_areas(lib.get('copy_areas', []), visible_ids, show_ids, topmost_filter=True)
+        
+        # Lift topmost copy areas, but only if window state changed
+        if set(show_ids) != set(self._last_ids):
+            for copy_id in topmost_copy_ids:
+                m = self._mirrors.get(copy_id)
+                if m and m.visible:
+                    try:
+                        m.top.lift()
+                    except Exception:
+                        pass
 
         # Hide windows not in current results
         for k, m in list(self._mirrors.items()):

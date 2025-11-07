@@ -111,24 +111,8 @@ class MonitoringTab:
         )
         
         # Status text
-        self._scan_status = tk.Label(
-            scan_frame, 
-            text=t('monitoring.scanning_off', 'Not scanning'),
-            bg=BG_COLOR, 
-            fg=FG_COLOR, 
-            font=('Segoe UI', 10)
-        )
-        self._scan_status.pack(side='left', padx=(8, 0))
-        
-        # Found buffs status
-        self._status = tk.Label(
-            self.frame, 
-            text='Найдены: —', 
-            bg=BG_COLOR, 
-            fg=FG_COLOR, 
-            font=('Segoe UI', 10)
-        )
-        self._status.pack(padx=12, pady=(8, 12))
+        self._scan_status = None
+        self._status = None
         
         # Exit button
         self._btn_exit = ttk.Button(
@@ -189,10 +173,6 @@ class MonitoringTab:
                 if lbl.winfo_manager() != '':
                     lbl.pack_forget()
                     
-        self._status.configure(
-            text=f"Найдены: {', '.join(found_names) if found_names else '—'}"
-        )
-        
         # Update indicators
         try:
             color = '#10b981' if self._scanning_var.get() else '#ef4444'
@@ -277,11 +257,8 @@ class MonitoringTab:
         """Animate scanning dots."""
         if not self._scanning_var.get():
             return
-        patterns = ["", " .", " . .", " . . ."]
-        self._scan_status.configure(
-            text=f"{t('monitoring.scanning_on', 'Scanning')}{patterns[self._scan_dots_phase]}"
-        )
-        self._scan_dots_phase = (self._scan_dots_phase + 1) % len(patterns)
+        # Animation removed - status label no longer exists
+        self._scan_dots_phase = (self._scan_dots_phase + 1) % 4
         self._scan_dots_after_id = root.after(500, lambda: self._animate_scan_dots(root))
         
     def refresh_texts(self) -> None:
@@ -290,10 +267,6 @@ class MonitoringTab:
             self._btn_positioning.configure(text=t('monitoring.positioning', 'Positioning'))
             self._btn_scan.configure(text=t('monitoring.scan', 'Scan'))
             self._btn_exit.configure(text=t('button.exit', 'Exit'))
-            if self._scanning_var.get():
-                self._scan_status.configure(text=t('monitoring.scanning_on', 'Scanning'))
-            else:
-                self._scan_status.configure(text=t('monitoring.scanning_off', 'Not scanning'))
             self.update_copy_area_status()
         except Exception:
             pass
