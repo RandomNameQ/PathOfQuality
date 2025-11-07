@@ -40,6 +40,18 @@ class MonitoringTab:
         )
         header.pack(padx=12, pady=(12, 8))
         
+        # Status message
+        self._status_label = tk.Label(
+            self.frame,
+            text='',
+            bg=BG_COLOR,
+            fg='#9ca3af',
+            font=('Segoe UI', 9),
+            wraplength=720,
+            justify='center'
+        )
+        self._status_label.pack(padx=12, pady=(0, 12))
+
         # Positioning mode toggle
         self._btn_positioning = ttk.Checkbutton(
             self.frame,
@@ -109,10 +121,6 @@ class MonitoringTab:
             fill='#ef4444', 
             outline='#9ca3af'
         )
-        
-        # Status text
-        self._scan_status = None
-        self._status = None
         
         # Exit button
         self._btn_exit = ttk.Button(
@@ -281,4 +289,19 @@ class MonitoringTab:
                 callback(new_state)
             except TypeError:
                 callback()
+
+    def set_status(self, message: str = '', level: str = 'info') -> None:
+        """Set status message displayed on the monitoring tab."""
+        colors = {
+            'info': '#9ca3af',
+            'success': '#10b981',
+            'warning': '#f59e0b',
+            'error': '#ef4444',
+        }
+        text = message or ''
+        color = colors.get(level, FG_COLOR)
+        try:
+            self._status_label.configure(text=text, fg=color)
+        except Exception:
+            pass
 

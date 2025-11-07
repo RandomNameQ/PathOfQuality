@@ -192,16 +192,8 @@ class BuffHUD:
         
     def _on_toggle_scan(self) -> None:
         """Handle scan button toggle."""
-        scan_var = self._monitoring_tab.get_scanning_var()
-        scan_var.set(not scan_var.get())
-        self._events.append('SCAN_ON' if scan_var.get() else 'SCAN_OFF')
-        
-        self._monitoring_tab.update_scan_status(scan_var.get())
-        
-        if scan_var.get():
-            self._monitoring_tab.start_scan_animation(self._root)
-        else:
-            self._monitoring_tab.stop_scan_animation(self._root)
+        new_state = not bool(self._monitoring_tab.get_scanning_var().get())
+        self.set_scanning_state(new_state, notify=True)
             
     def _on_toggle_positioning(self) -> None:
         """Handle positioning mode toggle."""
@@ -212,6 +204,12 @@ class BuffHUD:
         
     def _on_toggle_copy_area_enabled(self, state: Optional[bool] = None) -> None:
         """Handle copy area toggle."""
+        if state is None:
+            new_state = not bool(self._monitoring_tab.get_copy_area_var().get())
+        else:
+            new_state = bool(state)
+
+        self.set_copy_area_state(new_state)
         self._events.append('COPY_AREA_TOGGLE')
 
     def _on_toggle_active(self, entry_id: str, entry_type: str, var: tk.BooleanVar) -> None:
@@ -452,6 +450,41 @@ class BuffHUD:
             found_names: List of found buff names
         """
         self._monitoring_tab.update_found(found_names)
+
+    def set_status_message(self, message: str = '', level: str = 'info') -> None:
+        """Set status message on the monitoring tab."""
+        self._monitoring_tab.set_status(message, level)
+
+    def set_scanning_state(self, enabled: bool, notify: bool = False) -> None:
+        """Programmatically update scanning toggle state."""
+        scan_var = self._monitoring_tab.get_scanning_var()
+        current = bool(scan_var.get())
+        if current == enabled:
+            return
+
+        scan_var.set(enabled)
+        self._monitoring_tab.update_scan_status(enabled)
+
+        if enabled:
+            self._monitoring_tab.start_scan_animation(self._root)
+        else:
+            self._monitoring_tab.stop_scan_animation(self._root)
+
+        if notify:
+            self._events.append('SCAN_ON' if enabled else 'SCAN_OFF')
+
+    def set_copy_area_state(self, enabled: bool, notify: bool = False) -> None:
+        """Programmatically update copy area toggle state."""
+        copy_var = self._monitoring_tab.get_copy_area_var()
+        current = bool(copy_var.get())
+        if current == enabled:
+            return
+
+        copy_var.set(enabled)
+        self._monitoring_tab.update_copy_area_status()
+
+        if notify:
+            self._events.append('COPY_AREA_TOGGLE')
         
     def get_overlay_enabled(self) -> bool:
         """Check if overlay is enabled."""

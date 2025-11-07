@@ -2,6 +2,19 @@
 PathOfQuality - Buff HUD Application
 Refactored version with modular architecture.
 """
+import sys
+import os
+
+# Fix console encoding for Windows
+if sys.platform.startswith('win'):
+    try:
+        # Set console to UTF-8
+        os.system('chcp 65001 > nul 2>&1')
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 from src.i18n.locale import set_lang
 from src.utils.settings import load_settings
 from src.utils.screen import get_screen_size

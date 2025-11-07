@@ -2,8 +2,9 @@
 Main application logic and event loop.
 """
 import os
+import sys
 import cv2
-from typing import List
+from typing import List, Optional
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
@@ -14,10 +15,65 @@ from src.ui.overlay import OverlayHighlighter
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
 from src.utils.settings import load_settings, save_settings
+from src.i18n.locale import t
+
+# Windows API for checking active process
+if sys.platform.startswith('win'):
+    import ctypes
+    from ctypes import wintypes
+
+
+def get_foreground_process_name() -> Optional[str]:
+    """Get the name of the process that owns the foreground window."""
+    if not sys.platform.startswith('win'):
+        return None
+    
+    try:
+        # Get foreground window handle
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        if not hwnd:
+            return None
+        
+        # Get process ID from window handle
+        process_id = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
+        
+        # Open process to get executable name
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        h_process = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, 
+            False, 
+            process_id.value
+        )
+        
+        if not h_process:
+            return None
+        
+        try:
+            # Get executable path
+            exe_path = ctypes.create_unicode_buffer(1024)
+            size = wintypes.DWORD(1024)
+            if ctypes.windll.kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
+                # Extract filename from path
+                full_path = exe_path.value
+                return os.path.basename(full_path)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(h_process)
+    except Exception:
+        pass
+    
+    return None
 
 
 class Application:
     """Main application controller."""
+    
+    # Allowed process names for scanning
+    ALLOWED_PROCESSES = {
+        'PathOfExile.exe',
+        'PathOfExileSteam.exe', 
+        'PathOfExile2Steam.exe',
+    }
     
     def __init__(self, settings_path: str = 'settings.json'):
         """
@@ -43,6 +99,9 @@ class Application:
         self.last_found: List[str] = []
         self.overlay_enabled_last = False
         self.positioning_enabled_last = False
+        self._scan_user_requested = False
+        self._copy_user_requested = False
+        self._focus_state_last: Optional[bool] = None
         
     def initialize(self, roi: Region) -> None:
         """
@@ -91,6 +150,12 @@ class Application:
         
         # Save initial ROI snapshot
         self._save_roi_snapshot()
+
+        # Initialize focus-dependent state
+        self._scan_user_requested = self.hud.get_scanning_enabled()
+        self._copy_user_requested = self.hud.get_copy_area_enabled()
+        self._focus_state_last = None
+        self.hud.set_status_message('')
         
     def _save_roi_snapshot(self) -> None:
         """Save ROI snapshot for debugging."""
@@ -107,65 +172,74 @@ class Application:
     def run(self) -> None:
         """Run main application loop."""
         scan_interval_ms = int(self.settings.get("scan_interval_ms", 50))
-        
+
         print(f"ROI: left={self.roi.left}, top={self.roi.top}, width={self.roi.width}, height={self.roi.height}")
         print(f"Порог совпадения: {self.matcher.threshold}")
         print(f"Интервал опроса: {scan_interval_ms} мс")
-        
+
         try:
             while True:
                 event = self.hud.read(timeout=scan_interval_ms)
-                
+                game_is_active = self._is_allowed_process_active()
+
                 if event == 'EXIT' or self.tray.is_exit_requested():
                     break
-                    
+
+                refresh_copy = False
+                skip_frame_processing = False
+
                 if event == 'LIBRARY_UPDATED':
                     try:
                         self.lib_matcher.refresh()
                     except Exception:
                         pass
-                    continue
+                    skip_frame_processing = True
 
-                if event == 'COPY_UPDATED':
-                    try:
-                        self.mirrors.update(
-                            [],
-                            None,
-                            (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
-                        )
-                    except Exception:
-                        pass
-                    continue
+                elif event == 'COPY_UPDATED':
+                    refresh_copy = True
+                    skip_frame_processing = True
 
-                if event == 'COPY_AREA_TOGGLE':
-                    enabled = self.hud.get_copy_area_enabled()
-                    self.mirrors.set_copy_enabled(enabled)
-                    try:
-                        self.mirrors.update(
-                            [],
-                            None,
-                            (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
-                        )
-                    except Exception:
-                        pass
-                    continue
-                        
-                # Handle overlay toggle
-                self._handle_overlay_toggle()
-                
-                # Handle positioning mode toggle
-                self._handle_positioning_toggle()
-                
-                # Handle ROI selection
-                if event == 'SELECT_ROI':
+                elif event == 'SELECT_ROI':
                     self._handle_roi_selection()
-                    
-                # Scan for buffs if enabled
-                if self.hud.get_scanning_enabled():
+                    skip_frame_processing = True
+
+                elif event == 'SCAN_ON':
+                    self._scan_user_requested = True
+
+                elif event == 'SCAN_OFF':
+                    self._scan_user_requested = False
+
+                elif event == 'COPY_AREA_TOGGLE':
+                    self._copy_user_requested = self.hud.get_copy_area_enabled()
+                    refresh_copy = True
+
+                if self.tray.is_exit_requested():
+                    break
+
+                self._apply_focus_policy(game_is_active)
+
+                if refresh_copy:
+                    self._refresh_copy_overlays()
+
+                # Allow positioning toggles even when the game is unfocused
+                self._handle_positioning_toggle()
+
+                if skip_frame_processing:
+                    if not game_is_active:
+                        self._clear_results()
+                    continue
+
+                if not game_is_active:
+                    self._clear_results()
+                    continue
+
+                self._handle_overlay_toggle()
+
+                if self._scan_user_requested:
                     self._scan_frame()
                 else:
                     self._clear_results()
-                    
+
         finally:
             self._cleanup()
             
@@ -253,6 +327,65 @@ class Application:
             self.mirrors.update([], None, (self.roi.left, self.roi.top, self.roi.width, self.roi.height))
         except Exception:
             pass
+
+    def _refresh_copy_overlays(self) -> None:
+        """Refresh copy area overlays after configuration changes."""
+        try:
+            self.mirrors.update(
+                [],
+                None,
+                (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+            )
+        except Exception:
+            pass
+
+    def _apply_focus_policy(self, game_is_active: bool) -> None:
+        """Pause or resume application features based on foreground focus."""
+        if game_is_active:
+            if self._focus_state_last is False:
+                self.hud.set_status_message('')
+
+            self.mirrors.set_copy_enabled(self._copy_user_requested)
+        else:
+            if self._focus_state_last in (True, None):
+                self.hud.set_status_message(
+                    t(
+                        'status.game_focus_required',
+                        'Focus the Path of Exile window to resume.',
+                    ),
+                    level='warning',
+                )
+
+            if self.overlay_enabled_last:
+                try:
+                    self.overlay.hide()
+                except Exception:
+                    pass
+                self.overlay_enabled_last = False
+
+            self.mirrors.set_copy_enabled(False)
+
+        self._focus_state_last = game_is_active
+    
+    def _is_allowed_process_active(self) -> bool:
+        """Check if one of the allowed game processes is in foreground (focus)."""
+        foreground_process = get_foreground_process_name()
+        
+        if foreground_process is None:
+            # Can't determine - assume not active
+            return False
+        
+        is_game_focused = foreground_process in self.ALLOWED_PROCESSES
+        
+        # Debug: print when state changes
+        if not hasattr(self, '_last_foreground') or self._last_foreground != foreground_process:
+            if is_game_focused:
+                print(f"[Game Focus] Game in focus: {foreground_process}")
+            else:
+                print(f"[Game Focus] Other window focused: {foreground_process}")
+            self._last_foreground = foreground_process
+        
+        return is_game_focused
             
     def _cleanup(self) -> None:
         """Cleanup application resources."""
