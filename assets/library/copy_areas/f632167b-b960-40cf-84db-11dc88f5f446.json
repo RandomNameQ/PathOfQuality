@@ -1,0 +1,31 @@
+{
+  "id": "f632167b-b960-40cf-84db-11dc88f5f446",
+  "name": {
+    "en": "Test"
+  },
+  "image_path": "C:/Users/user/Downloads/FR.png",
+  "references": {
+    "buffs": [
+      "322dafd0-06ec-4c49-8d19-d2825204663b",
+      "4d28a603-5ab7-4cfc-bd1e-a787d2b5820c"
+    ],
+    "debuffs": []
+  },
+  "position": {
+    "left": 481,
+    "top": 528
+  },
+  "size": {
+    "width": 39,
+    "height": 39
+  },
+  "capture": {
+    "left": 1468,
+    "top": 1025,
+    "width": 51,
+    "height": 48
+  },
+  "active": true,
+  "transparency": 1.0,
+  "topmost": true
+}

@@ -1,0 +1,24 @@
+{
+  "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
+  "type": "buff",
+  "name": {
+    "en": "Shit"
+  },
+  "image_path": "C:/Users/user/Downloads/Screenshot_3.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 481,
+    "top": 528
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 30
+}

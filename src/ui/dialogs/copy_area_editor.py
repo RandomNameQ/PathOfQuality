@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Dict, List, Optional
 
-from src.buffs.library import load_library
+from src.buffs.library import load_library, copy_image_to_library
 from src.i18n.locale import t, get_lang
 from src.ui.roi_selector import select_roi
 
@@ -90,7 +90,13 @@ class CopyAreaEditorDialog:
                 filetypes=[('Images', '*.png;*.jpg;*.jpeg')],
             )
             if path:
-                img_var.set(path)
+                # Copy image to library
+                copied_path = copy_image_to_library(path)
+                if copied_path:
+                    img_var.set(copied_path)
+                else:
+                    # Fallback to original path if copy failed
+                    img_var.set(path)
 
         ttk.Button(img_row, text='...', width=3, command=choose_image).pack(side='left')
 

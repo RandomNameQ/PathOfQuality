@@ -1,11 +1,21 @@
 import json
 import os
 import uuid
+import shutil
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional
+from pathlib import Path
 
 
-LIB_PATH = os.path.join('assets', 'buffs.json')
+# New structure: each object is a separate JSON file
+LIBRARY_ROOT = os.path.join('assets', 'library')
+BUFFS_DIR = os.path.join(LIBRARY_ROOT, 'buffs')
+DEBUFFS_DIR = os.path.join(LIBRARY_ROOT, 'debuffs')
+COPY_AREAS_DIR = os.path.join(LIBRARY_ROOT, 'copy_areas')
+IMAGES_DIR = os.path.join(LIBRARY_ROOT, 'images')
+
+# Old path for migration
+OLD_LIB_PATH = os.path.join('assets', 'buffs.json')
 
 
 @dataclass
@@ -38,34 +48,137 @@ class CopyAreaEntry:
     topmost: bool
 
 
-def _ensure_file():
-    os.makedirs('assets', exist_ok=True)
-    if not os.path.isfile(LIB_PATH):
-        with open(LIB_PATH, 'w', encoding='utf-8') as f:
-            json.dump({"buffs": [], "debuffs": [], "copy_areas": []}, f, ensure_ascii=False, indent=2)
+def _ensure_directories():
+    """Create library directories if they don't exist."""
+    os.makedirs(BUFFS_DIR, exist_ok=True)
+    os.makedirs(DEBUFFS_DIR, exist_ok=True)
+    os.makedirs(COPY_AREAS_DIR, exist_ok=True)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+
+
+def copy_image_to_library(source_path: str) -> Optional[str]:
+    """
+    Copy image to library images directory.
+    
+    Args:
+        source_path: Path to source image
+        
+    Returns:
+        Relative path to copied image or None if failed
+    """
+    if not source_path or not os.path.isfile(source_path):
+        return None
+    
+    try:
+        _ensure_directories()
+        
+        # Generate unique filename using UUID
+        ext = os.path.splitext(source_path)[1].lower()
+        if not ext:
+            ext = '.png'
+        
+        new_filename = f"{uuid.uuid4()}{ext}"
+        dest_path = os.path.join(IMAGES_DIR, new_filename)
+        
+        # Copy file
+        shutil.copy2(source_path, dest_path)
+        
+        # Return relative path from project root
+        return os.path.join('assets', 'library', 'images', new_filename)
+    except Exception:
+        return None
+
+
+def _load_json_from_directory(directory: str) -> List[Dict]:
+    """Load all JSON files from a directory."""
+    items = []
+    if not os.path.isdir(directory):
+        return items
+    
+    try:
+        for filename in os.listdir(directory):
+            if not filename.endswith('.json'):
+                continue
+            
+            filepath = os.path.join(directory, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    item = json.load(f)
+                    if isinstance(item, dict):
+                        items.append(item)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
+    return items
+
+
+def _migrate_from_old_format():
+    """Migrate data from old buffs.json to new structure."""
+    if not os.path.isfile(OLD_LIB_PATH):
+        return
+    
+    try:
+        with open(OLD_LIB_PATH, 'r', encoding='utf-8') as f:
+            old_data = json.load(f)
+        
+        _ensure_directories()
+        
+        # Migrate buffs
+        for item in old_data.get('buffs', []):
+            item_id = item.get('id', str(uuid.uuid4()))
+            filepath = os.path.join(BUFFS_DIR, f"{item_id}.json")
+            if not os.path.exists(filepath):
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(item, f, ensure_ascii=False, indent=2)
+        
+        # Migrate debuffs
+        for item in old_data.get('debuffs', []):
+            item_id = item.get('id', str(uuid.uuid4()))
+            filepath = os.path.join(DEBUFFS_DIR, f"{item_id}.json")
+            if not os.path.exists(filepath):
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(item, f, ensure_ascii=False, indent=2)
+        
+        # Migrate copy_areas
+        for item in old_data.get('copy_areas', []):
+            item_id = item.get('id', str(uuid.uuid4()))
+            filepath = os.path.join(COPY_AREAS_DIR, f"{item_id}.json")
+            if not os.path.exists(filepath):
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(item, f, ensure_ascii=False, indent=2)
+        
+        # Rename old file to backup
+        backup_path = OLD_LIB_PATH + '.old'
+        if not os.path.exists(backup_path):
+            os.rename(OLD_LIB_PATH, backup_path)
+    except Exception:
+        pass
 
 
 def load_library() -> Dict[str, List[Dict]]:
-    _ensure_file()
+    """Load library from separate JSON files."""
+    _ensure_directories()
+    _migrate_from_old_format()
+    
     try:
-        with open(LIB_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return {"buffs": [], "debuffs": []}
-        data.setdefault('buffs', [])
-        data.setdefault('debuffs', [])
-        data.setdefault('copy_areas', [])
-        # миграция полей по умолчанию
+        data = {
+            'buffs': _load_json_from_directory(BUFFS_DIR),
+            'debuffs': _load_json_from_directory(DEBUFFS_DIR),
+            'copy_areas': _load_json_from_directory(COPY_AREAS_DIR),
+        }
+        
+        # Apply default values
         for bucket in ('buffs', 'debuffs'):
             for item in data.get(bucket, []):
                 if 'active' not in item:
                     item['active'] = False
                 item.setdefault('position', {"left": 0, "top": 0})
-                # По умолчанию размер 64x64
                 item.setdefault('size', {"width": 64, "height": 64})
                 item.setdefault('transparency', 1.0)
-                # Новое поле: дополнительная высота снизу
                 item.setdefault('extend_bottom', 0)
+        
         for item in data.get('copy_areas', []):
             item.setdefault('name', {"en": ""})
             item.setdefault('image_path', '')
@@ -78,24 +191,44 @@ def load_library() -> Dict[str, List[Dict]]:
             item.setdefault('active', False)
             item.setdefault('transparency', 1.0)
             item.setdefault('topmost', True)
+        
         return data
     except Exception:
         return {"buffs": [], "debuffs": [], "copy_areas": []}
 
 
-def save_library(data: Dict[str, List[Dict]]) -> None:
+def _save_item_to_file(item: Dict, directory: str) -> bool:
+    """Save individual item to its JSON file."""
     try:
-        with open(LIB_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        item_id = item.get('id')
+        if not item_id:
+            return False
+        
+        _ensure_directories()
+        filepath = os.path.join(directory, f"{item_id}.json")
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(item, f, ensure_ascii=False, indent=2)
+        return True
     except Exception:
-        pass
+        return False
+
+
+def _delete_item_file(item_id: str, directory: str) -> bool:
+    """Delete item's JSON file."""
+    try:
+        filepath = os.path.join(directory, f"{item_id}.json")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return True
+    except Exception:
+        return False
 
 
 def add_entry(entry: BuffEntry) -> None:
-    lib = load_library()
-    bucket = 'buffs' if entry.type == 'buff' else 'debuffs'
-    lib[bucket].append(asdict(entry))
-    save_library(lib)
+    """Add a new buff/debuff entry."""
+    directory = BUFFS_DIR if entry.type == 'buff' else DEBUFFS_DIR
+    item_dict = asdict(entry)
+    _save_item_to_file(item_dict, directory)
 
 
 def update_entry(entry_id: str, entry_type: str, updates: Dict) -> bool:
@@ -103,34 +236,40 @@ def update_entry(entry_id: str, entry_type: str, updates: Dict) -> bool:
 
     Returns True if updated, False if not found.
     """
-    lib = load_library()
-    bucket = 'buffs' if entry_type == 'buff' else 'debuffs'
-    arr = lib.get(bucket, [])
-    for i, item in enumerate(arr):
-        if item.get('id') == entry_id:
-            # keep id and type, update other fields
-            item['name'] = updates.get('name') or item.get('name', {})
-            item['image_path'] = updates.get('image_path') or item.get('image_path', '')
-            item['description'] = updates.get('description') or item.get('description', {})
-            item['sound_on'] = updates.get('sound_on')
-            item['sound_off'] = updates.get('sound_off')
-            item['position'] = {
-                'left': int(updates.get('left', item.get('position', {}).get('left', 0))),
-                'top': int(updates.get('top', item.get('position', {}).get('top', 0))),
-            }
-            item['size'] = {
-                'width': int(updates.get('width', item.get('size', {}).get('width', 0))),
-                'height': int(updates.get('height', item.get('size', {}).get('height', 0))),
-            }
-            item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
-            item['extend_bottom'] = int(updates.get('extend_bottom', item.get('extend_bottom', 0)))
-            if 'active' in updates:
-                item['active'] = bool(updates.get('active'))
-            arr[i] = item
-            lib[bucket] = arr
-            save_library(lib)
-            return True
-    return False
+    directory = BUFFS_DIR if entry_type == 'buff' else DEBUFFS_DIR
+    filepath = os.path.join(directory, f"{entry_id}.json")
+    
+    if not os.path.exists(filepath):
+        return False
+    
+    try:
+        # Load existing item
+        with open(filepath, 'r', encoding='utf-8') as f:
+            item = json.load(f)
+        
+        # Update fields
+        item['name'] = updates.get('name') or item.get('name', {})
+        item['image_path'] = updates.get('image_path') or item.get('image_path', '')
+        item['description'] = updates.get('description') or item.get('description', {})
+        item['sound_on'] = updates.get('sound_on')
+        item['sound_off'] = updates.get('sound_off')
+        item['position'] = {
+            'left': int(updates.get('left', item.get('position', {}).get('left', 0))),
+            'top': int(updates.get('top', item.get('position', {}).get('top', 0))),
+        }
+        item['size'] = {
+            'width': int(updates.get('width', item.get('size', {}).get('width', 0))),
+            'height': int(updates.get('height', item.get('size', {}).get('height', 0))),
+        }
+        item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
+        item['extend_bottom'] = int(updates.get('extend_bottom', item.get('extend_bottom', 0)))
+        if 'active' in updates:
+            item['active'] = bool(updates.get('active'))
+        
+        # Save updated item
+        return _save_item_to_file(item, directory)
+    except Exception:
+        return False
 
 
 def make_entry(
@@ -200,52 +339,62 @@ def make_copy_area_entry(
 
 
 def add_copy_area_entry(entry: CopyAreaEntry) -> None:
-    lib = load_library()
-    lib.setdefault('copy_areas', [])
-    lib['copy_areas'].append(asdict(entry))
-    save_library(lib)
+    """Add a new copy area entry."""
+    item_dict = asdict(entry)
+    _save_item_to_file(item_dict, COPY_AREAS_DIR)
 
 
 def update_copy_area_entry(entry_id: str, updates: Dict) -> bool:
-    lib = load_library()
-    areas = lib.setdefault('copy_areas', [])
-    for idx, item in enumerate(areas):
-        if item.get('id') == entry_id:
-            name = updates.get('name')
-            if name:
-                item['name'] = name
-            image_path = updates.get('image_path')
-            if image_path is not None:
-                item['image_path'] = image_path
-            refs = updates.get('references') or {}
-            item['references'] = {
-                'buffs': list(refs.get('buffs', item.get('references', {}).get('buffs', []))),
-                'debuffs': list(refs.get('debuffs', item.get('references', {}).get('debuffs', []))),
+    """Update an existing copy area entry by id.
+    
+    Returns True if updated, False if not found.
+    """
+    filepath = os.path.join(COPY_AREAS_DIR, f"{entry_id}.json")
+    
+    if not os.path.exists(filepath):
+        return False
+    
+    try:
+        # Load existing item
+        with open(filepath, 'r', encoding='utf-8') as f:
+            item = json.load(f)
+        
+        # Update fields
+        name = updates.get('name')
+        if name:
+            item['name'] = name
+        image_path = updates.get('image_path')
+        if image_path is not None:
+            item['image_path'] = image_path
+        refs = updates.get('references') or {}
+        item['references'] = {
+            'buffs': list(refs.get('buffs', item.get('references', {}).get('buffs', []))),
+            'debuffs': list(refs.get('debuffs', item.get('references', {}).get('debuffs', []))),
+        }
+        capture_cfg = updates.get('capture')
+        if capture_cfg:
+            item['capture'] = {
+                'left': int(capture_cfg.get('left', item.get('capture', {}).get('left', 0))),
+                'top': int(capture_cfg.get('top', item.get('capture', {}).get('top', 0))),
+                'width': int(capture_cfg.get('width', item.get('capture', {}).get('width', 0))),
+                'height': int(capture_cfg.get('height', item.get('capture', {}).get('height', 0))),
             }
-            capture_cfg = updates.get('capture')
-            if capture_cfg:
-                item['capture'] = {
-                    'left': int(capture_cfg.get('left', item.get('capture', {}).get('left', 0))),
-                    'top': int(capture_cfg.get('top', item.get('capture', {}).get('top', 0))),
-                    'width': int(capture_cfg.get('width', item.get('capture', {}).get('width', 0))),
-                    'height': int(capture_cfg.get('height', item.get('capture', {}).get('height', 0))),
-                }
-            item['position'] = {
-                'left': int(updates.get('left', item.get('position', {}).get('left', 0))),
-                'top': int(updates.get('top', item.get('position', {}).get('top', 0))),
-            }
-            item['size'] = {
-                'width': int(updates.get('width', item.get('size', {}).get('width', 64))),
-                'height': int(updates.get('height', item.get('size', {}).get('height', 64))),
-            }
-            if 'active' in updates:
-                item['active'] = bool(updates.get('active'))
-            if 'transparency' in updates:
-                item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
-            if 'topmost' in updates:
-                item['topmost'] = bool(updates.get('topmost'))
-            areas[idx] = item
-            lib['copy_areas'] = areas
-            save_library(lib)
-            return True
-    return False
+        item['position'] = {
+            'left': int(updates.get('left', item.get('position', {}).get('left', 0))),
+            'top': int(updates.get('top', item.get('position', {}).get('top', 0))),
+        }
+        item['size'] = {
+            'width': int(updates.get('width', item.get('size', {}).get('width', 64))),
+            'height': int(updates.get('height', item.get('size', {}).get('height', 64))),
+        }
+        if 'active' in updates:
+            item['active'] = bool(updates.get('active'))
+        if 'transparency' in updates:
+            item['transparency'] = float(updates.get('transparency', item.get('transparency', 1.0)))
+        if 'topmost' in updates:
+            item['topmost'] = bool(updates.get('topmost'))
+        
+        # Save updated item
+        return _save_item_to_file(item, COPY_AREAS_DIR)
+    except Exception:
+        return False
