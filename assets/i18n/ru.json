@@ -8,6 +8,7 @@
   "settings.show_analysis": "Показать зону анализа",
   "settings.roi": "ROI",
   "settings.language": "Язык",
+  "settings.require_game_focus": "Выполнять программу только если игра в фокусе",
   "button.exit": "Выход",
   "buffs.add": "Добавить",
   "buffs.name": "Имя",

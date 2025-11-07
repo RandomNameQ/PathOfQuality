@@ -10,7 +10,7 @@ from src.ui.styles import BG_COLOR, FG_COLOR
 class SettingsTab:
     """Settings tab for ROI selection and application configuration."""
     
-    def __init__(self, parent: tk.Frame, keep_on_top: bool = False) -> None:
+    def __init__(self, parent: tk.Frame, keep_on_top: bool = False, focus_required: bool = True) -> None:
         """
         Initialize settings tab.
         
@@ -21,6 +21,7 @@ class SettingsTab:
         self.frame = parent
         self._overlay_var = tk.BooleanVar(value=False)
         self._topmost_var = tk.BooleanVar(value=keep_on_top)
+        self._focus_required_var = tk.BooleanVar(value=focus_required)
         self._lang_var = tk.StringVar(value=get_lang())
         
         self._create_widgets()
@@ -56,6 +57,14 @@ class SettingsTab:
             style='Toggle.TCheckbutton'
         )
         self._chk_topmost.pack(side='left', padx=(12, 0))
+
+        self._chk_focus_required = ttk.Checkbutton(
+            controls,
+            text=t('settings.require_game_focus', 'Run only when the game is focused'),
+            variable=self._focus_required_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_focus_required.pack(side='left', padx=(12, 0))
         
         # Language selector
         lang_controls = tk.Frame(self.frame, bg=BG_COLOR)
@@ -111,6 +120,10 @@ class SettingsTab:
     def set_topmost_command(self, command) -> None:
         """Set topmost checkbox command callback."""
         self._chk_topmost.configure(command=command)
+
+    def set_focus_required_command(self, command) -> None:
+        """Set focus-required checkbox command callback."""
+        self._chk_focus_required.configure(command=command)
         
     def set_language_command(self, command) -> None:
         """Set language combobox command callback."""
@@ -123,6 +136,10 @@ class SettingsTab:
     def get_topmost_var(self) -> tk.BooleanVar:
         """Get topmost checkbox variable."""
         return self._topmost_var
+
+    def get_focus_required_var(self) -> tk.BooleanVar:
+        """Get focus-required checkbox variable."""
+        return self._focus_required_var
         
     def get_lang_var(self) -> tk.StringVar:
         """Get language selection variable."""
@@ -134,6 +151,7 @@ class SettingsTab:
             self._btn_select.configure(text=t('settings.select_zone', 'Select Area'))
             self._chk_overlay.configure(text=t('settings.show_analysis', 'Show Analysis Area'))
             self._chk_topmost.configure(text=t('settings.always_on_top', 'Always on top'))
+            self._chk_focus_required.configure(text=t('settings.require_game_focus', 'Run only when the game is focused'))
             self._lbl_language.configure(text=t('settings.language', 'Language'))
             
             # Update ROI prefix

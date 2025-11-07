@@ -84,6 +84,7 @@ class Application:
         """
         self.settings_path = settings_path
         self.settings = load_settings(settings_path)
+        self._focus_required = bool(self.settings.get("require_game_focus", True))
         
         # Initialize components
         self.capture: MSSCapture = None
@@ -135,6 +136,7 @@ class Application:
             keep_on_top=bool(ui_cfg.get("keep_on_top", False)),
             alpha=float(ui_cfg.get("alpha", 1.0)),
             grab_anywhere=bool(ui_cfg.get("grab_anywhere", True)),
+            focus_required=self._focus_required,
         )
         
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
@@ -180,7 +182,7 @@ class Application:
         try:
             while True:
                 event = self.hud.read(timeout=scan_interval_ms)
-                game_is_active = self._is_allowed_process_active()
+                game_in_focus = self._is_allowed_process_active()
 
                 if event == 'EXIT' or self.tray.is_exit_requested():
                     break
@@ -213,10 +215,18 @@ class Application:
                     self._copy_user_requested = self.hud.get_copy_area_enabled()
                     refresh_copy = True
 
+                elif event == 'FOCUS_POLICY_CHANGED':
+                    self._focus_required = self.hud.get_focus_required()
+                    self.settings['require_game_focus'] = self._focus_required
+                    save_settings(self.settings_path, self.settings)
+                    refresh_copy = True
+
                 if self.tray.is_exit_requested():
                     break
 
-                self._apply_focus_policy(game_is_active)
+                focus_active = game_in_focus or not self._focus_required
+
+                self._apply_focus_policy(game_in_focus)
 
                 if refresh_copy:
                     self._refresh_copy_overlays()
@@ -225,11 +235,11 @@ class Application:
                 self._handle_positioning_toggle()
 
                 if skip_frame_processing:
-                    if not game_is_active:
+                    if not focus_active:
                         self._clear_results()
                     continue
 
-                if not game_is_active:
+                if not focus_active:
                     self._clear_results()
                     continue
 
@@ -339,9 +349,16 @@ class Application:
         except Exception:
             pass
 
-    def _apply_focus_policy(self, game_is_active: bool) -> None:
+    def _apply_focus_policy(self, game_in_focus: bool) -> None:
         """Pause or resume application features based on foreground focus."""
-        if game_is_active:
+        if not self._focus_required:
+            if self._focus_state_last is False:
+                self.hud.set_status_message('')
+            self.mirrors.set_copy_enabled(self._copy_user_requested)
+            self._focus_state_last = True
+            return
+
+        if game_in_focus:
             if self._focus_state_last is False:
                 self.hud.set_status_message('')
 
@@ -365,7 +382,7 @@ class Application:
 
             self.mirrors.set_copy_enabled(False)
 
-        self._focus_state_last = game_is_active
+        self._focus_state_last = game_in_focus
     
     def _is_allowed_process_active(self) -> bool:
         """Check if one of the allowed game processes is in foreground (focus)."""
@@ -381,8 +398,6 @@ class Application:
         if not hasattr(self, '_last_foreground') or self._last_foreground != foreground_process:
             if is_game_focused:
                 print(f"[Game Focus] Game in focus: {foreground_process}")
-            else:
-                print(f"[Game Focus] Other window focused: {foreground_process}")
             self._last_foreground = foreground_process
         
         return is_game_focused

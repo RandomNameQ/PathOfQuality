@@ -122,6 +122,9 @@ class IconMirrorsOverlay:
                 if m is not None:
                     m.hide()
                 continue
+            if m is not None and m.is_hovered():
+                show_ids.append(area_id)
+                continue
 
             refs = area.get('references', {}) or {}
             linked_ids: Set[str] = set()
@@ -166,12 +169,13 @@ class IconMirrorsOverlay:
             if img.mode != 'RGBA':
                 img = img.convert('RGBA')
 
-            m = self._get_or_create(area_id)
-            if m.is_hovered():
-                continue
-
             pos_cfg = area.get('position', {}) or {}
             alpha = float(area.get('transparency', 1.0))
+
+            m = self._get_or_create(area_id)
+            if m.is_hovered():
+                show_ids.append(area_id)
+                continue
 
             m.update_image(img)
             m.show(
@@ -183,7 +187,6 @@ class IconMirrorsOverlay:
                 topmost=True,
             )
             show_ids.append(area_id)
-            
             # Track IDs that should be lifted (topmost=True copy areas)
             if topmost_filter is True:
                 lifted_ids.append(area_id)

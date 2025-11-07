@@ -5,10 +5,7 @@
   },
   "image_path": "C:/Users/user/Downloads/FR.png",
   "references": {
-    "buffs": [
-      "322dafd0-06ec-4c49-8d19-d2825204663b",
-      "4d28a603-5ab7-4cfc-bd1e-a787d2b5820c"
-    ],
+    "buffs": [],
     "debuffs": []
   },
   "position": {

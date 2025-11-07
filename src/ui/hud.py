@@ -33,7 +33,8 @@ class BuffHUD:
         templates: List[Tuple[str, str]], 
         keep_on_top: bool = True,
         alpha: float = 1.0,
-        grab_anywhere: bool = True
+        grab_anywhere: bool = True,
+        focus_required: bool = True,
     ) -> None:
         """
         Initialize BuffHUD.
@@ -85,7 +86,7 @@ class BuffHUD:
         
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
-        self._settings_tab = SettingsTab(self._tab_settings_frame, keep_on_top)
+        self._settings_tab = SettingsTab(self._tab_settings_frame, keep_on_top, focus_required)
         self._buffs_tab = LibraryTab(
             self._tab_buffs_frame,
             'buff',
@@ -126,6 +127,7 @@ class BuffHUD:
         
         self._settings_tab.set_select_command(self._on_select_roi)
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
+        self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
         self._settings_tab.set_language_command(self._on_lang_changed)
         
         # Bind search events
@@ -183,6 +185,10 @@ class BuffHUD:
             self._root.attributes('-topmost', bool(self._settings_tab.get_topmost_var().get()))
         except Exception:
             pass
+
+    def _on_focus_required_changed(self) -> None:
+        """Handle focus policy checkbox change."""
+        self._events.append('FOCUS_POLICY_CHANGED')
             
     def _on_lang_changed(self, event=None) -> None:
         """Handle language change."""
@@ -501,6 +507,10 @@ class BuffHUD:
     def get_copy_area_enabled(self) -> bool:
         """Check if copy area overlay is enabled."""
         return bool(self._monitoring_tab.get_copy_area_var().get())
+        
+    def get_focus_required(self) -> bool:
+        """Check if game focus is required."""
+        return bool(self._settings_tab.get_focus_required_var().get())
         
     def set_roi_info(self, left: int, top: int, width: int, height: int) -> None:
         """

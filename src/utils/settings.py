@@ -13,6 +13,7 @@ def get_default_settings() -> Dict[str, Any]:
         "roi": {"mode": "top_right", "width": 400, "height": 180, "top": 0, "left": 0},
         "threshold": 0.9,
         "scan_interval_ms": 50,
+        "require_game_focus": True,
         "ui": {"keep_on_top": False, "alpha": 1.0, "grab_anywhere": True},
         "language": "en",
         "templates_dir": "assets/templates",
