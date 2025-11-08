@@ -28,6 +28,8 @@ class ControlDock:
         on_position_changed: Optional[Callable[[int, int], None]] = None,
         on_focus_change: Optional[Callable[[bool], None]] = None,
         on_button_action: Optional[Callable[[], None]] = None,
+        on_lock_change: Optional[Callable[[bool], None]] = None,
+        locked: bool = True,
     ) -> None:
         self._master = master
         self._on_toggle_scan = on_toggle_scan
@@ -36,6 +38,7 @@ class ControlDock:
         self._on_position_changed = on_position_changed
         self._on_focus_change = on_focus_change
         self._on_button_action = on_button_action
+        self._on_lock_change = on_lock_change
         self._grid_size = max(1, int(grid_size))
 
         self._window = tk.Toplevel(master)
@@ -65,6 +68,7 @@ class ControlDock:
         self._drag_moved = False
         self._visible = True
         self._has_focus = False
+        self._locked = bool(locked)
 
         self._window.bind("<FocusIn>", lambda _e: self._notify_focus(True), add="+")
         self._window.bind("<FocusOut>", lambda _e: self._notify_focus(False), add="+")
@@ -84,6 +88,12 @@ class ControlDock:
             command=self._on_open_main,
             font=("Segoe UI Symbol", 16),
         )
+        self._buttons["lock"] = self._create_circle_button(
+            text="🔒" if self._locked else "🔓",
+            command=self._toggle_lock,
+            font=("Segoe UI Symbol", 16),
+        )
+        self._update_lock_button()
 
         for widget in (self._window, self._container):
             widget.bind("<ButtonPress-1>", self._start_drag, add="+")
@@ -160,6 +170,12 @@ class ControlDock:
 
     def _start_drag(self, event) -> None:
         if getattr(event, "num", 1) != 1:
+            return
+        if self._locked:
+            self._drag_origin = None
+            self._drag_window_origin = None
+            self._drag_active = False
+            self._drag_moved = False
             return
         self._drag_origin = (event.x_root, event.y_root)
         self._drag_window_origin = (self._window.winfo_x(), self._window.winfo_y())
@@ -268,6 +284,13 @@ class ControlDock:
         canvas = btn["canvas"]
         canvas.itemconfigure(btn["circle"], fill=color)
 
+    def set_locked(self, locked: bool) -> None:
+        self._locked = bool(locked)
+        self._update_lock_button()
+
+    def is_locked(self) -> bool:
+        return self._locked
+
     def set_topmost(self, enabled: bool) -> None:
         try:
             self._window.attributes("-topmost", bool(enabled))
@@ -356,5 +379,31 @@ class ControlDock:
                 self._on_focus_change(self._has_focus)
             except Exception:
                 pass
+
+    def _toggle_lock(self) -> None:
+        self._locked = not self._locked
+        self._update_lock_button()
+        if self._on_lock_change is not None:
+            try:
+                self._on_lock_change(self._locked)
+            except Exception:
+                pass
+        if self._on_button_action is not None:
+            try:
+                self._on_button_action()
+            except Exception:
+                pass
+
+    def _update_lock_button(self) -> None:
+        btn = self._buttons.get("lock")
+        if not btn:
+            return
+        canvas = btn["canvas"]
+        circle = btn["circle"]
+        label = btn["label"]
+        color = self.INACTIVE_COLOR if self._locked else self.ACTIVE_COLOR
+        text = "🔒" if self._locked else "🔓"
+        canvas.itemconfigure(circle, fill=color)
+        canvas.itemconfigure(label, text=text)
 
 

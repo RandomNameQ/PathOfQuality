@@ -22,60 +22,20 @@ class SettingsTab:
         self._overlay_var = tk.BooleanVar(value=False)
         self._topmost_var = tk.BooleanVar(value=keep_on_top)
         self._focus_required_var = tk.BooleanVar(value=focus_required)
+        self._dock_visible_var = tk.BooleanVar(value=True)
         self._lang_var = tk.StringVar(value=get_lang())
         
         self._create_widgets()
         
     def _create_widgets(self) -> None:
         """Create settings tab widgets."""
-        # Controls frame
-        controls = tk.Frame(self.frame, bg=BG_COLOR)
-        controls.pack(fill='x', padx=12, pady=12)
+        # Main container with vertical layout (bottom to top)
+        main_container = tk.Frame(self.frame, bg=BG_COLOR)
+        main_container.pack(fill='both', expand=True, padx=12, pady=12)
         
-        # Select ROI button
-        self._btn_select = ttk.Button(
-            controls, 
-            text=t('settings.select_zone', 'Select Area'),
-            style='Modern.TButton'
-        )
-        self._btn_select.pack(side='left', padx=(0, 12))
-        
-        # Show overlay checkbox
-        self._chk_overlay = ttk.Checkbutton(
-            controls, 
-            text=t('settings.show_analysis', 'Show Analysis Area'),
-            variable=self._overlay_var,
-            style='Toggle.TCheckbutton'
-        )
-        self._chk_overlay.pack(side='left')
-        
-        # Always on top checkbox
-        self._chk_topmost = ttk.Checkbutton(
-            controls, 
-            text=t('settings.always_on_top', 'Always on top'),
-            variable=self._topmost_var,
-            style='Toggle.TCheckbutton'
-        )
-        self._chk_topmost.pack(side='left', padx=(12, 0))
-
-        self._chk_focus_required = ttk.Checkbutton(
-            controls,
-            text=t('settings.require_game_focus', 'Run only when the game is focused'),
-            variable=self._focus_required_var,
-            style='Toggle.TCheckbutton'
-        )
-        self._chk_focus_required.pack(side='left', padx=(12, 0))
-
-        self._btn_reset_dock = ttk.Button(
-            controls,
-            text=t('settings.reset_dock', 'Reset panel position'),
-            style='Action.TButton'
-        )
-        self._btn_reset_dock.pack(side='left', padx=(12, 0))
-        
-        # Language selector
-        lang_controls = tk.Frame(self.frame, bg=BG_COLOR)
-        lang_controls.pack(fill='x', padx=12, pady=(0, 12))
+        # Language selector (bottom)
+        lang_controls = tk.Frame(main_container, bg=BG_COLOR)
+        lang_controls.pack(fill='x', pady=(0, 12))
         
         self._lbl_language = tk.Label(
             lang_controls, 
@@ -96,15 +56,67 @@ class SettingsTab:
         )
         self._lang_cmb.pack(side='left')
         
-        # ROI info label
+        # Select ROI button
+        self._btn_select = ttk.Button(
+            main_container, 
+            text=t('settings.select_zone', 'Select Area'),
+            style='Modern.TButton'
+        )
+        self._btn_select.pack(anchor='w', pady=(0, 12))
+        
+        # Show overlay checkbox
+        self._chk_overlay = ttk.Checkbutton(
+            main_container, 
+            text=t('settings.show_analysis', 'Show Analysis Area'),
+            variable=self._overlay_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_overlay.pack(anchor='w', pady=(0, 12))
+        
+        # Always on top checkbox
+        self._chk_topmost = ttk.Checkbutton(
+            main_container, 
+            text=t('settings.always_on_top', 'Always on top'),
+            variable=self._topmost_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_topmost.pack(anchor='w', pady=(0, 12))
+        
+        # Focus required checkbox
+        self._chk_focus_required = ttk.Checkbutton(
+            main_container,
+            text=t('settings.require_game_focus', 'Run only when the game is focused'),
+            variable=self._focus_required_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_focus_required.pack(anchor='w', pady=(0, 12))
+        
+        # Show dock checkbox
+        self._chk_dock_visible = ttk.Checkbutton(
+            main_container,
+            text=t('settings.show_dock', 'Show control panel'),
+            variable=self._dock_visible_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_dock_visible.pack(anchor='w', pady=(0, 12))
+        
+        # Reset dock button
+        self._btn_reset_dock = ttk.Button(
+            main_container,
+            text=t('settings.reset_dock', 'Reset panel position'),
+            style='Action.TButton'
+        )
+        self._btn_reset_dock.pack(anchor='w', pady=(0, 12))
+        
+        # ROI info label (top)
         self._roi_label = tk.Label(
-            self.frame, 
+            main_container, 
             text=f"{t('settings.roi', 'ROI')}: —",
             bg=BG_COLOR, 
             fg=FG_COLOR, 
             font=('Segoe UI', 9)
         )
-        self._roi_label.pack(padx=12, pady=(0, 12))
+        self._roi_label.pack(anchor='w')
         
     def set_roi_info(self, left: int, top: int, width: int, height: int) -> None:
         """
@@ -132,6 +144,10 @@ class SettingsTab:
         """Set focus-required checkbox command callback."""
         self._chk_focus_required.configure(command=command)
 
+    def set_dock_visible_command(self, command) -> None:
+        """Set dock visibility checkbox command callback."""
+        self._chk_dock_visible.configure(command=command)
+
     def set_reset_dock_command(self, command) -> None:
         """Set reset dock button command callback."""
         self._btn_reset_dock.configure(command=command)
@@ -151,6 +167,10 @@ class SettingsTab:
     def get_focus_required_var(self) -> tk.BooleanVar:
         """Get focus-required checkbox variable."""
         return self._focus_required_var
+
+    def get_dock_visible_var(self) -> tk.BooleanVar:
+        """Get dock visibility checkbox variable."""
+        return self._dock_visible_var
         
     def get_lang_var(self) -> tk.StringVar:
         """Get language selection variable."""
@@ -163,6 +183,7 @@ class SettingsTab:
             self._chk_overlay.configure(text=t('settings.show_analysis', 'Show Analysis Area'))
             self._chk_topmost.configure(text=t('settings.always_on_top', 'Always on top'))
             self._chk_focus_required.configure(text=t('settings.require_game_focus', 'Run only when the game is focused'))
+            self._chk_dock_visible.configure(text=t('settings.show_dock', 'Show control panel'))
             self._btn_reset_dock.configure(text=t('settings.reset_dock', 'Reset panel position'))
             self._lbl_language.configure(text=t('settings.language', 'Language'))
             

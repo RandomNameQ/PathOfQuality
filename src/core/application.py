@@ -465,10 +465,8 @@ class Application:
 
     def _apply_focus_policy(self, game_in_focus: bool) -> None:
         """Pause or resume application features based on foreground focus."""
-        try:
-            self.hud.set_dock_visible(True)
-        except Exception:
-            pass
+        # Don't override user's dock visibility setting
+        # The dock visibility is controlled by the settings checkbox
 
         if not self._focus_required:
             if self._focus_state_last is False:

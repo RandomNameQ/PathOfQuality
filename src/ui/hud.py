@@ -73,6 +73,7 @@ class BuffHUD:
         self._events: List[str] = []
         self._control_dock: Optional[ControlDock] = None
         self._dock_position: Optional[Tuple[int, int]] = dock_position
+        self._dock_locked: bool = True
         self._dock_visible: bool = False
         self._dock_has_focus: bool = False
         self._last_dock_interaction: float = 0.0
@@ -136,9 +137,9 @@ class BuffHUD:
         self._settings_tab.set_select_command(self._on_select_roi)
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
+        self._settings_tab.set_dock_visible_command(self._on_dock_visible_changed)
+        self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
         self._settings_tab.set_language_command(self._on_lang_changed)
-        self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
-        self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
         
         # Bind search events
         self._buffs_tab.get_tree_view().get_search_var().trace_add(
@@ -175,13 +176,17 @@ class BuffHUD:
             on_position_changed=self._on_dock_position_changed,
             on_focus_change=self._on_dock_focus_change,
             on_button_action=lambda: self._mark_dock_interaction(restore=True),
+            on_lock_change=self._on_dock_lock_change,
+            locked=self._dock_locked,
         )
         self._control_dock.set_scanning_active(self.get_scanning_enabled())
         self._control_dock.set_copy_active(self.get_copy_area_enabled())
         self._control_dock.set_topmost(True)
         self._dock_position = self._control_dock.get_position()
         self._dock_visible = True
-        self._dock_visible = True
+        
+        # Sync dock visibility checkbox with actual state
+        self._settings_tab.get_dock_visible_var().set(True)
 
         self._root.protocol('WM_DELETE_WINDOW', self._on_exit)
         
@@ -220,6 +225,11 @@ class BuffHUD:
     def _on_focus_required_changed(self) -> None:
         """Handle focus policy checkbox change."""
         self._events.append('FOCUS_POLICY_CHANGED')
+
+    def _on_dock_visible_changed(self) -> None:
+        """Handle dock visibility checkbox change."""
+        visible = bool(self._settings_tab.get_dock_visible_var().get())
+        self.set_dock_visible(visible)
             
     def _on_lang_changed(self, event=None) -> None:
         """Handle language change."""
@@ -279,6 +289,11 @@ class BuffHUD:
         self._dock_has_focus = bool(focused)
         if focused:
             self._mark_dock_interaction()
+
+    def _on_dock_lock_change(self, locked: bool) -> None:
+        """Track lock state changes."""
+        self._dock_locked = bool(locked)
+        self._mark_dock_interaction()
 
     def _on_reset_dock_position(self) -> None:
         """Reset floating dock position to default."""
@@ -590,14 +605,17 @@ class BuffHUD:
         """Show or hide the floating dock."""
         if self._control_dock is None:
             return
-        if not visible:
+        desired = bool(visible)
+        if desired == self._dock_visible:
             return
-        if self._dock_visible:
-            return
-        self._control_dock.show()
-        self._control_dock.lift()
-        self._mark_dock_interaction()
-        self._dock_visible = True
+        if desired:
+            self._control_dock.show()
+            self._control_dock.lift()
+            self._mark_dock_interaction()
+        else:
+            self._control_dock.hide()
+            self._dock_has_focus = False
+        self._dock_visible = desired
         
     def is_application_active(self) -> bool:
         """Check if HUD or floating dock currently has focus."""
@@ -611,35 +629,13 @@ class BuffHUD:
             widget = None
         return widget is not None
         
-    def set_dock_visible(self, visible: bool) -> None:
-        """Show or hide the floating dock."""
-        if self._control_dock is None:
-            return
-        desired = bool(visible)
-        if desired == self._dock_visible:
-            return
-        if desired:
-            self._control_dock.show()
-            self._control_dock.lift()
-        else:
-            self._control_dock.hide()
-        self._dock_visible = desired
-        if not desired:
-            self._dock_has_focus = False
-
-    def is_application_active(self) -> bool:
-        """Check if HUD or floating dock currently has focus."""
-        if self._dock_has_focus:
-            return True
-        try:
-            widget = self._root.focus_get()
-        except Exception:
-            widget = None
-        return widget is not None
-        
     def get_focus_required(self) -> bool:
         """Check if game focus is required."""
         return bool(self._settings_tab.get_focus_required_var().get())
+        
+    def is_dock_locked(self) -> bool:
+        """Check if floating dock is locked from moving."""
+        return self._dock_locked
         
     def set_roi_info(self, left: int, top: int, width: int, height: int) -> None:
         """
