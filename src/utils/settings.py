@@ -22,6 +22,7 @@ def get_default_settings() -> Dict[str, Any]:
         },
         "language": "en",
         "templates_dir": "assets/templates",
+        "triple_ctrl_click_enabled": False,
     }
 
 

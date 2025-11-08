@@ -11,17 +11,18 @@
   },
   "threshold": 0.9,
   "scan_interval_ms": 50,
-  "require_game_focus": true,
+  "require_game_focus": false,
   "ui": {
     "keep_on_top": false,
     "alpha": 1.0,
     "grab_anywhere": true,
     "dock_position": {
       "left": 840,
-      "top": 0
+      "top": 1020
     }
   },
   "language": "en",
   "templates_dir": "assets/templates",
+  "triple_ctrl_click_enabled": true,
   "mirror_mode": "auto"
 }

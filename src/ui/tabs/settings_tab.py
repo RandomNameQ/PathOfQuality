@@ -10,19 +10,21 @@ from src.ui.styles import BG_COLOR, FG_COLOR
 class SettingsTab:
     """Settings tab for ROI selection and application configuration."""
     
-    def __init__(self, parent: tk.Frame, keep_on_top: bool = False, focus_required: bool = True) -> None:
+    def __init__(self, parent: tk.Frame, keep_on_top: bool = False, focus_required: bool = True, triple_ctrl_click_enabled: bool = False) -> None:
         """
         Initialize settings tab.
-        
+
         Args:
             parent: Parent frame
             keep_on_top: Initial "always on top" setting
+            triple_ctrl_click_enabled: Initial triple ctrl click setting
         """
         self.frame = parent
         self._overlay_var = tk.BooleanVar(value=False)
         self._topmost_var = tk.BooleanVar(value=keep_on_top)
         self._focus_required_var = tk.BooleanVar(value=focus_required)
         self._dock_visible_var = tk.BooleanVar(value=True)
+        self._triple_ctrl_click_var = tk.BooleanVar(value=triple_ctrl_click_enabled)
         self._lang_var = tk.StringVar(value=get_lang())
         
         self._create_widgets()
@@ -99,6 +101,15 @@ class SettingsTab:
             style='Toggle.TCheckbutton'
         )
         self._chk_dock_visible.pack(anchor='w', pady=(0, 12))
+
+        # Triple Ctrl click checkbox
+        self._chk_triple_ctrl_click = ttk.Checkbutton(
+            main_container,
+            text=t('settings.double_ctrl_click', 'Double Ctrl click emulation'),
+            variable=self._triple_ctrl_click_var,
+            style='Toggle.TCheckbutton'
+        )
+        self._chk_triple_ctrl_click.pack(anchor='w', pady=(0, 12))
         
         # Reset dock button
         self._btn_reset_dock = ttk.Button(
@@ -151,7 +162,11 @@ class SettingsTab:
     def set_reset_dock_command(self, command) -> None:
         """Set reset dock button command callback."""
         self._btn_reset_dock.configure(command=command)
-        
+
+    def set_triple_ctrl_click_command(self, command) -> None:
+        """Set triple ctrl click checkbox command callback."""
+        self._chk_triple_ctrl_click.configure(command=command)
+
     def set_language_command(self, command) -> None:
         """Set language combobox command callback."""
         self._lang_cmb.bind('<<ComboboxSelected>>', command)
@@ -171,7 +186,11 @@ class SettingsTab:
     def get_dock_visible_var(self) -> tk.BooleanVar:
         """Get dock visibility checkbox variable."""
         return self._dock_visible_var
-        
+
+    def get_triple_ctrl_click_var(self) -> tk.BooleanVar:
+        """Get triple ctrl click checkbox variable."""
+        return self._triple_ctrl_click_var
+
     def get_lang_var(self) -> tk.StringVar:
         """Get language selection variable."""
         return self._lang_var
@@ -184,6 +203,7 @@ class SettingsTab:
             self._chk_topmost.configure(text=t('settings.always_on_top', 'Always on top'))
             self._chk_focus_required.configure(text=t('settings.require_game_focus', 'Run only when the game is focused'))
             self._chk_dock_visible.configure(text=t('settings.show_dock', 'Show control panel'))
+            self._chk_triple_ctrl_click.configure(text=t('settings.double_ctrl_click', 'Double Ctrl click emulation'))
             self._btn_reset_dock.configure(text=t('settings.reset_dock', 'Reset panel position'))
             self._lbl_language.configure(text=t('settings.language', 'Language'))
             

@@ -30,13 +30,14 @@ class BuffHUD:
     """Main HUD window for buff monitoring and management."""
     
     def __init__(
-        self, 
-        templates: List[Tuple[str, str]], 
+        self,
+        templates: List[Tuple[str, str]],
         keep_on_top: bool = True,
         alpha: float = 1.0,
         grab_anywhere: bool = True,
         focus_required: bool = True,
         dock_position: Optional[Tuple[int, int]] = None,
+        triple_ctrl_click_enabled: bool = False,
     ) -> None:
         """
         Initialize BuffHUD.
@@ -95,7 +96,7 @@ class BuffHUD:
         
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
-        self._settings_tab = SettingsTab(self._tab_settings_frame, keep_on_top, focus_required)
+        self._settings_tab = SettingsTab(self._tab_settings_frame, keep_on_top, focus_required, triple_ctrl_click_enabled)
         self._buffs_tab = LibraryTab(
             self._tab_buffs_frame,
             'buff',
@@ -139,6 +140,7 @@ class BuffHUD:
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
         self._settings_tab.set_dock_visible_command(self._on_dock_visible_changed)
         self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
+        self._settings_tab.set_triple_ctrl_click_command(self._on_triple_ctrl_click_changed)
         self._settings_tab.set_language_command(self._on_lang_changed)
         
         # Bind search events
@@ -181,6 +183,7 @@ class BuffHUD:
         )
         self._control_dock.set_scanning_active(self.get_scanning_enabled())
         self._control_dock.set_copy_active(self.get_copy_area_enabled())
+        self._control_dock.set_click_active(False)
         self._control_dock.set_topmost(True)
         self._dock_position = self._control_dock.get_position()
         self._dock_visible = True
@@ -302,6 +305,10 @@ class BuffHUD:
         self._control_dock.reset_position()
         self._control_dock.lift()
         self._dock_position = self._control_dock.get_position()
+
+    def _on_triple_ctrl_click_changed(self) -> None:
+        """Handle triple ctrl click checkbox change."""
+        self._events.append('TRIPLE_CTRL_CLICK_CHANGED')
 
     def _on_toggle_active(self, entry_id: str, entry_type: str, var: tk.BooleanVar) -> None:
         """Handle entry active toggle."""
@@ -580,6 +587,11 @@ class BuffHUD:
 
         if notify:
             self._events.append('COPY_AREA_TOGGLE')
+
+    def set_click_emulation_state(self, enabled: bool) -> None:
+        """Update click emulation indicator state."""
+        if self._control_dock is not None:
+            self._control_dock.set_click_active(enabled)
         
     def get_overlay_enabled(self) -> bool:
         """Check if overlay is enabled."""
@@ -632,6 +644,10 @@ class BuffHUD:
     def get_focus_required(self) -> bool:
         """Check if game focus is required."""
         return bool(self._settings_tab.get_focus_required_var().get())
+
+    def get_triple_ctrl_click_enabled(self) -> bool:
+        """Check if triple ctrl click is enabled."""
+        return bool(self._settings_tab.get_triple_ctrl_click_var().get())
         
     def is_dock_locked(self) -> bool:
         """Check if floating dock is locked from moving."""

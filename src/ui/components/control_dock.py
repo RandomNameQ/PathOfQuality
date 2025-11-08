@@ -93,7 +93,13 @@ class ControlDock:
             command=self._toggle_lock,
             font=("Segoe UI Symbol", 16),
         )
+        self._buttons["click"] = self._create_circle_button(
+            text="■",
+            command=lambda: None,  # No action, just indicator
+            font=("Segoe UI Symbol", 12),
+        )
         self._update_lock_button()
+        self._update_click_indicator(False)
 
         for widget in (self._window, self._container):
             widget.bind("<ButtonPress-1>", self._start_drag, add="+")
@@ -405,5 +411,17 @@ class ControlDock:
         text = "🔒" if self._locked else "🔓"
         canvas.itemconfigure(circle, fill=color)
         canvas.itemconfigure(label, text=text)
+
+    def _update_click_indicator(self, active: bool) -> None:
+        btn = self._buttons.get("click")
+        if not btn:
+            return
+        canvas = btn["canvas"]
+        circle = btn["circle"]
+        color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
+        canvas.itemconfigure(circle, fill=color)
+
+    def set_click_active(self, active: bool) -> None:
+        self._update_click_indicator(bool(active))
 
 

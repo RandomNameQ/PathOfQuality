@@ -5,6 +5,7 @@ import os
 import sys
 import json
 import cv2
+import time
 from typing import List, Optional, Set
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
@@ -22,10 +23,49 @@ ALLOWED_PROCESSES_FILE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "assets", "allowed_processes.json")
 )
 
-# Windows API for checking active process
+# Windows API for checking active process and mouse simulation
 if sys.platform.startswith('win'):
     import ctypes
     from ctypes import wintypes
+    import win32api
+    import win32con
+
+    # Define ULONG_PTR type with fallback for environments where wintypes lacks it
+    try:
+        ULONG_PTR = wintypes.ULONG_PTR  # type: ignore[attr-defined]
+    except AttributeError:
+        # Determine pointer size to choose correct underlying type
+        ULONG_PTR = ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
+
+    # Define SendInput structures
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", wintypes.LONG),
+            ("dy", wintypes.LONG),
+            ("mouseData", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", ULONG_PTR),
+        ]
+
+    class INPUT(ctypes.Structure):
+        class _INPUT(ctypes.Union):
+            _fields_ = [("mi", MOUSEINPUT)]
+        _anonymous_ = ("_input",)
+        _fields_ = [
+            ("type", wintypes.DWORD),
+            ("_input", _INPUT),
+        ]
+
+    # Constants for SendInput
+    INPUT_MOUSE = 0
+    MOUSEEVENTF_LEFTDOWN = 0x0002
+    MOUSEEVENTF_LEFTUP = 0x0004
+
+    # Load SendInput function
+    SendInput = ctypes.windll.user32.SendInput
+    SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+    SendInput.restype = wintypes.UINT
 
 
 def get_foreground_process_name() -> Optional[str]:
@@ -103,6 +143,11 @@ class Application:
         self._scan_user_requested = False
         self._copy_user_requested = False
         self._focus_state_last: Optional[bool] = None
+        self._triple_ctrl_click_enabled = bool(self.settings.get("triple_ctrl_click_enabled", False))
+        self._triple_ctrl_click_active = False
+        # Double Ctrl press detection state
+        self._ctrl_press_count: int = 0
+        self._last_ctrl_press_time: float = 0.0
         
     def initialize(self, roi: Region) -> None:
         """
@@ -148,6 +193,7 @@ class Application:
             grab_anywhere=bool(ui_cfg.get("grab_anywhere", True)),
             focus_required=self._focus_required,
             dock_position=dock_position,
+            triple_ctrl_click_enabled=self._triple_ctrl_click_enabled,
         )
         
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
@@ -314,6 +360,14 @@ class Application:
                     self._restore_allowed_focus()
                     skip_frame_processing = True
 
+                elif event == 'TRIPLE_CTRL_CLICK_CHANGED':
+                    self._triple_ctrl_click_enabled = self.hud.get_triple_ctrl_click_enabled()
+                    self.settings['triple_ctrl_click_enabled'] = self._triple_ctrl_click_enabled
+                    save_settings(self.settings_path, self.settings)
+                    # If feature disabled while active, stop emulation
+                    if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
+                        self._stop_mouse_simulation()
+
                 if self.tray.is_exit_requested():
                     break
 
@@ -337,6 +391,10 @@ class Application:
                     continue
 
                 self._handle_overlay_toggle()
+
+                # Handle triple ctrl click functionality
+                if self._triple_ctrl_click_enabled:
+                    self._handle_triple_ctrl_click()
 
                 if self._scan_user_requested:
                     self._scan_frame()
@@ -441,6 +499,95 @@ class Application:
             )
         except Exception:
             pass
+
+    def _handle_triple_ctrl_click(self) -> None:
+        """Handle double Ctrl press detection and mouse emulation lifecycle.
+
+        Double press (within 300ms) starts emulation. Releasing Ctrl stops it.
+        Low-order bit detects discrete press events; high-order bit reflects hold state.
+        """
+        if not sys.platform.startswith('win'):
+            return
+
+        try:
+            state = win32api.GetAsyncKeyState(win32con.VK_CONTROL)
+            pressed_since_last_call = (state & 0x0001) != 0
+            ctrl_held = (state & 0x8000) != 0
+
+            if pressed_since_last_call:
+                now = time.time()
+                if now - self._last_ctrl_press_time <= 0.3:
+                    self._ctrl_press_count += 1
+                else:
+                    self._ctrl_press_count = 1
+                self._last_ctrl_press_time = now
+
+                # Start on double press (do not toggle off here)
+                if self._ctrl_press_count >= 2 and not self._triple_ctrl_click_active:
+                    self._start_mouse_simulation()
+                    print("[Double Ctrl] Mouse simulation started")
+                    self._ctrl_press_count = 0
+
+            # Stop when Ctrl is released
+            if self._triple_ctrl_click_active and not ctrl_held:
+                self._stop_mouse_simulation()
+                print("[Double Ctrl] Mouse simulation stopped")
+
+        except Exception as e:
+            print(f"[Double Ctrl] Error: {e}")
+
+    def _start_mouse_simulation(self) -> None:
+        """Start simulating continuous left mouse button clicks every 20ms."""
+        if not sys.platform.startswith('win'):
+            return
+        try:
+            import threading
+            # Set active first to avoid race on thread start
+            self._triple_ctrl_click_active = True
+            self.hud.set_click_emulation_state(True)
+            self._mouse_simulation_thread = threading.Thread(target=self._mouse_click_loop, daemon=True)
+            self._mouse_simulation_thread.start()
+        except Exception as e:
+            print(f"[Double Ctrl] Error starting mouse simulation: {e}")
+
+    def _stop_mouse_simulation(self) -> None:
+        """Stop simulating left mouse button clicks."""
+        if not sys.platform.startswith('win'):
+            return
+        try:
+            self._triple_ctrl_click_active = False
+            self.hud.set_click_emulation_state(False)
+            # Wait a bit for the thread to stop
+            if hasattr(self, '_mouse_simulation_thread'):
+                self._mouse_simulation_thread.join(timeout=0.1)
+        except Exception as e:
+            print(f"[Double Ctrl] Error stopping mouse simulation: {e}")
+
+    def _mouse_click_loop(self) -> None:
+        """Loop that simulates mouse clicks every 50ms using SendInput."""
+        while self._triple_ctrl_click_active:
+            try:
+                # Create mouse down input
+                down_input = INPUT()
+                down_input.type = INPUT_MOUSE
+                down_input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN
+
+                # Create mouse up input
+                up_input = INPUT()
+                up_input.type = INPUT_MOUSE
+                up_input.mi.dwFlags = MOUSEEVENTF_LEFTUP
+
+                # Send mouse down
+                SendInput(1, ctypes.byref(down_input), ctypes.sizeof(INPUT))
+                time.sleep(0.01)  # Short press duration
+
+                # Send mouse up
+                SendInput(1, ctypes.byref(up_input), ctypes.sizeof(INPUT))
+                time.sleep(0.04)  # Wait before next click (total 50ms)
+
+            except Exception as e:
+                print(f"[Double Ctrl] Error in click loop: {e}")
+                break
 
     def _update_dock_position_settings(self) -> None:
         """Persist floating dock position into settings."""
