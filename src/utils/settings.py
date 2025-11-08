@@ -14,7 +14,12 @@ def get_default_settings() -> Dict[str, Any]:
         "threshold": 0.9,
         "scan_interval_ms": 50,
         "require_game_focus": True,
-        "ui": {"keep_on_top": False, "alpha": 1.0, "grab_anywhere": True},
+        "ui": {
+            "keep_on_top": False,
+            "alpha": 1.0,
+            "grab_anywhere": True,
+            "dock_position": {"left": None, "top": None},
+        },
         "language": "en",
         "templates_dir": "assets/templates",
     }

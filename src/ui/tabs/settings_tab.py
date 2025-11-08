@@ -65,6 +65,13 @@ class SettingsTab:
             style='Toggle.TCheckbutton'
         )
         self._chk_focus_required.pack(side='left', padx=(12, 0))
+
+        self._btn_reset_dock = ttk.Button(
+            controls,
+            text=t('settings.reset_dock', 'Reset panel position'),
+            style='Action.TButton'
+        )
+        self._btn_reset_dock.pack(side='left', padx=(12, 0))
         
         # Language selector
         lang_controls = tk.Frame(self.frame, bg=BG_COLOR)
@@ -124,6 +131,10 @@ class SettingsTab:
     def set_focus_required_command(self, command) -> None:
         """Set focus-required checkbox command callback."""
         self._chk_focus_required.configure(command=command)
+
+    def set_reset_dock_command(self, command) -> None:
+        """Set reset dock button command callback."""
+        self._btn_reset_dock.configure(command=command)
         
     def set_language_command(self, command) -> None:
         """Set language combobox command callback."""
@@ -152,6 +163,7 @@ class SettingsTab:
             self._chk_overlay.configure(text=t('settings.show_analysis', 'Show Analysis Area'))
             self._chk_topmost.configure(text=t('settings.always_on_top', 'Always on top'))
             self._chk_focus_required.configure(text=t('settings.require_game_focus', 'Run only when the game is focused'))
+            self._btn_reset_dock.configure(text=t('settings.reset_dock', 'Reset panel position'))
             self._lbl_language.configure(text=t('settings.language', 'Language'))
             
             # Update ROI prefix

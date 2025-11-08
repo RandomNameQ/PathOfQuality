@@ -3,8 +3,9 @@ Main application logic and event loop.
 """
 import os
 import sys
+import json
 import cv2
-from typing import List, Optional
+from typing import List, Optional, Set
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
@@ -16,6 +17,10 @@ from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
 from src.utils.settings import load_settings, save_settings
 from src.i18n.locale import t
+
+ALLOWED_PROCESSES_FILE = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "assets", "allowed_processes.json")
+)
 
 # Windows API for checking active process
 if sys.platform.startswith('win'):
@@ -68,13 +73,6 @@ def get_foreground_process_name() -> Optional[str]:
 class Application:
     """Main application controller."""
     
-    # Allowed process names for scanning
-    ALLOWED_PROCESSES = {
-        'PathOfExile.exe',
-        'PathOfExileSteam.exe', 
-        'PathOfExile2Steam.exe',
-    }
-    
     def __init__(self, settings_path: str = 'settings.json'):
         """
         Initialize application.
@@ -84,6 +82,8 @@ class Application:
         """
         self.settings_path = settings_path
         self.settings = load_settings(settings_path)
+        self.allowed_processes: Set[str] = self._load_allowed_processes()
+        self.allowed_processes.update(self._get_self_process_names())
         self._focus_required = bool(self.settings.get("require_game_focus", True))
         
         # Initialize components
@@ -131,12 +131,23 @@ class Application:
             
         # Initialize UI
         ui_cfg = self.settings.get("ui", {})
+        dock_cfg = ui_cfg.get("dock_position") or {}
+        dock_position = None
+        try:
+            left = dock_cfg.get("left")
+            top = dock_cfg.get("top")
+            if left is not None and top is not None:
+                dock_position = (int(left), int(top))
+        except Exception:
+            dock_position = None
+
         self.hud = BuffHUD(
             templates=self.matcher.get_template_infos(),
             keep_on_top=bool(ui_cfg.get("keep_on_top", False)),
             alpha=float(ui_cfg.get("alpha", 1.0)),
             grab_anywhere=bool(ui_cfg.get("grab_anywhere", True)),
             focus_required=self._focus_required,
+            dock_position=dock_position,
         )
         
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
@@ -157,8 +168,83 @@ class Application:
         self._scan_user_requested = self.hud.get_scanning_enabled()
         self._copy_user_requested = self.hud.get_copy_area_enabled()
         self._focus_state_last = None
+        self._last_allowed_hwnd = None
         self.hud.set_status_message('')
+        try:
+            self.hud.set_dock_visible(True)
+        except Exception:
+            pass
         
+    def _load_allowed_processes(self) -> Set[str]:
+        """Load allowed process names from configuration file."""
+        defaults = {
+            'pathofexile.exe',
+            'pathofexilesteam.exe',
+            'pathofexile2steam.exe',
+        }
+        processes: Set[str] = set()
+
+        try:
+            with open(ALLOWED_PROCESSES_FILE, 'r', encoding='utf-8') as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                items = data.get('processes', [])
+            else:
+                items = data
+            for item in items or []:
+                name = str(item).strip().lower()
+                if name:
+                    processes.add(name)
+        except Exception:
+            processes = set()
+
+        if not processes:
+            processes = defaults
+        return processes
+
+    def _restore_allowed_focus(self) -> None:
+        """Attempt to return focus to the last allowed window."""
+        if not sys.platform.startswith('win'):
+            return
+        hwnd = getattr(self, '_last_allowed_hwnd', None)
+        if not hwnd:
+            return
+        try:
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+
+    def _get_self_process_names(self) -> Set[str]:
+        """Return possible executable names for the current process."""
+        names: Set[str] = set()
+
+        try:
+            current = get_foreground_process_name()
+            if current:
+                names.add(current.strip().lower())
+        except Exception:
+            pass
+
+        for candidate in (sys.executable, sys.argv[0]):
+            try:
+                if not candidate:
+                    continue
+                name = os.path.basename(candidate).strip().lower()
+                if name:
+                    names.add(name)
+                    if name.endswith('python.exe'):
+                        names.add('pythonw.exe')
+                    elif name.endswith('pythonw.exe'):
+                        names.add('python.exe')
+            except Exception:
+                continue
+
+        if not names:
+            names.add('python.exe')
+            names.add('pythonw.exe')
+
+        return names
+
     def _save_roi_snapshot(self) -> None:
         """Save ROI snapshot for debugging."""
         try:
@@ -220,6 +306,13 @@ class Application:
                     self.settings['require_game_focus'] = self._focus_required
                     save_settings(self.settings_path, self.settings)
                     refresh_copy = True
+
+                elif event == 'DOCK_MOVED':
+                    self._update_dock_position_settings()
+
+                elif event == 'DOCK_INTERACTION':
+                    self._restore_allowed_focus()
+                    skip_frame_processing = True
 
                 if self.tray.is_exit_requested():
                     break
@@ -349,8 +442,34 @@ class Application:
         except Exception:
             pass
 
+    def _update_dock_position_settings(self) -> None:
+        """Persist floating dock position into settings."""
+        position = self.hud.get_dock_position()
+        if not position:
+            return
+
+        try:
+            left = int(position[0])
+            top = int(position[1])
+        except Exception:
+            return
+
+        ui_cfg = self.settings.setdefault("ui", {})
+        dock_cfg = ui_cfg.setdefault("dock_position", {})
+        if dock_cfg.get("left") == left and dock_cfg.get("top") == top:
+            return
+
+        dock_cfg["left"] = left
+        dock_cfg["top"] = top
+        save_settings(self.settings_path, self.settings)
+
     def _apply_focus_policy(self, game_in_focus: bool) -> None:
         """Pause or resume application features based on foreground focus."""
+        try:
+            self.hud.set_dock_visible(True)
+        except Exception:
+            pass
+
         if not self._focus_required:
             if self._focus_state_last is False:
                 self.hud.set_status_message('')
@@ -392,13 +511,21 @@ class Application:
             # Can't determine - assume not active
             return False
         
-        is_game_focused = foreground_process in self.ALLOWED_PROCESSES
+        normalized = foreground_process.strip().lower()
+        is_game_focused = normalized in self.allowed_processes
         
         # Debug: print when state changes
         if not hasattr(self, '_last_foreground') or self._last_foreground != foreground_process:
             if is_game_focused:
                 print(f"[Game Focus] Game in focus: {foreground_process}")
             self._last_foreground = foreground_process
+        if is_game_focused:
+            try:
+                hwnd = ctypes.windll.user32.GetForegroundWindow()
+                if hwnd:
+                    self._last_allowed_hwnd = hwnd
+            except Exception:
+                pass
         
         return is_game_focused
             

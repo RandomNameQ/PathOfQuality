@@ -8,6 +8,7 @@
   "settings.show_analysis": "Show Analysis Area",
   "settings.roi": "ROI",
   "settings.language": "Language",
+  "settings.reset_dock": "Reset panel position",
   "settings.require_game_focus": "Run only when the game is focused",
   "button.exit": "Exit",
   "buffs.add": "Add",

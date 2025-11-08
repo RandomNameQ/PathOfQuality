@@ -16,6 +16,7 @@ from src.buffs.library import (
     make_copy_area_entry,
 )
 from src.ui.styles import configure_modern_styles, BG_COLOR
+from src.ui.components.control_dock import ControlDock
 from src.ui.tabs.monitoring_tab import MonitoringTab
 from src.ui.tabs.settings_tab import SettingsTab
 from src.ui.tabs.library_tab import LibraryTab
@@ -35,6 +36,7 @@ class BuffHUD:
         alpha: float = 1.0,
         grab_anywhere: bool = True,
         focus_required: bool = True,
+        dock_position: Optional[Tuple[int, int]] = None,
     ) -> None:
         """
         Initialize BuffHUD.
@@ -69,6 +71,12 @@ class BuffHUD:
         self._exit_requested = False
         self._select_roi_requested = False
         self._events: List[str] = []
+        self._control_dock: Optional[ControlDock] = None
+        self._dock_position: Optional[Tuple[int, int]] = dock_position
+        self._dock_visible: bool = False
+        self._dock_has_focus: bool = False
+        self._last_dock_interaction: float = 0.0
+        self._dock_visible: bool = True
         
         # Configure modern styles
         configure_modern_styles(self._root)
@@ -129,6 +137,8 @@ class BuffHUD:
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
         self._settings_tab.set_language_command(self._on_lang_changed)
+        self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
+        self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
         
         # Bind search events
         self._buffs_tab.get_tree_view().get_search_var().trace_add(
@@ -154,6 +164,25 @@ class BuffHUD:
                 widget.bind('<ButtonPress-1>', self._start_move)
                 widget.bind('<B1-Motion>', self._on_motion)
                 
+        # Floating control dock
+        self._control_dock = ControlDock(
+            master=self._root,
+            on_toggle_scan=self._on_dock_toggle_scan,
+            on_toggle_copy=lambda: self._on_toggle_copy_area_enabled(),
+            on_open_main=self._on_dock_open_main,
+            initial_position=self._dock_position,
+            grid_size=24,
+            on_position_changed=self._on_dock_position_changed,
+            on_focus_change=self._on_dock_focus_change,
+            on_button_action=lambda: self._mark_dock_interaction(restore=True),
+        )
+        self._control_dock.set_scanning_active(self.get_scanning_enabled())
+        self._control_dock.set_copy_active(self.get_copy_area_enabled())
+        self._control_dock.set_topmost(True)
+        self._dock_position = self._control_dock.get_position()
+        self._dock_visible = True
+        self._dock_visible = True
+
         self._root.protocol('WM_DELETE_WINDOW', self._on_exit)
         
     def _on_exit(self) -> None:
@@ -185,6 +214,8 @@ class BuffHUD:
             self._root.attributes('-topmost', bool(self._settings_tab.get_topmost_var().get()))
         except Exception:
             pass
+        if self._control_dock is not None:
+            self._control_dock.set_topmost(True)
 
     def _on_focus_required_changed(self) -> None:
         """Handle focus policy checkbox change."""
@@ -217,6 +248,45 @@ class BuffHUD:
 
         self.set_copy_area_state(new_state)
         self._events.append('COPY_AREA_TOGGLE')
+        self._mark_dock_interaction(restore=True)
+
+    def _on_dock_toggle_scan(self) -> None:
+        """Handle scan toggle from floating dock."""
+        self._mark_dock_interaction(restore=True)
+        self._on_toggle_scan()
+
+    def _on_dock_open_main(self) -> None:
+        """Bring main window to front from dock."""
+        self._mark_dock_interaction()
+        try:
+            self._root.deiconify()
+            self._root.state('normal')
+            self._root.lift()
+            self._root.focus_force()
+        except Exception:
+            pass
+        if self._control_dock is not None:
+            self._control_dock.lift()
+
+    def _on_dock_position_changed(self, x: int, y: int) -> None:
+        """Handle floating dock position changes."""
+        self._dock_position = (int(x), int(y))
+        self._events.append('DOCK_MOVED')
+        self._mark_dock_interaction()
+
+    def _on_dock_focus_change(self, focused: bool) -> None:
+        """Track floating dock focus state."""
+        self._dock_has_focus = bool(focused)
+        if focused:
+            self._mark_dock_interaction()
+
+    def _on_reset_dock_position(self) -> None:
+        """Reset floating dock position to default."""
+        if self._control_dock is None:
+            return
+        self._control_dock.reset_position()
+        self._control_dock.lift()
+        self._dock_position = self._control_dock.get_position()
 
     def _on_toggle_active(self, entry_id: str, entry_type: str, var: tk.BooleanVar) -> None:
         """Handle entry active toggle."""
@@ -470,6 +540,8 @@ class BuffHUD:
 
         scan_var.set(enabled)
         self._monitoring_tab.update_scan_status(enabled)
+        if self._control_dock is not None:
+            self._control_dock.set_scanning_active(enabled)
 
         if enabled:
             self._monitoring_tab.start_scan_animation(self._root)
@@ -488,6 +560,8 @@ class BuffHUD:
 
         copy_var.set(enabled)
         self._monitoring_tab.update_copy_area_status()
+        if self._control_dock is not None:
+            self._control_dock.set_copy_active(enabled)
 
         if notify:
             self._events.append('COPY_AREA_TOGGLE')
@@ -507,6 +581,61 @@ class BuffHUD:
     def get_copy_area_enabled(self) -> bool:
         """Check if copy area overlay is enabled."""
         return bool(self._monitoring_tab.get_copy_area_var().get())
+        
+    def get_dock_position(self) -> Optional[Tuple[int, int]]:
+        """Get current floating dock position."""
+        return self._dock_position
+        
+    def set_dock_visible(self, visible: bool) -> None:
+        """Show or hide the floating dock."""
+        if self._control_dock is None:
+            return
+        if not visible:
+            return
+        if self._dock_visible:
+            return
+        self._control_dock.show()
+        self._control_dock.lift()
+        self._mark_dock_interaction()
+        self._dock_visible = True
+        
+    def is_application_active(self) -> bool:
+        """Check if HUD or floating dock currently has focus."""
+        if self._dock_has_focus:
+            return True
+        if self._recent_dock_interaction():
+            return True
+        try:
+            widget = self._root.focus_get()
+        except Exception:
+            widget = None
+        return widget is not None
+        
+    def set_dock_visible(self, visible: bool) -> None:
+        """Show or hide the floating dock."""
+        if self._control_dock is None:
+            return
+        desired = bool(visible)
+        if desired == self._dock_visible:
+            return
+        if desired:
+            self._control_dock.show()
+            self._control_dock.lift()
+        else:
+            self._control_dock.hide()
+        self._dock_visible = desired
+        if not desired:
+            self._dock_has_focus = False
+
+    def is_application_active(self) -> bool:
+        """Check if HUD or floating dock currently has focus."""
+        if self._dock_has_focus:
+            return True
+        try:
+            widget = self._root.focus_get()
+        except Exception:
+            widget = None
+        return widget is not None
         
     def get_focus_required(self) -> bool:
         """Check if game focus is required."""
@@ -530,8 +659,22 @@ class BuffHUD:
         
     def close(self) -> None:
         """Close the HUD window."""
+        if self._control_dock is not None:
+            self._control_dock.close()
+            self._dock_visible = False
+            self._dock_has_focus = False
         try:
             self._root.destroy()
         except Exception:
             pass
+
+    def _mark_dock_interaction(self, restore: bool = False) -> None:
+        self._last_dock_interaction = time.time()
+        if restore and 'DOCK_INTERACTION' not in self._events:
+            self._events.append('DOCK_INTERACTION')
+
+    def _recent_dock_interaction(self, timeout: float = 1.0) -> bool:
+        if self._last_dock_interaction <= 0.0:
+            return False
+        return (time.time() - self._last_dock_interaction) <= timeout
 
