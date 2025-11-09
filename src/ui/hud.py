@@ -137,6 +137,7 @@ class BuffHUD:
             on_toggle_positioning=self._on_toggle_currency_positioning,
             on_set_hotkey=self._on_quickcraft_set_hotkey,
             on_clear_hotkey=self._on_quickcraft_clear_hotkey,
+            on_reset_position=self._on_quickcraft_reset_position,
         )
         self._copy_tab = CopyAreaTab(
             self._tab_copy_frame,
@@ -538,6 +539,17 @@ class BuffHUD:
 
     def _on_quickcraft_clear_hotkey(self, _currency_id: str) -> None:
         save_global_hotkey('')
+        self._events.append('QUICKCRAFT_UPDATED')
+        self._reload_library()
+
+    def _on_quickcraft_reset_position(self, currency_id: str) -> None:
+        from src.quickcraft.library import update_position
+        if not currency_id:
+            return
+        try:
+            update_position(currency_id, 0, 0)
+        except Exception:
+            pass
         self._events.append('QUICKCRAFT_UPDATED')
         self._reload_library()
 

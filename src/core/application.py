@@ -583,13 +583,8 @@ class Application:
         self._quickcraft_positions = trimmed
 
     def _register_quickcraft_hotkeys(self) -> None:
-        mapping: Dict[str, str] = {}
-        for cid, cfg in self._quickcraft_positions.items():
-            cid = str(cid)
-            hotkey = normalize_hotkey_name(str(cfg.get('hotkey', '') or ''))
-            if hotkey:
-                mapping[hotkey] = cid
-        self._quickcraft_hotkey_map = mapping
+        # Per-item hotkeys are disabled; only global hotkey is used
+        self._quickcraft_hotkey_map = {}
         try:
             self._quickcraft_global_hotkey = normalize_hotkey_name(load_global_hotkey())
         except Exception:
@@ -634,6 +629,31 @@ class Application:
                 if mapping[cid].get('left', 0) == 0 and mapping[cid].get('top', 0) == 0:
                     mapping[cid] = {'left': cap_left, 'top': cap_top}
         return mapping
+
+    def _build_position_map_from_anchor(self, anchor_left: int, anchor_top: int) -> Dict[str, Dict[str, int]]:
+        """Build absolute positions from saved OFFSETS relative to an anchor square."""
+        mapping: Dict[str, Dict[str, int]] = {}
+        for cid, cfg in self._quickcraft_positions.items():
+            cid = str(cid)
+            try:
+                off_left = int(cfg.get('left', 0))
+                off_top = int(cfg.get('top', 0))
+            except Exception:
+                off_left, off_top = 0, 0
+            mapping[cid] = {
+                'left': int(anchor_left) + off_left,
+                'top': int(anchor_top) + off_top,
+            }
+        return mapping
+
+    def _get_center_anchor(self) -> tuple[int, int]:
+        try:
+            sw = int(self.hud.get_root().winfo_screenwidth())
+            sh = int(self.hud.get_root().winfo_screenheight())
+        except Exception:
+            sw, sh = 1920, 1080
+        size = 60
+        return max(0, (sw - size) // 2), max(0, (sh - size) // 2)
 
     def _get_currency_by_id(self, currency_id: str) -> Optional[Dict]:
         for item in self._currencies_cache:
@@ -680,6 +700,12 @@ class Application:
     def _handle_quickcraft_hotkey(self, token: str) -> None:
         # Global hotkey takes precedence
         if self._quickcraft_global_hotkey and token == self._quickcraft_global_hotkey:
+            # If user presses global hotkey while positioning, save current template first
+            if self._currency_positioning_enabled:
+                try:
+                    self._disable_currency_positioning(save_changes=True)
+                except Exception:
+                    pass
             self._toggle_quickcraft_global()
             return
         currency_id = self._quickcraft_hotkey_map.get(token)
@@ -698,7 +724,15 @@ class Application:
 
         # Show all active currencies with saved positions
         currencies = [c for c in (self._currencies_cache or load_currencies()) if c.get('active')]
-        position_map = self._build_position_map()
+        # Build absolute positions using Win32 mouse coordinates as the center square
+        try:
+            cur_x, cur_y = win32api.GetCursorPos()
+        except Exception:
+            cur_x = self.roi.left + self.roi.width // 2
+            cur_y = self.roi.top + self.roi.height // 2
+        anchor_left = int(cur_x) - 30
+        anchor_top = int(cur_y) - 30
+        position_map = self._build_position_map_from_anchor(anchor_left, anchor_top)
         show_list = []
         ids: Set[str] = set()
         for c in currencies:
@@ -714,7 +748,6 @@ class Application:
             self.currency_overlay.activate_runtime(show_list, position_map)
             self._quickcraft_runtime_active_ids = ids
             self._quickcraft_runtime_active = None
-            self.hud.set_quickcraft_runtime_active_ids(ids)
         except Exception as exc:
             print(f"[QuickCraft] Global show failed: {exc}")
 
@@ -811,7 +844,9 @@ class Application:
         self._trim_quickcraft_positions(active_ids)
 
         try:
-            position_map = self._build_position_map()
+            # Place windows around center guide using saved OFFSETS
+            anchor_left, anchor_top = self._get_center_anchor()
+            position_map = self._build_position_map_from_anchor(anchor_left, anchor_top)
             self.currency_overlay.enable_positioning(currencies, position_map)
             self._currency_positioning_enabled = True
             self.hud.set_currency_positioning(True)
@@ -835,11 +870,29 @@ class Application:
 
         if save_changes:
             if updated:
+                # Extract center anchor from special window if present
+                center = updated.pop('__center__', None)
+                if center is not None:
+                    try:
+                        a_left = int(center.get('left', 0))
+                        a_top = int(center.get('top', 0))
+                    except Exception:
+                        a_left, a_top = self._get_center_anchor()
+                else:
+                    a_left, a_top = self._get_center_anchor()
+
                 for cid, pos in updated.items():
                     cid_key = str(cid)
+                    try:
+                        abs_left = int(pos.get('left', 0))
+                        abs_top = int(pos.get('top', 0))
+                    except Exception:
+                        abs_left, abs_top = 0, 0
+                    off_left = abs_left - a_left
+                    off_top = abs_top - a_top
                     cfg = self._quickcraft_positions.get(cid_key, {})
-                    cfg['left'] = int(pos.get('left', 0))
-                    cfg['top'] = int(pos.get('top', 0))
+                    cfg['left'] = int(off_left)
+                    cfg['top'] = int(off_top)
                     cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
                     self._quickcraft_positions[cid_key] = cfg
             currencies = load_currencies()

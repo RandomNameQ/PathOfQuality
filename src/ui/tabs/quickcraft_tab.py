@@ -32,11 +32,13 @@ class QuickCraftTab:
         on_toggle_positioning: Callable[[bool], None],
         on_set_hotkey: Callable[[str], None],
         on_clear_hotkey: Callable[[str], None],
+        on_reset_position: Callable[[str], None],
     ) -> None:
         self.frame = parent
         self._on_toggle_positioning = on_toggle_positioning
         self._on_set_hotkey = on_set_hotkey
         self._on_clear_hotkey = on_clear_hotkey
+        self._on_reset_position = on_reset_position
 
         self._search_var = tk.StringVar(value='')
         self._positioning_var = tk.BooleanVar(value=False)
@@ -87,6 +89,14 @@ class QuickCraftTab:
             style='Action.TButton',
         )
         self._btn_clear_hotkey.pack(side='left', padx=(8, 0))
+
+        self._btn_reset_pos = ttk.Button(
+            controls,
+            text=t('quickcraft.reset_position', 'Reset position'),
+            command=self._invoke_reset_position,
+            style='Action.TButton',
+        )
+        self._btn_reset_pos.pack(side='left', padx=(8, 0))
 
         self._lbl_global_hotkey_var = tk.StringVar(value='')
         self._lbl_global_hotkey = ttk.Label(
@@ -252,6 +262,7 @@ class QuickCraftTab:
             self._btn_clear.configure(text=t('button.clear', 'Clear'))
             self._btn_set_hotkey.configure(text=t('quickcraft.set_hotkey', 'Set hotkey'))
             self._btn_clear_hotkey.configure(text=t('quickcraft.clear_hotkey', 'Clear hotkey'))
+            self._btn_reset_pos.configure(text=t('quickcraft.reset_position', 'Reset position'))
             self._tree.heading('name', text=t('currency.name', 'Name'))
             self._tree.heading('interface', text=t('currency.interface', 'Interface'))
             self._tree.heading('hotkey', text=t('quickcraft.hotkey', 'Hotkey'))
@@ -310,6 +321,11 @@ class QuickCraftTab:
         # Clear GLOBAL hotkey regardless of selection
         if callable(self._on_clear_hotkey):
             self._on_clear_hotkey('')
+
+    def _invoke_reset_position(self) -> None:
+        iid = self.get_selected_id()
+        if iid and callable(self._on_reset_position):
+            self._on_reset_position(iid)
 
     def get_selected_id(self) -> str:
         selection = self._tree.selection()

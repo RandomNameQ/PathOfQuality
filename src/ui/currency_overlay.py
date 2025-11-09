@@ -24,6 +24,8 @@ class CurrencyOverlay:
         self._active_currencies: Dict[str, Dict] = {}
         self._runtime_active: Dict[str, Dict] = {}
         self._runtime_positions: Dict[str, Dict[str, int]] = {}
+        self._center_id = '__center__'
+        self._center_window: Optional[MirrorWindow] = None
 
     def _ensure_capture(self) -> MSSCapture:
         if self._capture is None:
@@ -60,6 +62,33 @@ class CurrencyOverlay:
         self._active_ids.clear()
         self._active_currencies.clear()
         used_ids: List[str] = []
+
+        # Create a 60x60 guide square at the screen center
+        try:
+            screen_w = int(self._master.winfo_screenwidth())
+            screen_h = int(self._master.winfo_screenheight())
+        except Exception:
+            screen_w, screen_h = 1920, 1080
+        guide_size = 60
+        guide_left = max(0, (screen_w - guide_size) // 2)
+        guide_top = max(0, (screen_h - guide_size) // 2)
+
+        if self._center_window is None:
+            self._center_window = MirrorWindow(self._master)
+            # Dark teal square
+        try:
+            img = Image.new('RGBA', (guide_size, guide_size), (17, 94, 89, 180))
+            self._center_window.update_image(img)
+            # Solid border effect by slightly larger background is not available; rely on color
+        except Exception:
+            pass
+        try:
+            self._center_window.show(guide_left, guide_top, guide_size, guide_size, alpha=0.8, topmost=True)
+        except Exception:
+            pass
+        # Register guide in windows map for snapping
+        self._windows[self._center_id] = self._center_window
+        used_ids.append(self._center_id)
 
         for currency in currencies:
             if not bool(currency.get('active', False)):
@@ -119,6 +148,13 @@ class CurrencyOverlay:
 
             window.disable_positioning()
             window.hide()
+
+        # Hide center guide
+        try:
+            if self._center_window is not None:
+                self._center_window.hide()
+        except Exception:
+            pass
 
         self._active_ids.clear()
         self._active_currencies.clear()
