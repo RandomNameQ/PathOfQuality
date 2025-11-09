@@ -1,0 +1,1 @@
+"""Quick craft utilities package."""

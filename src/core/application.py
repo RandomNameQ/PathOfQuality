@@ -6,7 +6,7 @@ import sys
 import json
 import cv2
 import time
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
@@ -14,10 +14,13 @@ from src.detector.library_matcher import LibraryMatcher
 from src.ui.hud import BuffHUD
 from src.ui.icon_mirrors import IconMirrorsOverlay
 from src.ui.overlay import OverlayHighlighter
+from src.ui.currency_overlay import CurrencyOverlay
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
 from src.utils.settings import load_settings, save_settings
 from src.i18n.locale import t
+from src.currency.library import load_currencies
+from src.quickcraft.library import load_positions as load_quickcraft_positions, save_positions as save_quickcraft_positions, load_global_hotkey
 
 ALLOWED_PROCESSES_FILE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "assets", "allowed_processes.json")
@@ -29,6 +32,7 @@ if sys.platform.startswith('win'):
     from ctypes import wintypes
     import win32api
     import win32con
+    from src.quickcraft.hotkeys import HotkeyListener, normalize_hotkey_name
 
     # Define ULONG_PTR type with fallback for environments where wintypes lacks it
     try:
@@ -66,6 +70,11 @@ if sys.platform.startswith('win'):
     SendInput = ctypes.windll.user32.SendInput
     SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
     SendInput.restype = wintypes.UINT
+else:
+    HotkeyListener = None  # type: ignore
+
+    def normalize_hotkey_name(name: str) -> str:  # type: ignore
+        return ''
 
 
 def get_foreground_process_name() -> Optional[str]:
@@ -133,6 +142,7 @@ class Application:
         self.hud: BuffHUD = None
         self.overlay: OverlayHighlighter = None
         self.mirrors: IconMirrorsOverlay = None
+        self.currency_overlay: CurrencyOverlay = None
         self.tray: TrayIcon = None
         
         # State
@@ -142,12 +152,25 @@ class Application:
         self.positioning_enabled_last = False
         self._scan_user_requested = False
         self._copy_user_requested = False
+        self._currency_positioning_requested = False
+        self._currency_positioning_enabled = False
+        self._quickcraft_positions: Dict[str, Dict[str, object]] = load_quickcraft_positions()
+        self._quickcraft_hotkey_map: Dict[str, str] = {}
+        self._quickcraft_global_hotkey: str = ''
+        self._quickcraft_runtime_active: Optional[str] = None
+        self._quickcraft_runtime_active_ids: Set[str] = set()
+        self._currencies_cache: List[Dict] = []
+        self._hotkeys = HotkeyListener() if sys.platform.startswith('win') and HotkeyListener is not None else None
         self._focus_state_last: Optional[bool] = None
         self._triple_ctrl_click_enabled = bool(self.settings.get("triple_ctrl_click_enabled", False))
         self._triple_ctrl_click_active = False
         # Double Ctrl press detection state
         self._ctrl_press_count: int = 0
         self._last_ctrl_press_time: float = 0.0
+        self._register_quickcraft_hotkeys()
+        # Fallback polling state for when LL hooks are unavailable
+        self._key_down_state: Dict[str, bool] = {}
+        self._key_last_emit: Dict[str, float] = {}
         
     def initialize(self, roi: Region) -> None:
         """
@@ -202,6 +225,9 @@ class Application:
         self.overlay = OverlayHighlighter(self.hud.get_root())
         self.mirrors = IconMirrorsOverlay(self.hud.get_root())
         self.mirrors.set_copy_enabled(self.hud.get_copy_area_enabled())
+        self.currency_overlay = CurrencyOverlay(self.hud.get_root())
+        self.hud.set_currency_positioning(False)
+        self._currencies_cache = load_currencies()
         
         # Initialize tray
         self.tray = TrayIcon()
@@ -333,6 +359,23 @@ class Application:
                     refresh_copy = True
                     skip_frame_processing = True
 
+                elif event == 'CURRENCY_UPDATED':
+                    self._currencies_cache = load_currencies()
+                    active_ids = {str(entry.get('id')) for entry in self._currencies_cache if entry.get('id')}
+                    self._trim_quickcraft_positions(active_ids)
+                    self._register_quickcraft_hotkeys()
+                    if self._quickcraft_runtime_active and self._quickcraft_runtime_active not in self._quickcraft_positions:
+                        self._hide_quickcraft_overlay()
+                    if self._currency_positioning_enabled:
+                        self._enable_currency_positioning()
+                    if self._quickcraft_runtime_active:
+                        self._show_quickcraft_overlay(self._quickcraft_runtime_active, force=True)
+                    skip_frame_processing = True
+
+                elif event == 'QUICKCRAFT_UPDATED':
+                    self._reload_quickcraft_data()
+                    skip_frame_processing = True
+
                 elif event == 'SELECT_ROI':
                     self._handle_roi_selection()
                     skip_frame_processing = True
@@ -368,6 +411,16 @@ class Application:
                     if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
                         self._stop_mouse_simulation()
 
+                elif event == 'CURRENCY_POSITIONING_ON':
+                    self._currency_positioning_requested = True
+                    self._enable_currency_positioning()
+                    skip_frame_processing = True
+
+                elif event == 'CURRENCY_POSITIONING_OFF':
+                    self._currency_positioning_requested = False
+                    self._disable_currency_positioning(save_changes=True)
+                    skip_frame_processing = True
+
                 if self.tray.is_exit_requested():
                     break
 
@@ -377,6 +430,9 @@ class Application:
 
                 if refresh_copy:
                     self._refresh_copy_overlays()
+
+                self._update_currency_overlay()
+                self._process_hotkeys()
 
                 # Allow positioning toggles even when the game is unfocused
                 self._handle_positioning_toggle()
@@ -499,6 +555,307 @@ class Application:
             )
         except Exception:
             pass
+
+    def _update_currency_overlay(self, block: bool = False) -> None:
+        """Refresh quick craft overlay captures when active or positioning."""
+        if self.currency_overlay is None:
+            return
+        try:
+            self.currency_overlay.refresh()
+        except Exception as exc:
+            print(f"[QuickCraft] Refresh failed: {exc}")
+
+    def _trim_quickcraft_positions(self, valid_ids: Set[str]) -> None:
+        if not isinstance(valid_ids, set):
+            valid_ids = set(valid_ids)
+        trimmed: Dict[str, Dict[str, object]] = {}
+        for raw_id, cfg in self._quickcraft_positions.items():
+            cid = str(raw_id)
+            if cid not in valid_ids:
+                continue
+            try:
+                left = int(cfg.get('left', 0))
+                top = int(cfg.get('top', 0))
+            except Exception:
+                left, top = 0, 0
+            hotkey = str(cfg.get('hotkey', '') or '').strip()
+            trimmed[cid] = {'left': left, 'top': top, 'hotkey': hotkey}
+        self._quickcraft_positions = trimmed
+
+    def _register_quickcraft_hotkeys(self) -> None:
+        mapping: Dict[str, str] = {}
+        for cid, cfg in self._quickcraft_positions.items():
+            cid = str(cid)
+            hotkey = normalize_hotkey_name(str(cfg.get('hotkey', '') or ''))
+            if hotkey:
+                mapping[hotkey] = cid
+        self._quickcraft_hotkey_map = mapping
+        try:
+            self._quickcraft_global_hotkey = normalize_hotkey_name(load_global_hotkey())
+        except Exception:
+            self._quickcraft_global_hotkey = ''
+
+    def _reload_quickcraft_data(self) -> None:
+        self._quickcraft_positions = load_quickcraft_positions()
+        if self._currencies_cache:
+            active_ids = {str(entry.get('id')) for entry in self._currencies_cache if entry.get('id')}
+            self._trim_quickcraft_positions(active_ids)
+        self._register_quickcraft_hotkeys()
+        if self._quickcraft_runtime_active:
+            active_id = self._quickcraft_runtime_active
+            if active_id not in self._quickcraft_positions:
+                self._hide_quickcraft_overlay()
+            else:
+                self._show_quickcraft_overlay(active_id, force=True)
+
+    def _build_position_map(self) -> Dict[str, Dict[str, int]]:
+        mapping: Dict[str, Dict[str, int]] = {}
+        # Start from saved quickcraft positions
+        for cid, cfg in self._quickcraft_positions.items():
+            cid = str(cid)
+            try:
+                left = int(cfg.get('left', 0))
+                top = int(cfg.get('top', 0))
+            except Exception:
+                left, top = 0, 0
+            mapping[cid] = {'left': left, 'top': top}
+
+        # Fill missing or zero positions from currency capture defaults
+        for item in (self._currencies_cache or []):
+            cid = str(item.get('id') or '')
+            if not cid:
+                continue
+            cap = item.get('capture') or {}
+            cap_left = int(cap.get('left', 0))
+            cap_top = int(cap.get('top', 0))
+            if cid not in mapping:
+                mapping[cid] = {'left': cap_left, 'top': cap_top}
+            else:
+                if mapping[cid].get('left', 0) == 0 and mapping[cid].get('top', 0) == 0:
+                    mapping[cid] = {'left': cap_left, 'top': cap_top}
+        return mapping
+
+    def _get_currency_by_id(self, currency_id: str) -> Optional[Dict]:
+        for item in self._currencies_cache:
+            if item.get('id') == currency_id:
+                return item
+        try:
+            self._currencies_cache = load_currencies()
+        except Exception:
+            self._currencies_cache = []
+            return None
+        for item in self._currencies_cache:
+            if item.get('id') == currency_id:
+                return item
+        return None
+
+    def _show_quickcraft_overlay(self, currency_id: str, force: bool = False) -> None:
+        if self.currency_overlay is None:
+            return
+        if not force and self._quickcraft_runtime_active == currency_id:
+            return
+
+        currency_id = str(currency_id)
+        currency = self._get_currency_by_id(currency_id)
+        if currency is None:
+            return
+
+        position_cfg = self._quickcraft_positions.get(currency_id, {})
+        position_map = {
+            currency_id: {
+                'left': int(position_cfg.get('left', 0)),
+                'top': int(position_cfg.get('top', 0)),
+            }
+        }
+        self.currency_overlay.activate_runtime([currency], position_map)
+        self._quickcraft_runtime_active = currency_id
+        # No per-row UI marker required
+
+    def _hide_quickcraft_overlay(self) -> None:
+        if self.currency_overlay is not None:
+            self.currency_overlay.deactivate_runtime()
+        self._quickcraft_runtime_active = None
+        self._quickcraft_runtime_active_ids = set()
+
+    def _handle_quickcraft_hotkey(self, token: str) -> None:
+        # Global hotkey takes precedence
+        if self._quickcraft_global_hotkey and token == self._quickcraft_global_hotkey:
+            self._toggle_quickcraft_global()
+            return
+        currency_id = self._quickcraft_hotkey_map.get(token)
+        if not currency_id:
+            return
+        if self._quickcraft_runtime_active == currency_id:
+            self._hide_quickcraft_overlay()
+        else:
+            self._show_quickcraft_overlay(currency_id, force=True)
+
+    def _toggle_quickcraft_global(self) -> None:
+        # If anything active -> hide all
+        if self._quickcraft_runtime_active_ids:
+            self._hide_quickcraft_overlay()
+            return
+
+        # Show all active currencies with saved positions
+        currencies = [c for c in (self._currencies_cache or load_currencies()) if c.get('active')]
+        position_map = self._build_position_map()
+        show_list = []
+        ids: Set[str] = set()
+        for c in currencies:
+            cid = str(c.get('id'))
+            if not cid:
+                continue
+            show_list.append(c)
+            ids.add(cid)
+
+        if not show_list:
+            return
+        try:
+            self.currency_overlay.activate_runtime(show_list, position_map)
+            self._quickcraft_runtime_active_ids = ids
+            self._quickcraft_runtime_active = None
+            self.hud.set_quickcraft_runtime_active_ids(ids)
+        except Exception as exc:
+            print(f"[QuickCraft] Global show failed: {exc}")
+
+    def _process_hotkeys(self) -> None:
+        if self._hotkeys is None:
+            # Fallback polling when hooks aren't available
+            self._poll_hotkeys_fallback()
+            return
+        polled = self._hotkeys.poll()
+        if polled:
+            for token in polled:
+                self._handle_quickcraft_hotkey(token)
+        else:
+            # If hook is installed but no events, also run fallback to support keys Tk may swallow
+            self._poll_hotkeys_fallback()
+
+    def _token_to_vk(self, token: str) -> Optional[int]:
+        if not token:
+            return None
+        t = token.upper()
+        if t.startswith('F') and t[1:].isdigit():
+            n = int(t[1:])
+            if 1 <= n <= 24:
+                return getattr(win32con, f'VK_F{n}', None)
+        if len(t) == 1 and 'A' <= t <= 'Z':
+            return ord(t)
+        if len(t) == 1 and '0' <= t <= '9':
+            return ord(t)
+        mapping = {
+            'ESC': win32con.VK_ESCAPE,
+            'ENTER': win32con.VK_RETURN,
+            'SPACE': win32con.VK_SPACE,
+            'TAB': win32con.VK_TAB,
+            'UP': win32con.VK_UP,
+            'DOWN': win32con.VK_DOWN,
+            'LEFT': win32con.VK_LEFT,
+            'RIGHT': win32con.VK_RIGHT,
+            'HOME': win32con.VK_HOME,
+            'END': win32con.VK_END,
+            'PAGE_UP': win32con.VK_PRIOR,
+            'PAGE_DOWN': win32con.VK_NEXT,
+            'INSERT': win32con.VK_INSERT,
+            'DELETE': win32con.VK_DELETE,
+            'CTRL': win32con.VK_CONTROL,
+            'ALT': win32con.VK_MENU,
+            'SHIFT': win32con.VK_SHIFT,
+        }
+        return mapping.get(t)
+
+    def _poll_hotkeys_fallback(self) -> None:
+        if not sys.platform.startswith('win'):
+            return
+        now = time.time()
+        # poll only keys that are mapped
+        tokens = set(self._quickcraft_hotkey_map.keys())
+        if self._quickcraft_global_hotkey:
+            tokens.add(self._quickcraft_global_hotkey)
+        for token in list(tokens):
+            vk = self._token_to_vk(token)
+            if vk is None:
+                continue
+            state = win32api.GetAsyncKeyState(vk)
+            down = (state & 0x8000) != 0
+            prev = self._key_down_state.get(token, False)
+            if down and not prev:
+                last = self._key_last_emit.get(token, 0.0)
+                if now - last > 0.2:
+                    self._key_last_emit[token] = now
+                    self._handle_quickcraft_hotkey(token)
+            self._key_down_state[token] = down
+
+    def _enable_currency_positioning(self) -> None:
+        if self.currency_overlay is None:
+            return
+
+        intermediate = {}
+        if self._currency_positioning_enabled:
+            intermediate = self.currency_overlay.disable_positioning(save_changes=False)
+        else:
+            self._quickcraft_positions = load_quickcraft_positions()
+
+        if intermediate:
+            for cid, pos in intermediate.items():
+                cid_key = str(cid)
+                cfg = self._quickcraft_positions.get(cid_key, {})
+                cfg['left'] = int(pos.get('left', 0))
+                cfg['top'] = int(pos.get('top', 0))
+                cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
+                self._quickcraft_positions[cid_key] = cfg
+
+        currencies = load_currencies()
+        self._currencies_cache = currencies
+        active_ids = {str(entry.get('id')) for entry in currencies if entry.get('id')}
+        self._trim_quickcraft_positions(active_ids)
+
+        try:
+            position_map = self._build_position_map()
+            self.currency_overlay.enable_positioning(currencies, position_map)
+            self._currency_positioning_enabled = True
+            self.hud.set_currency_positioning(True)
+        except Exception as exc:
+            print(f"[QuickCraft] Failed to enable positioning: {exc}")
+            self._currency_positioning_enabled = False
+        self._register_quickcraft_hotkeys()
+
+    def _disable_currency_positioning(self, save_changes: bool = True) -> None:
+        if self.currency_overlay is None:
+            return
+
+        if not self._currency_positioning_enabled and not save_changes:
+            return
+
+        updated = {}
+        try:
+            updated = self.currency_overlay.disable_positioning(save_changes=save_changes)
+        except Exception as exc:
+            print(f"[QuickCraft] Failed to disable positioning: {exc}")
+
+        if save_changes:
+            if updated:
+                for cid, pos in updated.items():
+                    cid_key = str(cid)
+                    cfg = self._quickcraft_positions.get(cid_key, {})
+                    cfg['left'] = int(pos.get('left', 0))
+                    cfg['top'] = int(pos.get('top', 0))
+                    cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
+                    self._quickcraft_positions[cid_key] = cfg
+            currencies = load_currencies()
+            self._currencies_cache = currencies
+            active_ids = {str(entry.get('id')) for entry in currencies if entry.get('id')}
+            self._trim_quickcraft_positions(active_ids)
+            try:
+                save_quickcraft_positions(self._quickcraft_positions)
+            except Exception as exc:
+                print(f"[QuickCraft] Failed to save positions: {exc}")
+            self._register_quickcraft_hotkeys()
+            if self._quickcraft_runtime_active and self._quickcraft_runtime_active in self._quickcraft_positions:
+                self._show_quickcraft_overlay(self._quickcraft_runtime_active, force=True)
+
+        self._currency_positioning_enabled = False
+        self.hud.set_currency_positioning(False)
 
     def _handle_triple_ctrl_click(self) -> None:
         """Handle double Ctrl press detection and mouse emulation lifecycle.
@@ -676,6 +1033,22 @@ class Application:
             
     def _cleanup(self) -> None:
         """Cleanup application resources."""
+        try:
+            self._disable_currency_positioning(save_changes=True)
+        except Exception:
+            pass
+
+        try:
+            self._hide_quickcraft_overlay()
+        except Exception:
+            pass
+
+        if self._hotkeys is not None:
+            try:
+                self._hotkeys.stop()
+            except Exception:
+                pass
+
         self.hud.close()
         
         try:
@@ -694,6 +1067,12 @@ class Application:
         except Exception:
             pass
             
+        try:
+            if self.currency_overlay is not None:
+                self.currency_overlay.close()
+        except Exception:
+            pass
+
         try:
             self.tray.stop()
         except Exception:

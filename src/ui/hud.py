@@ -4,7 +4,7 @@ Simplified main HUD window using modular tab components.
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 from src.i18n.locale import t, get_lang, set_lang
 from src.buffs.library import (
     load_library,
@@ -15,14 +15,26 @@ from src.buffs.library import (
     update_copy_area_entry,
     make_copy_area_entry,
 )
+from src.currency.library import (
+    load_currencies,
+    add_currency_entry,
+    update_currency_entry,
+    delete_currency_entry,
+    make_currency_entry,
+)
+from src.quickcraft.library import load_positions as load_quickcraft_positions, update_hotkey as update_quickcraft_hotkey, load_global_hotkey, save_global_hotkey
+from src.quickcraft.hotkeys import normalize_hotkey_name
 from src.ui.styles import configure_modern_styles, BG_COLOR
 from src.ui.components.control_dock import ControlDock
 from src.ui.tabs.monitoring_tab import MonitoringTab
 from src.ui.tabs.settings_tab import SettingsTab
 from src.ui.tabs.library_tab import LibraryTab
 from src.ui.tabs.copy_area_tab import CopyAreaTab
+from src.ui.tabs.quickcraft_tab import QuickCraftTab
+from src.ui.tabs.currency_tab import CurrencyTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
 from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
+from src.ui.dialogs.currency_editor import CurrencyEditorDialog
 from src.ui.roi_selector import select_roi
 
 
@@ -92,6 +104,8 @@ class BuffHUD:
         self._tab_settings_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_buffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_debuffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
+        self._tab_currency_frame = tk.Frame(self._notebook, bg=BG_COLOR)
+        self._tab_quickcraft_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_copy_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         
         # Initialize tab components
@@ -111,6 +125,19 @@ class BuffHUD:
             on_edit=lambda: self._on_edit_entry('debuff'),
             on_toggle_active=self._on_toggle_active
         )
+        self._currency_tab = CurrencyTab(
+            self._tab_currency_frame,
+            on_add=self._on_add_currency,
+            on_edit=self._on_edit_currency,
+            on_delete=self._on_delete_currency,
+            on_toggle_active=self._on_toggle_currency_active,
+        )
+        self._quickcraft_tab = QuickCraftTab(
+            self._tab_quickcraft_frame,
+            on_toggle_positioning=self._on_toggle_currency_positioning,
+            on_set_hotkey=self._on_quickcraft_set_hotkey,
+            on_clear_hotkey=self._on_quickcraft_clear_hotkey,
+        )
         self._copy_tab = CopyAreaTab(
             self._tab_copy_frame,
             on_add=self._on_add_copy_area,
@@ -123,6 +150,8 @@ class BuffHUD:
         self._notebook.add(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
         self._notebook.add(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
         self._notebook.add(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+        self._notebook.add(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
+        self._notebook.add(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
         self._notebook.add(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
         
         # Load templates into monitoring tab
@@ -150,6 +179,14 @@ class BuffHUD:
         )
         self._debuffs_tab.get_tree_view().get_search_var().trace_add(
             'write', 
+            lambda *args: self._reload_library()
+        )
+        self._quickcraft_tab.get_search_var().trace_add(
+            'write',
+            lambda *args: self._reload_library()
+        )
+        self._currency_tab.get_search_var().trace_add(
+            'write',
             lambda *args: self._reload_library()
         )
         self._copy_tab.get_search_var().trace_add(
@@ -262,6 +299,10 @@ class BuffHUD:
         self.set_copy_area_state(new_state)
         self._events.append('COPY_AREA_TOGGLE')
         self._mark_dock_interaction(restore=True)
+
+    def _on_toggle_currency_positioning(self, enabled: bool) -> None:
+        """Handle currency positioning toggle from quick craft tab."""
+        self._events.append('CURRENCY_POSITIONING_ON' if enabled else 'CURRENCY_POSITIONING_OFF')
 
     def _on_dock_toggle_scan(self) -> None:
         """Handle scan toggle from floating dock."""
@@ -385,14 +426,159 @@ class BuffHUD:
         update_entry(entry_id, entry_type, res)
         self._reload_library()
         
+    def _on_add_currency(self) -> None:
+        dlg = CurrencyEditorDialog(self._root)
+        res = dlg.show()
+        if res is None:
+            return
+
+        entry = make_currency_entry(
+            name=res.get('name', ''),
+            interface=res.get('interface', ''),
+            image_path=res.get('image_path', ''),
+            capture=res.get('capture'),
+            active=True,
+        )
+        add_currency_entry(entry)
+        self._events.append('CURRENCY_UPDATED')
+        self._reload_library()
+
+    def _on_edit_currency(self) -> None:
+        entry_id = self._currency_tab.get_selected_id()
+        if not entry_id:
+            try:
+                messagebox.showinfo(
+                    title='Info',
+                    message=t('currency.select_delete', 'Select an item to delete'),
+                )
+            except Exception:
+                pass
+            return
+
+        current = None
+        for item in load_currencies():
+            if item.get('id') == entry_id:
+                current = item
+                break
+
+        if current is None:
+            return
+
+        dlg = CurrencyEditorDialog(self._root, initial=current)
+        res = dlg.show()
+        if res is None:
+            return
+
+        success = update_currency_entry(
+            entry_id,
+            {
+                'name': res.get('name'),
+                'interface': res.get('interface'),
+                'image_path': res.get('image_path'),
+                'capture': res.get('capture'),
+            },
+        )
+        if not success:
+            try:
+                messagebox.showerror(title='Error', message=t('error.save_failed', 'Unable to save changes'))
+            except Exception:
+                pass
+            return
+
+        self._events.append('CURRENCY_UPDATED')
+        self._reload_library()
+
+    def _on_delete_currency(self) -> None:
+        entry_id = self._currency_tab.get_selected_id()
+        if not entry_id:
+            try:
+                messagebox.showinfo(
+                    title='Info',
+                    message=t('info.select_item', 'Select an item to edit'),
+                )
+            except Exception:
+                pass
+            return
+
+        try:
+            confirm = messagebox.askyesno(
+                title='Confirm',
+                message=t('currency.confirm_delete', 'Delete selected currency?'),
+            )
+        except Exception:
+            confirm = True
+
+        if not confirm:
+            return
+
+        if not delete_currency_entry(entry_id):
+            try:
+                messagebox.showerror(title='Error', message=t('error.delete_failed', 'Unable to delete selected item'))
+            except Exception:
+                pass
+            return
+
+        self._events.append('CURRENCY_UPDATED')
+        self._reload_library()
+
+    def _on_toggle_currency_active(self, entry_id: str, var: tk.BooleanVar) -> None:
+        if not entry_id:
+            return
+
+        desired = bool(var.get())
+        if not update_currency_entry(entry_id, {'active': desired}):
+            var.set(not desired)
+            return
+
+        self._events.append('CURRENCY_UPDATED')
+
+    def _on_quickcraft_set_hotkey(self, _currency_id: str) -> None:
+        # Capture GLOBAL hotkey for all currencies
+        self._quickcraft_tab.start_hotkey_capture(lambda token: self._apply_global_hotkey(token))
+
+    def _on_quickcraft_clear_hotkey(self, _currency_id: str) -> None:
+        save_global_hotkey('')
+        self._events.append('QUICKCRAFT_UPDATED')
+        self._reload_library()
+
+    def _apply_global_hotkey(self, token: str) -> None:
+        normalized = token.strip().upper().replace(' ', '_')
+        save_global_hotkey(normalized)
+        self._events.append('QUICKCRAFT_UPDATED')
+        self._reload_library()
+
     def _reload_library(self) -> None:
         """Reload library data in tabs."""
         buffs_query = self._buffs_tab.get_tree_view().get_search_var().get()
         debuffs_query = self._debuffs_tab.get_tree_view().get_search_var().get()
         copy_query = self._copy_tab.get_search_var().get()
-        
+        currency_query = self._currency_tab.get_search_var().get()
+        quick_query = self._quickcraft_tab.get_search_var().get()
+
         self._buffs_tab.reload_library(buffs_query)
         self._debuffs_tab.reload_library(debuffs_query)
+        self._currency_tab.reload(currency_query)
+
+        currencies = load_currencies()
+        quickcraft_cfg = load_quickcraft_positions()
+        global_hotkey = load_global_hotkey()
+        if quick_query:
+            q = quick_query.strip().lower()
+            filtered = []
+            for entry in currencies:
+                haystack = f"{entry.get('name', '')} {entry.get('interface', '')}".lower()
+                if q in haystack:
+                    filtered.append(entry)
+            self._quickcraft_tab.reload(filtered, quickcraft_cfg)
+        else:
+            self._quickcraft_tab.reload(currencies, quickcraft_cfg)
+
+        # Show global hotkey text
+        try:
+            self._quickcraft_tab.set_global_hotkey_label(global_hotkey)
+        except Exception:
+            pass
+
         self._copy_tab.reload(copy_query)
         
     def _refresh_texts(self) -> None:
@@ -402,6 +588,8 @@ class BuffHUD:
             self._notebook.tab(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
             self._notebook.tab(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
             self._notebook.tab(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+            self._notebook.tab(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
+            self._notebook.tab(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
             self._notebook.tab(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
         except Exception:
             pass
@@ -410,6 +598,8 @@ class BuffHUD:
         self._settings_tab.refresh_texts()
         self._buffs_tab.refresh_texts()
         self._debuffs_tab.refresh_texts()
+        self._currency_tab.refresh_texts()
+        self._quickcraft_tab.refresh_texts()
         self._copy_tab.refresh_texts()
         self._copy_tab.reload(self._copy_tab.get_search_var().get())
 
@@ -587,6 +777,12 @@ class BuffHUD:
 
         if notify:
             self._events.append('COPY_AREA_TOGGLE')
+
+    def set_currency_positioning(self, enabled: bool) -> None:
+        """Update quick craft positioning checkbox state."""
+        self._quickcraft_tab.set_positioning(enabled)
+
+    # No runtime active UI marker required
 
     def set_click_emulation_state(self, enabled: bool) -> None:
         """Update click emulation indicator state."""

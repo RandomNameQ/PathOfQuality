@@ -140,6 +140,28 @@ def configure_modern_styles(root) -> None:
         style.map('CopyArea.Treeview',
                  background=[('selected', '#d1fae5')],
                  foreground=[('selected', '#1f2937')])
+
+        # Treeview styles for currencies
+        style.configure('Currency.Treeview',
+                      rowheight=64,
+                      background='#ffffff',
+                      fieldbackground='#ffffff',
+                      foreground=FG_COLOR,
+                      borderwidth=1,
+                      relief='flat')
+        style.configure('Currency.Treeview.Heading',
+                      font=('Segoe UI', 10, 'bold'),
+                      background='#f8f9fa',
+                      foreground='#1f2937',
+                      relief='flat',
+                      borderwidth=0,
+                      padding=[8, 8])
+        style.map('Currency.Treeview',
+                 background=[('selected', '#dbeafe')],
+                 foreground=[('selected', '#1f2937')])
+
+        style.configure('Prompt.TFrame', background=BG_COLOR)
+        style.configure('Prompt.TLabel', background=BG_COLOR, foreground=FG_COLOR, font=('Segoe UI', 9))
                  
     except Exception:
         pass
