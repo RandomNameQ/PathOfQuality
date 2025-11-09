@@ -313,3 +313,30 @@ class CurrencyOverlay:
             window = self._windows.get(currency_id)
             if window is not None:
                 window.hide()
+
+    def get_hovered_currency_id(self) -> Optional[str]:
+        """Return the currency_id of the runtime overlay currently under the cursor, if any."""
+        for cid, _ in self._runtime_active.items():
+            w = self._windows.get(cid)
+            if w is None:
+                continue
+            try:
+                if w.is_hovered():
+                    return cid
+            except Exception:
+                continue
+        return None
+
+    def get_runtime_rect(self, currency_id: str) -> Optional[Dict[str, int]]:
+        pos = self._runtime_positions.get(str(currency_id))
+        if not pos:
+            return None
+        try:
+            return {
+                'left': int(pos.get('left', 0)),
+                'top': int(pos.get('top', 0)),
+                'width': int(pos.get('width', 0)),
+                'height': int(pos.get('height', 0)),
+            }
+        except Exception:
+            return None

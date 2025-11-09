@@ -65,6 +65,9 @@ if sys.platform.startswith('win'):
     INPUT_MOUSE = 0
     MOUSEEVENTF_LEFTDOWN = 0x0002
     MOUSEEVENTF_LEFTUP = 0x0004
+    MOUSEEVENTF_RIGHTDOWN = 0x0008
+    MOUSEEVENTF_RIGHTUP = 0x0010
+    MOUSEEVENTF_MOVE = 0x0001
 
     # Load SendInput function
     SendInput = ctypes.windll.user32.SendInput
@@ -171,6 +174,9 @@ class Application:
         # Fallback polling state for when LL hooks are unavailable
         self._key_down_state: Dict[str, bool] = {}
         self._key_last_emit: Dict[str, float] = {}
+        self._anchor_at_hotkey: Optional[tuple[int, int]] = None
+        self._last_click_time: float = 0.0
+        self._pending_click_currency_id: Optional[str] = None
         
     def initialize(self, roi: Region) -> None:
         """
@@ -748,6 +754,7 @@ class Application:
             self.currency_overlay.activate_runtime(show_list, position_map)
             self._quickcraft_runtime_active_ids = ids
             self._quickcraft_runtime_active = None
+            self._anchor_at_hotkey = (int(cur_x), int(cur_y))
         except Exception as exc:
             print(f"[QuickCraft] Global show failed: {exc}")
 
@@ -763,6 +770,8 @@ class Application:
         else:
             # If hook is installed but no events, also run fallback to support keys Tk may swallow
             self._poll_hotkeys_fallback()
+        # Process quick craft click-triggered actions
+        self._process_quickcraft_click_action()
 
     def _token_to_vk(self, token: str) -> Optional[int]:
         if not token:
@@ -818,6 +827,95 @@ class Application:
                     self._key_last_emit[token] = now
                     self._handle_quickcraft_hotkey(token)
             self._key_down_state[token] = down
+
+    def _move_cursor(self, x: int, y: int) -> None:
+        try:
+            ctypes.windll.user32.SetCursorPos(int(x), int(y))
+        except Exception:
+            pass
+
+    def _click(self, left: bool = True) -> None:
+        try:
+            inp = INPUT()
+            inp.type = INPUT_MOUSE
+            inp.mi.dwFlags = MOUSEEVENTF_LEFTDOWN if left else MOUSEEVENTF_RIGHTDOWN
+            SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+            time.sleep(0.01)
+            inp2 = INPUT()
+            inp2.type = INPUT_MOUSE
+            inp2.mi.dwFlags = MOUSEEVENTF_LEFTUP if left else MOUSEEVENTF_RIGHTUP
+            SendInput(1, ctypes.byref(inp2), ctypes.sizeof(INPUT))
+        except Exception:
+            pass
+
+    def _process_quickcraft_click_action(self) -> None:
+        if not self._quickcraft_runtime_active_ids:
+            self._pending_click_currency_id = None
+            return
+        now = time.time()
+        # Read current left button state
+        try:
+            state = win32api.GetAsyncKeyState(win32con.VK_LBUTTON)
+        except Exception:
+            return
+        down = (state & 0x8000) != 0
+
+        if self._pending_click_currency_id is None:
+            # Waiting for a new click: if left is pressed over an overlay, arm the action
+            if not down:
+                return
+            if now - self._last_click_time < 0.25:
+                return
+            hovered_id = None
+            try:
+                hovered_id = self.currency_overlay.get_hovered_currency_id()
+            except Exception:
+                hovered_id = None
+            if not hovered_id:
+                return
+            self._pending_click_currency_id = str(hovered_id)
+            return
+
+        # Pending armed: wait until user releases left before executing
+        if down:
+            return
+
+        hovered_id = self._pending_click_currency_id
+        self._pending_click_currency_id = None
+        self._last_click_time = now
+
+        # Determine SOURCE location from the currency's original capture rect (true source)
+        cur = self._get_currency_by_id(str(hovered_id)) or {}
+        cap = cur.get('capture', {}) if isinstance(cur, dict) else {}
+        try:
+            src_left = int(cap.get('left', 0))
+            src_top = int(cap.get('top', 0))
+            w = max(1, int(cap.get('width', 1)))
+            h = max(1, int(cap.get('height', 1)))
+        except Exception:
+            src_left, src_top, w, h = 0, 0, 32, 32
+        cx = int(src_left + w // 2)
+        cy = int(src_top + h // 2)
+
+        # Original anchor point to return to (F3 press location)
+        if self._anchor_at_hotkey is None:
+            try:
+                ax, ay = win32api.GetCursorPos()
+            except Exception:
+                ax = self.roi.left + self.roi.width // 2
+                ay = self.roi.top + self.roi.height // 2
+        else:
+            ax, ay = self._anchor_at_hotkey
+
+        # Execute sequence: move to SOURCE, right click, return, left click
+        time.sleep(0.02)
+        self._move_cursor(cx, cy)
+        time.sleep(0.03)
+        self._click(left=False)
+        time.sleep(0.03)
+        self._move_cursor(ax, ay)
+        time.sleep(0.03)
+        self._click(left=True)
 
     def _enable_currency_positioning(self) -> None:
         if self.currency_overlay is None:
