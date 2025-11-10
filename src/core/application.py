@@ -448,6 +448,11 @@ class Application:
                         'wheel_down_sequence': self._mega_qol_seq_str,
                         'wheel_down_delay_ms': int(self._mega_qol_delay_ms),
                     })
+                    # Sync double-ctrl emulation from Mega QoL tab
+                    self._triple_ctrl_click_enabled = self.hud.get_triple_ctrl_click_enabled()
+                    self.settings['triple_ctrl_click_enabled'] = self._triple_ctrl_click_enabled
+                    if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
+                        self._stop_mouse_simulation()
                     save_settings(self.settings_path, self.settings)
 
 

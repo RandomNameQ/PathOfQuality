@@ -75,14 +75,17 @@ class SettingsTab:
         )
         self._chk_overlay.pack(anchor='w', pady=(0, 12))
         
-        # Always on top checkbox
+        # Always on top checkbox (hidden by request)
         self._chk_topmost = ttk.Checkbutton(
             main_container, 
             text=t('settings.always_on_top', 'Always on top'),
             variable=self._topmost_var,
             style='Toggle.TCheckbutton'
         )
-        self._chk_topmost.pack(anchor='w', pady=(0, 12))
+        try:
+            self._chk_topmost.pack_forget()
+        except Exception:
+            pass
         
         # Focus required checkbox
         self._chk_focus_required = ttk.Checkbutton(
@@ -102,14 +105,17 @@ class SettingsTab:
         )
         self._chk_dock_visible.pack(anchor='w', pady=(0, 12))
 
-        # Triple Ctrl click checkbox
+        # Triple Ctrl click checkbox (moved to Mega QoL; keep hidden to preserve state)
         self._chk_triple_ctrl_click = ttk.Checkbutton(
             main_container,
             text=t('settings.double_ctrl_click', 'Double Ctrl click emulation'),
             variable=self._triple_ctrl_click_var,
             style='Toggle.TCheckbutton'
         )
-        self._chk_triple_ctrl_click.pack(anchor='w', pady=(0, 12))
+        try:
+            self._chk_triple_ctrl_click.pack_forget()
+        except Exception:
+            pass
         
         # Reset dock button
         self._btn_reset_dock = ttk.Button(

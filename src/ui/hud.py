@@ -66,7 +66,7 @@ class BuffHUD:
         """
         self._root = tk.Tk()
         self._root.title('Buff HUD')
-        self._root.resizable(False, False)
+        self._root.resizable(True, True)
         
         try:
             self._root.attributes('-topmost', keep_on_top)
@@ -100,21 +100,40 @@ class BuffHUD:
         configure_modern_styles(self._root)
         
         # Create notebook (tabs)
-        self._notebook = ttk.Notebook(self._root, style='TNotebook')
-        self._notebook.pack(fill='both', expand=True, padx=6, pady=6)
+        # Root-level notebook (grouped tabs)
+        self._root_notebook = ttk.Notebook(self._root, style='TNotebook')
+        self._root_notebook.pack(fill='both', expand=True, padx=6, pady=6)
         
         # Create tab frames
-        self._tab_monitor_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_settings_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_buffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_debuffs_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_currency_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_quickcraft_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_copy_frame = tk.Frame(self._notebook, bg=BG_COLOR)
-        self._tab_mega_qol_frame = tk.Frame(self._notebook, bg=BG_COLOR)
+        # Group containers
+        self._tab_overview_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+        self._tab_settings_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+        self._tab_library_group_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+        self._tab_tools_group_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+
+        # Inner notebooks for groups
+        self._library_nb = ttk.Notebook(self._tab_library_group_frame, style='TNotebook')
+        self._library_nb.pack(fill='both', expand=True)
+        self._tools_nb = ttk.Notebook(self._tab_tools_group_frame, style='TNotebook')
+        self._tools_nb.pack(fill='both', expand=True)
+
+        # Actual tab frames
+        self._tab_monitor_frame = tk.Frame(self._tab_overview_frame, bg=BG_COLOR)
+        self._tab_monitor_frame.pack(fill='both', expand=True)
+        self._tab_buffs_frame = tk.Frame(self._library_nb, bg=BG_COLOR)
+        self._tab_debuffs_frame = tk.Frame(self._library_nb, bg=BG_COLOR)
+        self._tab_currency_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
+        self._tab_quickcraft_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
+        self._tab_copy_frame = tk.Frame(self._library_nb, bg=BG_COLOR)
+        self._tab_mega_qol_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
+        # Settings description
+        try:
+            ttk.Label(self._tab_settings_frame, text=t('desc.settings', 'Configure ROI, focus policy, dock and language.'), style='Prompt.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
         self._settings_tab = SettingsTab(self._tab_settings_frame, keep_on_top, focus_required, triple_ctrl_click_enabled)
         self._buffs_tab = LibraryTab(
             self._tab_buffs_frame,
@@ -155,18 +174,40 @@ class BuffHUD:
             enabled=mega_qol_enabled,
             sequence=mega_qol_sequence,
             delay_ms=mega_qol_delay_ms,
+            double_ctrl_click_enabled=triple_ctrl_click_enabled,
         )
         self._mega_qol_tab.set_change_handler(self._on_mega_qol_changed)
         
         # Add tabs to notebook
-        self._notebook.add(self._tab_monitor_frame, text=t('tab.monitoring', 'Monitoring'))
-        self._notebook.add(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
-        self._notebook.add(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
-        self._notebook.add(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
-        self._notebook.add(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
-        self._notebook.add(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
-        self._notebook.add(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
-        self._notebook.add(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
+        # Add grouped tabs to notebooks
+        # Overview description
+        try:
+            ttk.Label(self._tab_overview_frame, text=t('desc.overview', 'Start/stop scanning and positioning; view detected templates.'), style='Prompt.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
+        self._root_notebook.add(self._tab_overview_frame, text=t('tab.overview', 'Overview'))
+        self._root_notebook.add(self._tab_library_group_frame, text=t('tab.library_group', 'Library'))
+        self._root_notebook.add(self._tab_tools_group_frame, text=t('tab.tools_group', 'Tools'))
+        self._root_notebook.add(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
+
+        # Group descriptions
+        try:
+            ttk.Label(self._tab_library_group_frame, text=t('desc.library', 'Maintain items: Buffs, Debuffs, Copy Areas.'), style='Prompt.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
+        try:
+            ttk.Label(self._tab_tools_group_frame, text=t('desc.tools', 'Runtime tools: Currency overlay, Quick Craft, Mega QoL.'), style='Prompt.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
+
+        # Add inner tabs (Copy Areas to Library; Currency to Tools)
+        self._library_nb.add(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
+        self._library_nb.add(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+        self._library_nb.add(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
+        self._tools_nb.add(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
+        self._tools_nb.add(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
+        self._tools_nb.add(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
+
         
         # Load templates into monitoring tab
         self._monitoring_tab.load_templates(templates)
@@ -183,7 +224,7 @@ class BuffHUD:
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
         self._settings_tab.set_dock_visible_command(self._on_dock_visible_changed)
         self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
-        self._settings_tab.set_triple_ctrl_click_command(self._on_triple_ctrl_click_changed)
+        # Double-ctrl emulation moved to Mega QoL tab
         self._settings_tab.set_language_command(self._on_lang_changed)
         # Mega QoL changes are wired via its own change/test handlers
         
@@ -214,8 +255,10 @@ class BuffHUD:
         
         # Enable grab-anywhere if requested
         if grab_anywhere:
-            for widget in (self._root, self._tab_monitor_frame, self._tab_settings_frame,
-                          self._tab_buffs_frame, self._tab_debuffs_frame, self._tab_copy_frame):
+            for widget in (self._root, self._tab_overview_frame, self._tab_settings_frame,
+                           self._tab_library_group_frame, self._tab_tools_group_frame,
+                           self._tab_monitor_frame, self._tab_buffs_frame, self._tab_debuffs_frame,
+                           self._tab_copy_frame):
                 widget.bind('<ButtonPress-1>', self._start_move)
                 widget.bind('<B1-Motion>', self._on_motion)
                 
@@ -613,14 +656,17 @@ class BuffHUD:
     def _refresh_texts(self) -> None:
         """Refresh all translatable texts."""
         try:
-            self._notebook.tab(self._tab_monitor_frame, text=t('tab.monitoring', 'Monitoring'))
-            self._notebook.tab(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
-            self._notebook.tab(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
-            self._notebook.tab(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
-            self._notebook.tab(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
-            self._notebook.tab(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
-            self._notebook.tab(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
-            self._notebook.tab(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
+            self._root_notebook.tab(self._tab_overview_frame, text=t('tab.overview', 'Overview'))
+            self._root_notebook.tab(self._tab_library_group_frame, text=t('tab.library_group', 'Library'))
+            self._root_notebook.tab(self._tab_tools_group_frame, text=t('tab.tools_group', 'Tools'))
+            self._root_notebook.tab(self._tab_settings_frame, text=t('tab.settings', 'Settings'))
+
+            self._library_nb.tab(self._tab_buffs_frame, text=t('tab.buffs', 'Buffs'))
+            self._library_nb.tab(self._tab_debuffs_frame, text=t('tab.debuffs', 'Debuffs'))
+            self._library_nb.tab(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
+            self._tools_nb.tab(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
+            self._tools_nb.tab(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
+            self._tools_nb.tab(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
         except Exception:
             pass
             
@@ -877,7 +923,8 @@ class BuffHUD:
 
     def get_triple_ctrl_click_enabled(self) -> bool:
         """Check if triple ctrl click is enabled."""
-        return bool(self._settings_tab.get_triple_ctrl_click_var().get())
+        # Value sourced from Mega QoL tab now
+        return bool(self._mega_qol_tab.get_double_ctrl_var().get())
 
     def get_mega_qol_config(self) -> dict:
         return {
