@@ -23,6 +23,11 @@ def get_default_settings() -> Dict[str, Any]:
         "language": "en",
         "templates_dir": "assets/templates",
         "triple_ctrl_click_enabled": False,
+        "mega_qol": {
+            "wheel_down_enabled": False,
+            "wheel_down_sequence": "1,2,3,4",
+            "wheel_down_delay_ms": 50,
+        },
     }
 
 

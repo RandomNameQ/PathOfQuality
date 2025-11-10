@@ -33,6 +33,7 @@ if sys.platform.startswith('win'):
     import win32api
     import win32con
     from src.quickcraft.hotkeys import HotkeyListener, normalize_hotkey_name
+    from src.qol.mouse_listener import MouseListener
 
     # Define ULONG_PTR type with fallback for environments where wintypes lacks it
     try:
@@ -164,12 +165,14 @@ class Application:
         self._quickcraft_runtime_active_ids: Set[str] = set()
         self._currencies_cache: List[Dict] = []
         self._hotkeys = HotkeyListener() if sys.platform.startswith('win') and HotkeyListener is not None else None
+        self._mouse: Optional[MouseListener] = MouseListener() if sys.platform.startswith('win') else None
         self._focus_state_last: Optional[bool] = None
         self._triple_ctrl_click_enabled = bool(self.settings.get("triple_ctrl_click_enabled", False))
         self._triple_ctrl_click_active = False
         # Double Ctrl press detection state
         self._ctrl_press_count: int = 0
         self._last_ctrl_press_time: float = 0.0
+        self._ctrl_prev_held: bool = False
         self._register_quickcraft_hotkeys()
         # Fallback polling state for when LL hooks are unavailable
         self._key_down_state: Dict[str, bool] = {}
@@ -177,6 +180,17 @@ class Application:
         self._anchor_at_hotkey: Optional[tuple[int, int]] = None
         self._last_click_time: float = 0.0
         self._pending_click_currency_id: Optional[str] = None
+        # Mega QoL settings
+        mq = self.settings.get('mega_qol', {}) or {}
+        self._mega_qol_enabled: bool = bool(mq.get('wheel_down_enabled', False))
+        self._mega_qol_seq_str: str = str(mq.get('wheel_down_sequence', '1,2,3,4'))
+        try:
+            self._mega_qol_delay_ms: int = int(mq.get('wheel_down_delay_ms', 50))
+        except Exception:
+            self._mega_qol_delay_ms = 50
+        # Wheel burst suppression: emit once per scroll burst, rearm after 50ms of silence
+        self._mega_qol_suppress: bool = False
+        self._mega_qol_last_wheel: float = 0.0
         
     def initialize(self, roi: Region) -> None:
         """
@@ -223,6 +237,9 @@ class Application:
             focus_required=self._focus_required,
             dock_position=dock_position,
             triple_ctrl_click_enabled=self._triple_ctrl_click_enabled,
+            mega_qol_enabled=self._mega_qol_enabled,
+            mega_qol_sequence=self._mega_qol_seq_str,
+            mega_qol_delay_ms=self._mega_qol_delay_ms,
         )
         
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
@@ -417,6 +434,23 @@ class Application:
                     if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
                         self._stop_mouse_simulation()
 
+                elif event == 'MEGA_QOL_CHANGED':
+                    cfg = self.hud.get_mega_qol_config()
+                    self._mega_qol_enabled = bool(cfg.get('enabled'))
+                    self._mega_qol_seq_str = str(cfg.get('sequence') or '')
+                    try:
+                        self._mega_qol_delay_ms = int(cfg.get('delay_ms') or 50)
+                    except Exception:
+                        self._mega_qol_delay_ms = 50
+                    self.settings.setdefault('mega_qol', {})
+                    self.settings['mega_qol'].update({
+                        'wheel_down_enabled': self._mega_qol_enabled,
+                        'wheel_down_sequence': self._mega_qol_seq_str,
+                        'wheel_down_delay_ms': int(self._mega_qol_delay_ms),
+                    })
+                    save_settings(self.settings_path, self.settings)
+
+
                 elif event == 'CURRENCY_POSITIONING_ON':
                     self._currency_positioning_requested = True
                     self._enable_currency_positioning()
@@ -439,6 +473,9 @@ class Application:
 
                 self._update_currency_overlay()
                 self._process_hotkeys()
+
+                # Process mega QoL wheel events
+                self._process_mega_qol_wheel(focus_active)
 
                 # Allow positioning toggles even when the game is unfocused
                 self._handle_positioning_toggle()
@@ -1012,17 +1049,18 @@ class Application:
         """Handle double Ctrl press detection and mouse emulation lifecycle.
 
         Double press (within 300ms) starts emulation. Releasing Ctrl stops it.
-        Low-order bit detects discrete press events; high-order bit reflects hold state.
+        We detect only rising edges (Up -> Down) to avoid auto-repeat while holding Ctrl.
         """
         if not sys.platform.startswith('win'):
             return
 
         try:
             state = win32api.GetAsyncKeyState(win32con.VK_CONTROL)
-            pressed_since_last_call = (state & 0x0001) != 0
             ctrl_held = (state & 0x8000) != 0
 
-            if pressed_since_last_call:
+            # Rising edge detection to avoid typematic repeats while holding
+            rising_edge = ctrl_held and not self._ctrl_prev_held
+            if rising_edge:
                 now = time.time()
                 if now - self._last_ctrl_press_time <= 0.3:
                     self._ctrl_press_count += 1
@@ -1040,6 +1078,9 @@ class Application:
             if self._triple_ctrl_click_active and not ctrl_held:
                 self._stop_mouse_simulation()
                 print("[Double Ctrl] Mouse simulation stopped")
+
+            # Update previous state
+            self._ctrl_prev_held = ctrl_held
 
         except Exception as e:
             print(f"[Double Ctrl] Error: {e}")
@@ -1230,4 +1271,63 @@ class Application:
             pass
             
         self.capture.close()
+
+    def _parse_sequence_tokens(self, seq: str) -> list[str]:
+        tokens: list[str] = []
+        raw = (seq or '').replace(';', ',').replace(' ', ',')
+        for part in raw.split(','):
+            tok = part.strip().upper()
+            if tok:
+                tokens.append(tok)
+        return tokens
+
+    def _key_press(self, vk: int) -> None:
+        try:
+            win32api.keybd_event(int(vk), 0, 0, 0)
+            time.sleep(0.01)
+            win32api.keybd_event(int(vk), 0, win32con.KEYEVENTF_KEYUP, 0)
+        except Exception:
+            pass
+
+    def _run_mega_qol_sequence(self) -> None:
+        tokens = self._parse_sequence_tokens(self._mega_qol_seq_str)
+        delay = max(0, int(self._mega_qol_delay_ms)) / 1000.0
+        for tok in tokens:
+            vk = self._token_to_vk(tok)
+            if vk is None:
+                continue
+            self._key_press(vk)
+            if delay:
+                time.sleep(delay)
+
+    def _process_mega_qol_wheel(self, focus_active: bool) -> None:
+        if not sys.platform.startswith('win') or self._mouse is None:
+            return
+        # Always poll to avoid queue growth even when not focused/disabled
+        try:
+            events = self._mouse.poll()
+        except Exception:
+            events = []
+
+        any_down = False
+        now = time.time()
+        for evt in events:
+            if evt == 'WHEEL_DOWN':
+                any_down = True
+                self._mega_qol_last_wheel = now
+
+        if not self._mega_qol_enabled or not focus_active:
+            return
+
+        # Rearm after quiet period
+        if self._mega_qol_suppress and (now - self._mega_qol_last_wheel) > 0.05:
+            self._mega_qol_suppress = False
+
+        # On first event of a burst, emit once and suppress until quiet
+        if any_down and not self._mega_qol_suppress:
+            self._mega_qol_suppress = True
+            try:
+                self._run_mega_qol_sequence()
+            except Exception:
+                pass
 

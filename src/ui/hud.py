@@ -32,6 +32,7 @@ from src.ui.tabs.library_tab import LibraryTab
 from src.ui.tabs.copy_area_tab import CopyAreaTab
 from src.ui.tabs.quickcraft_tab import QuickCraftTab
 from src.ui.tabs.currency_tab import CurrencyTab
+from src.ui.tabs.mega_qol_tab import MegaQolTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
 from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
 from src.ui.dialogs.currency_editor import CurrencyEditorDialog
@@ -50,6 +51,9 @@ class BuffHUD:
         focus_required: bool = True,
         dock_position: Optional[Tuple[int, int]] = None,
         triple_ctrl_click_enabled: bool = False,
+        mega_qol_enabled: bool = False,
+        mega_qol_sequence: str = '1,2,3,4',
+        mega_qol_delay_ms: int = 50,
     ) -> None:
         """
         Initialize BuffHUD.
@@ -107,6 +111,7 @@ class BuffHUD:
         self._tab_currency_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_quickcraft_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         self._tab_copy_frame = tk.Frame(self._notebook, bg=BG_COLOR)
+        self._tab_mega_qol_frame = tk.Frame(self._notebook, bg=BG_COLOR)
         
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
@@ -145,6 +150,13 @@ class BuffHUD:
             on_edit=self._on_edit_copy_area,
             on_toggle_active=self._on_toggle_copy_active,
         )
+        self._mega_qol_tab = MegaQolTab(
+            self._tab_mega_qol_frame,
+            enabled=mega_qol_enabled,
+            sequence=mega_qol_sequence,
+            delay_ms=mega_qol_delay_ms,
+        )
+        self._mega_qol_tab.set_change_handler(self._on_mega_qol_changed)
         
         # Add tabs to notebook
         self._notebook.add(self._tab_monitor_frame, text=t('tab.monitoring', 'Monitoring'))
@@ -154,6 +166,7 @@ class BuffHUD:
         self._notebook.add(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
         self._notebook.add(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
         self._notebook.add(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
+        self._notebook.add(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
         
         # Load templates into monitoring tab
         self._monitoring_tab.load_templates(templates)
@@ -172,6 +185,7 @@ class BuffHUD:
         self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
         self._settings_tab.set_triple_ctrl_click_command(self._on_triple_ctrl_click_changed)
         self._settings_tab.set_language_command(self._on_lang_changed)
+        # Mega QoL changes are wired via its own change/test handlers
         
         # Bind search events
         self._buffs_tab.get_tree_view().get_search_var().trace_add(
@@ -351,6 +365,9 @@ class BuffHUD:
     def _on_triple_ctrl_click_changed(self) -> None:
         """Handle triple ctrl click checkbox change."""
         self._events.append('TRIPLE_CTRL_CLICK_CHANGED')
+
+    def _on_mega_qol_changed(self) -> None:
+        self._events.append('MEGA_QOL_CHANGED')
 
     def _on_toggle_active(self, entry_id: str, entry_type: str, var: tk.BooleanVar) -> None:
         """Handle entry active toggle."""
@@ -603,6 +620,7 @@ class BuffHUD:
             self._notebook.tab(self._tab_currency_frame, text=t('tab.currency', 'Currency'))
             self._notebook.tab(self._tab_quickcraft_frame, text=t('tab.quickcraft', 'Quick Craft'))
             self._notebook.tab(self._tab_copy_frame, text=t('tab.copy_area', 'Copy Areas'))
+            self._notebook.tab(self._tab_mega_qol_frame, text=t('tab.mega_qol', 'Mega QoL'))
         except Exception:
             pass
             
@@ -614,6 +632,10 @@ class BuffHUD:
         self._quickcraft_tab.refresh_texts()
         self._copy_tab.refresh_texts()
         self._copy_tab.reload(self._copy_tab.get_search_var().get())
+        try:
+            self._mega_qol_tab.refresh_texts()
+        except Exception:
+            pass
 
     def _on_add_copy_area(self) -> None:
         dlg = CopyAreaEditorDialog(self._root)
@@ -856,6 +878,13 @@ class BuffHUD:
     def get_triple_ctrl_click_enabled(self) -> bool:
         """Check if triple ctrl click is enabled."""
         return bool(self._settings_tab.get_triple_ctrl_click_var().get())
+
+    def get_mega_qol_config(self) -> dict:
+        return {
+            'enabled': bool(self._mega_qol_tab.get_enabled_var().get()),
+            'sequence': self._mega_qol_tab.get_sequence(),
+            'delay_ms': int(self._mega_qol_tab.get_delay_ms()),
+        }
         
     def is_dock_locked(self) -> bool:
         """Check if floating dock is locked from moving."""

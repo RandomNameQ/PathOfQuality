@@ -24,5 +24,10 @@
   "language": "en",
   "templates_dir": "assets/templates",
   "triple_ctrl_click_enabled": true,
+  "mega_qol": {
+    "wheel_down_enabled": true,
+    "wheel_down_sequence": "W,1",
+    "wheel_down_delay_ms": 50
+  },
   "mirror_mode": "auto"
 }
