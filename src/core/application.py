@@ -17,14 +17,12 @@ from src.ui.overlay import OverlayHighlighter
 from src.ui.currency_overlay import CurrencyOverlay
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
-from src.utils.settings import load_settings, save_settings
+from src.utils.settings import load_settings, save_settings, resource_path
 from src.i18n.locale import t
 from src.currency.library import load_currencies
 from src.quickcraft.library import load_positions as load_quickcraft_positions, save_positions as save_quickcraft_positions, load_global_hotkey
 
-ALLOWED_PROCESSES_FILE = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "assets", "allowed_processes.json")
-)
+ALLOWED_PROCESSES_FILE = resource_path(os.path.join("assets", "allowed_processes.json"))
 
 # Windows API for checking active process and mouse simulation
 if sys.platform.startswith('win'):
@@ -205,7 +203,8 @@ class Application:
         self.capture = MSSCapture()
         
         # Initialize matchers
-        templates_dir = self.settings.get("templates_dir", "assets/templates")
+        raw_templates_dir = self.settings.get("templates_dir", "assets/templates")
+        templates_dir = resource_path(raw_templates_dir)
         threshold = float(self.settings.get("threshold", 0.9))
         
         self.matcher = TemplateMatcher(templates_dir=templates_dir, threshold=threshold)
@@ -256,8 +255,6 @@ class Application:
         self.tray = TrayIcon()
         self.tray.start()
         
-        # Save initial ROI snapshot
-        self._save_roi_snapshot()
 
         # Initialize focus-dependent state
         self._scan_user_requested = self.hud.get_scanning_enabled()
@@ -325,17 +322,7 @@ class Application:
 
         return names
 
-    def _save_roi_snapshot(self) -> None:
-        """Save ROI snapshot for debugging."""
-        try:
-            frame_bgr = self.capture.grab(self.roi)
-            if frame_bgr is not None:
-                os.makedirs('debug', exist_ok=True)
-                snap_path = os.path.join('debug', 'roi_snapshot.png')
-                cv2.imwrite(snap_path, frame_bgr)
-                print(f"Снимок ROI сохранён: {snap_path}")
-        except Exception:
-            pass
+    
             
     def run(self) -> None:
         """Run main application loop."""

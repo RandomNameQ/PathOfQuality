@@ -1,0 +1,24 @@
+{
+  "id": "ce60333c-1ef4-4a98-860a-43e682b65697",
+  "type": "debuff",
+  "name": {
+    "en": "Ice cold"
+  },
+  "image_path": "assets\\library\\images\\f9e0ee05-21b8-4717-a428-cefc75a2ba40.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 992,
+    "top": 753
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 50
+}

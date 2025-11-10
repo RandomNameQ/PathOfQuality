@@ -3,11 +3,11 @@
     "provider": "mss"
   },
   "roi": {
-    "mode": "top_right",
-    "width": 400,
-    "height": 180,
-    "top": 0,
-    "left": 0
+    "mode": "absolute",
+    "width": 1651,
+    "height": 176,
+    "top": 4,
+    "left": 4
   },
   "threshold": 0.9,
   "scan_interval_ms": 50,
@@ -18,15 +18,16 @@
     "grab_anywhere": true,
     "dock_position": {
       "left": 816,
-      "top": 1020
+      "top": 864
     }
   },
   "language": "en",
   "templates_dir": "assets/templates",
-  "triple_ctrl_click_enabled": false,
+  "triple_ctrl_click_enabled": true,
   "mega_qol": {
-    "wheel_down_enabled": false,
-    "wheel_down_sequence": "1,2,3,4",
+    "wheel_down_enabled": true,
+    "wheel_down_sequence": "W,1",
     "wheel_down_delay_ms": 50
-  }
+  },
+  "mirror_mode": "auto"
 }
