@@ -137,16 +137,10 @@ class MirrorWindow:
 
             ctypes.windll.user32.SetWindowLongW(self._hwnd, GWL_EXSTYLE, style)
             self._update_layered_alpha(LWA_ALPHA)
-            # Ensure topmost without activation
-            HWND_TOPMOST = -1
-            SWP_NOSIZE = 0x0001
-            SWP_NOMOVE = 0x0002
-            SWP_NOACTIVATE = 0x0010
-            ctypes.windll.user32.SetWindowPos(
-                self._hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
-            )
         except Exception:
             pass
+
+    
 
     def _update_layered_alpha(self, flag: int = 0x00000002) -> None:
         if not self._clickthrough_supported or self._hwnd is None:
@@ -184,7 +178,7 @@ class MirrorWindow:
         
         try:
             self.top.attributes('-alpha', float(alpha))
-            if self._last_topmost != bool(topmost):
+            if self._last_topmost is None or self._last_topmost != bool(topmost):
                 self.top.attributes('-topmost', bool(topmost))
                 self._last_topmost = bool(topmost)
                 topmost_changed = True
@@ -205,19 +199,12 @@ class MirrorWindow:
             self.top.deiconify()
             self.visible = True
         
-        # Always lift to keep overlay above the game after click-through (no activation)
-        try:
-            self.top.lift()
-            if self._hwnd:
-                HWND_TOPMOST = -1
-                SWP_NOSIZE = 0x0001
-                SWP_NOMOVE = 0x0002
-                SWP_NOACTIVATE = 0x0010
-                ctypes.windll.user32.SetWindowPos(
-                    self._hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
-                )
-        except Exception:
-            pass
+        # Lift window only when first shown or topmost changed to ensure proper z-ordering
+        if not was_visible or topmost_changed:
+            try:
+                self.top.lift()
+            except Exception:
+                pass
             
     def update_image(self, img: Image.Image) -> None:
         """
@@ -435,21 +422,36 @@ class MirrorWindow:
         self._set_hover_hidden(False)
 
     def _set_hover_hidden(self, hidden: bool) -> None:
-        """Track hover state but keep the overlay visible for runtime use.
-
-        We only toggle click-through for runtime (non-positioning) windows; no alpha changes.
-        """
+        """Hide window while hovered (non-positioning) to allow interaction with underlying app."""
         if self._positioning_enabled:
             hidden = False
 
         self._hover_active = bool(hidden)
-        # Ensure clicks pass through in runtime mode
-        if not self._positioning_enabled:
+
+        if hidden:
+            if self._hover_hidden:
+                return
+            self._hover_prev_alpha = self._current_alpha
+            self._hover_hidden = True
+            try:
+                # Make fully transparent instead of withdraw to preserve geometry and z-order
+                self.top.attributes('-alpha', 0.0)
+            except Exception:
+                pass
+            self._current_alpha = 0.0
+            self._update_layered_alpha()
+            # Ensure click-through while hidden
             self._apply_clickthrough(True)
         else:
-            self._apply_clickthrough(False)
-        # Do not change alpha/visibility to avoid flicker on hover
-        self._hover_hidden = False
+            if not self._hover_hidden:
+                return
+            try:
+                self.top.attributes('-alpha', float(self._hover_prev_alpha))
+            except Exception:
+                pass
+            self._current_alpha = self._hover_prev_alpha
+            self._update_layered_alpha()
+            self._hover_hidden = False
 
     def _hover_poll(self) -> None:
         if not sys.platform.startswith('win'):

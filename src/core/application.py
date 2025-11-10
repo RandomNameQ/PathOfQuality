@@ -32,6 +32,10 @@ if sys.platform.startswith('win'):
     import win32con
     from src.quickcraft.hotkeys import HotkeyListener, normalize_hotkey_name
     from src.qol.mouse_listener import MouseListener
+    try:
+        from src.qol.quick_mouse_listener import QuickMouseListener
+    except Exception:
+        QuickMouseListener = None  # type: ignore
 
     # Define ULONG_PTR type with fallback for environments where wintypes lacks it
     try:
@@ -164,6 +168,7 @@ class Application:
         self._currencies_cache: List[Dict] = []
         self._hotkeys = HotkeyListener() if sys.platform.startswith('win') and HotkeyListener is not None else None
         self._mouse: Optional[MouseListener] = MouseListener() if sys.platform.startswith('win') else None
+        self._mouse_clicks = QuickMouseListener() if sys.platform.startswith('win') and 'QuickMouseListener' in globals() and QuickMouseListener is not None else None
         self._focus_state_last: Optional[bool] = None
         self._triple_ctrl_click_enabled = bool(self.settings.get("triple_ctrl_click_enabled", False))
         self._triple_ctrl_click_active = False
@@ -911,6 +916,22 @@ class Application:
         if not self._quickcraft_runtime_active_ids and not self._quickcraft_runtime_active:
             self._pending_click_currency_id = None
             return
+        # Prefer low-level mouse hook for reliable click detection
+        try:
+            events = self._mouse_clicks.poll() if self._mouse_clicks is not None else []
+        except Exception:
+            events = []
+        now = time.time()
+        for ev in events:
+            if ev == 'LBUTTON_DOWN':
+                try:
+                    hovered_id = self.currency_overlay.get_hovered_currency_id()
+                except Exception:
+                    hovered_id = None
+                if hovered_id and (now - self._last_click_time) >= 0.2:
+                    self._last_click_time = now
+                    self._execute_quickcraft_for(str(hovered_id))
+                    return
         now = time.time()
         # Read current left button state
         try:
@@ -918,6 +939,18 @@ class Application:
         except Exception:
             return
         down = (state & 0x8000) != 0
+
+        # Fast-path: execute immediately on button press over an overlay
+        if down:
+            try:
+                hovered_id = self.currency_overlay.get_hovered_currency_id()
+            except Exception:
+                hovered_id = None
+            if hovered_id:
+                if (now - self._last_click_time) >= 0.25:
+                    self._last_click_time = now
+                    self._execute_quickcraft_for(str(hovered_id))
+                return
 
         if self._pending_click_currency_id is None:
             # Waiting for a new click: if left is pressed over an overlay, arm the action
@@ -942,7 +975,9 @@ class Application:
         hovered_id = self._pending_click_currency_id
         self._pending_click_currency_id = None
         self._last_click_time = now
+        self._execute_quickcraft_for(str(hovered_id))
 
+    def _execute_quickcraft_for(self, hovered_id: str) -> None:
         # Determine SOURCE location from the currency's original capture rect (true source)
         cur = self._get_currency_by_id(str(hovered_id)) or {}
         cap = cur.get('capture', {}) if isinstance(cur, dict) else {}
@@ -956,7 +991,7 @@ class Application:
         cx = int(src_left + w // 2)
         cy = int(src_top + h // 2)
 
-        # Original anchor point to return to (F3 press location)
+        # Original anchor point to return to (hotkey-time position if set)
         if self._anchor_at_hotkey is None:
             try:
                 ax, ay = win32api.GetCursorPos()
@@ -967,14 +1002,17 @@ class Application:
             ax, ay = self._anchor_at_hotkey
 
         # Execute sequence: move to SOURCE, right click, return, left click
-        time.sleep(0.02)
-        self._move_cursor(cx, cy)
-        time.sleep(0.03)
-        self._click(left=False)
-        time.sleep(0.03)
-        self._move_cursor(ax, ay)
-        time.sleep(0.03)
-        self._click(left=True)
+        try:
+            time.sleep(0.01)
+            self._move_cursor(cx, cy)
+            time.sleep(0.02)
+            self._click(left=False)
+            time.sleep(0.02)
+            self._move_cursor(ax, ay)
+            time.sleep(0.02)
+            self._click(left=True)
+        except Exception:
+            pass
 
     def _enable_currency_positioning(self) -> None:
         if self.currency_overlay is None:
@@ -1308,6 +1346,11 @@ class Application:
             pass
             
         self.capture.close()
+        try:
+            if hasattr(self, '_mouse_clicks') and self._mouse_clicks is not None:
+                self._mouse_clicks.stop()
+        except Exception:
+            pass
 
     def _parse_sequence_tokens(self, seq: str) -> list[str]:
         tokens: list[str] = []

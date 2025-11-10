@@ -8,6 +8,7 @@ from PIL import Image
 from src.capture.base_capture import Region
 from src.capture.mss_capture import MSSCapture
 from src.ui.mirror_window import MirrorWindow
+from src.ui.quick_mirror_window import QuickMirrorWindow
 from src.ui.positioning import PositioningHelper
 
 
@@ -103,8 +104,8 @@ class CurrencyOverlay:
             height = max(1, int(preview.height))
 
             window = self._windows.get(currency_id)
-            if window is None:
-                window = MirrorWindow(self._master)
+            if window is None or not isinstance(window, QuickMirrorWindow):
+                window = QuickMirrorWindow(self._master)
                 self._windows[currency_id] = window
 
             window.enable_positioning(
@@ -183,8 +184,8 @@ class CurrencyOverlay:
             height = max(1, int(preview.height))
 
             window = self._windows.get(currency_id)
-            if window is None:
-                window = MirrorWindow(self._master)
+            if window is None or not isinstance(window, QuickMirrorWindow):
+                window = QuickMirrorWindow(self._master)
                 self._windows[currency_id] = window
 
             try:

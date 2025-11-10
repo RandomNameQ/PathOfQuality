@@ -11,7 +11,7 @@
   },
   "threshold": 0.9,
   "scan_interval_ms": 50,
-  "require_game_focus": false,
+  "require_game_focus": true,
   "ui": {
     "keep_on_top": false,
     "alpha": 1.0,

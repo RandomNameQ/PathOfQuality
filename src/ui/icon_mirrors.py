@@ -10,6 +10,7 @@ from src.buffs.library import load_library, update_entry, update_copy_area_entry
 from src.capture.base_capture import Region
 from src.capture.mss_capture import MSSCapture
 from src.ui.mirror_window import MirrorWindow
+from src.ui.copy_mirror_window import CopyMirrorWindow
 from src.ui.positioning import PositioningHelper
 
 
@@ -37,6 +38,14 @@ class IconMirrorsOverlay:
         m = self._mirrors.get(entry_id)
         if m is None:
             m = MirrorWindow(self._master)
+            self._mirrors[entry_id] = m
+        return m
+
+    def _get_or_create_copy(self, entry_id: str) -> MirrorWindow:
+        """Get existing or create new copy-area mirror window (separate class)."""
+        m = self._mirrors.get(entry_id)
+        if m is None or not isinstance(m, CopyMirrorWindow):
+            m = CopyMirrorWindow(self._master)
             self._mirrors[entry_id] = m
         return m
 
@@ -122,7 +131,9 @@ class IconMirrorsOverlay:
                 if m is not None:
                     m.hide()
                 continue
-            if m is not None and m.is_hovered():
+            # Ensure copy areas use dedicated window class
+            m = self._get_or_create_copy(area_id)
+            if m.is_hovered():
                 show_ids.append(area_id)
                 continue
 
@@ -172,7 +183,7 @@ class IconMirrorsOverlay:
             pos_cfg = area.get('position', {}) or {}
             alpha = float(area.get('transparency', 1.0))
 
-            m = self._get_or_create(area_id)
+            m = self._get_or_create_copy(area_id)
             if m.is_hovered():
                 show_ids.append(area_id)
                 continue
@@ -184,7 +195,7 @@ class IconMirrorsOverlay:
                 int(img.width),
                 int(img.height),
                 alpha=alpha,
-                topmost=True,
+                topmost=bool(topmost_filter),
             )
             show_ids.append(area_id)
             # Track IDs that should be lifted (topmost=True copy areas)

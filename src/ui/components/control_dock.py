@@ -251,8 +251,10 @@ class ControlDock:
             width = self._window.winfo_reqwidth()
             height = self._window.winfo_reqheight()
             screen_w = self._window.winfo_screenwidth()
+            screen_h = self._window.winfo_screenheight()
             x = max(0, (screen_w - width) // 2)
-            y = 10
+            # Default at bottom-center with a small margin
+            y = max(0, screen_h - height - 10)
         except Exception:
             return
 
