@@ -122,18 +122,29 @@ class MirrorWindow:
         GWL_EXSTYLE = -20
         WS_EX_LAYERED = 0x00080000
         WS_EX_TRANSPARENT = 0x00000020
+        WS_EX_TOOLWINDOW = 0x00000080
+        WS_EX_NOACTIVATE = 0x08000000
         LWA_ALPHA = 0x00000002
 
         try:
             style = ctypes.windll.user32.GetWindowLongW(self._hwnd, GWL_EXSTYLE)
+            # Always layered, toolwindow and no-activate so this window never steals focus
+            style |= WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
             if enable:
-                style |= WS_EX_LAYERED | WS_EX_TRANSPARENT
+                style |= WS_EX_TRANSPARENT
             else:
-                style |= WS_EX_LAYERED
                 style &= ~WS_EX_TRANSPARENT
 
             ctypes.windll.user32.SetWindowLongW(self._hwnd, GWL_EXSTYLE, style)
             self._update_layered_alpha(LWA_ALPHA)
+            # Ensure topmost without activation
+            HWND_TOPMOST = -1
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOACTIVATE = 0x0010
+            ctypes.windll.user32.SetWindowPos(
+                self._hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+            )
         except Exception:
             pass
 
@@ -194,12 +205,19 @@ class MirrorWindow:
             self.top.deiconify()
             self.visible = True
         
-        # Lift window only when first shown or topmost changed to ensure proper z-ordering
-        if not was_visible or topmost_changed:
-            try:
-                self.top.lift()
-            except Exception:
-                pass
+        # Always lift to keep overlay above the game after click-through (no activation)
+        try:
+            self.top.lift()
+            if self._hwnd:
+                HWND_TOPMOST = -1
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOACTIVATE = 0x0010
+                ctypes.windll.user32.SetWindowPos(
+                    self._hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                )
+        except Exception:
+            pass
             
     def update_image(self, img: Image.Image) -> None:
         """
@@ -417,38 +435,21 @@ class MirrorWindow:
         self._set_hover_hidden(False)
 
     def _set_hover_hidden(self, hidden: bool) -> None:
+        """Track hover state but keep the overlay visible for runtime use.
+
+        We only toggle click-through for runtime (non-positioning) windows; no alpha changes.
+        """
         if self._positioning_enabled:
             hidden = False
 
-        self._hover_active = hidden
-
-        if hidden:
-            if self._hover_hidden:
-                return
-
-            self._hover_prev_alpha = self._current_alpha
-            self._hover_hidden = True
-
-            try:
-                self.top.attributes('-alpha', 0.0)
-            except Exception:
-                pass
-
-            self._current_alpha = 0.0
-            self._update_layered_alpha()
+        self._hover_active = bool(hidden)
+        # Ensure clicks pass through in runtime mode
+        if not self._positioning_enabled:
             self._apply_clickthrough(True)
         else:
-            if not self._hover_hidden:
-                return
-
-            try:
-                self.top.attributes('-alpha', float(self._hover_prev_alpha))
-            except Exception:
-                pass
-
-            self._current_alpha = self._hover_prev_alpha
-            self._update_layered_alpha()
-            self._hover_hidden = False
+            self._apply_clickthrough(False)
+        # Do not change alpha/visibility to avoid flicker on hover
+        self._hover_hidden = False
 
     def _hover_poll(self) -> None:
         if not sys.platform.startswith('win'):
@@ -472,5 +473,20 @@ class MirrorWindow:
         self._schedule_hover_poll()
 
     def is_hovered(self) -> bool:
-        return self._hover_active
+        if not sys.platform.startswith('win'):
+            return False
+        if not self.visible or self._hwnd is None:
+            return False
+        try:
+            cursor = _POINT()
+            rect = _RECT()
+            if ctypes.windll.user32.GetCursorPos(ctypes.byref(cursor)):
+                if ctypes.windll.user32.GetWindowRect(self._hwnd, ctypes.byref(rect)):
+                    return (
+                        rect.left <= cursor.x < rect.right and
+                        rect.top <= cursor.y < rect.bottom
+                    )
+        except Exception:
+            return False
+        return False
 

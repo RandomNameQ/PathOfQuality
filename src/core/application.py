@@ -189,6 +189,8 @@ class Application:
         # Wheel burst suppression: emit once per scroll burst, rearm after 50ms of silence
         self._mega_qol_suppress: bool = False
         self._mega_qol_last_wheel: float = 0.0
+        # Focus-loss debounce for runtime overlays
+        self._focus_loss_started: float = 0.0
         
     def _has_effective_focus(self) -> bool:
         """Return True when functionality should be enabled.
@@ -751,10 +753,8 @@ class Application:
         self._quickcraft_runtime_active_ids = set()
 
     def _handle_quickcraft_hotkey(self, token: str) -> None:
-        # Restrict to effective focus (game or app focused); hide if currently showing and focus lost
+        # Restrict to effective focus (game or app focused)
         if not self._has_effective_focus():
-            if self._quickcraft_runtime_active_ids or self._quickcraft_runtime_active:
-                self._hide_quickcraft_overlay()
             return
         # Global hotkey takes precedence
         if self._quickcraft_global_hotkey and token == self._quickcraft_global_hotkey:
@@ -907,7 +907,8 @@ class Application:
         if not self._has_effective_focus():
             self._pending_click_currency_id = None
             return
-        if not self._quickcraft_runtime_active_ids:
+        # Require either global (multiple) or single runtime overlay active
+        if not self._quickcraft_runtime_active_ids and not self._quickcraft_runtime_active:
             self._pending_click_currency_id = None
             return
         now = time.time()
@@ -1192,11 +1193,22 @@ class Application:
 
         # Copy Areas should only be visible in allowed processes
         if game_in_focus:
+            self._focus_loss_started = 0.0
             if self._focus_state_last is False:
                 self.hud.set_status_message('')
             # Keep user's requested toggles; only apply effective overlay state
             self.mirrors.set_copy_enabled(self._copy_user_requested)
         else:
+            if self._focus_loss_started == 0.0:
+                try:
+                    self._focus_loss_started = time.time()
+                except Exception:
+                    self._focus_loss_started = 0.0
+            long_loss = False
+            try:
+                long_loss = (time.time() - self._focus_loss_started) > 0.25
+            except Exception:
+                long_loss = True
             if self._focus_required:
                 if self._focus_state_last in (True, None):
                     self.hud.set_status_message(
@@ -1206,8 +1218,7 @@ class Application:
                         ),
                         level='warning',
                     )
-
-                if self.overlay_enabled_last:
+                if long_loss and self.overlay_enabled_last:
                     try:
                         self.overlay.hide()
                     except Exception:
@@ -1215,10 +1226,11 @@ class Application:
                     self.overlay_enabled_last = False
             self.mirrors.set_copy_enabled(False)
             # Hide any runtime currency overlays when not allowed
-            try:
-                self._hide_quickcraft_overlay()
-            except Exception:
-                pass
+            if long_loss and self._pending_click_currency_id is None:
+                try:
+                    self._hide_quickcraft_overlay()
+                except Exception:
+                    pass
 
         self._focus_state_last = game_in_focus
     
