@@ -190,6 +190,23 @@ class Application:
         self._mega_qol_suppress: bool = False
         self._mega_qol_last_wheel: float = 0.0
         
+    def _has_effective_focus(self) -> bool:
+        """Return True when functionality should be enabled.
+
+        Effective focus is true when:
+        - focus requirement is disabled, or
+        - an allowed game process is focused, or
+        - our own application (HUD/dock) is focused.
+        """
+        if not self._focus_required:
+            return True
+        try:
+            if self.hud is not None and self.hud.is_application_active():
+                return True
+        except Exception:
+            pass
+        return self._is_allowed_process_active()
+        
     def initialize(self, roi: Region) -> None:
         """
         Initialize application components.
@@ -336,6 +353,7 @@ class Application:
             while True:
                 event = self.hud.read(timeout=scan_interval_ms)
                 game_in_focus = self._is_allowed_process_active()
+                effective_focus = self._has_effective_focus()
 
                 if event == 'EXIT' or self.tray.is_exit_requested():
                     break
@@ -443,7 +461,7 @@ class Application:
 
                 focus_active = game_in_focus or not self._focus_required
 
-                self._apply_focus_policy(game_in_focus)
+                self._apply_focus_policy(effective_focus)
 
                 if refresh_copy:
                     self._refresh_copy_overlays()
@@ -451,9 +469,8 @@ class Application:
                 self._update_currency_overlay()
                 self._process_hotkeys()
 
-                # Process mega QoL wheel events
-                # Mega QoL wheel should only work in allowed processes
-                self._process_mega_qol_wheel(game_in_focus)
+                # Process mega QoL wheel events using effective focus
+                self._process_mega_qol_wheel(effective_focus)
 
                 # Allow positioning toggles even when the game is unfocused
                 self._handle_positioning_toggle()
@@ -467,8 +484,8 @@ class Application:
                 if self._triple_ctrl_click_enabled:
                     self._handle_triple_ctrl_click()
 
-                # Scan only when allowed process is focused
-                if game_in_focus and self._scan_user_requested:
+                # Scan when effective focus is true (game or app focused)
+                if effective_focus and self._scan_user_requested:
                     self._scan_frame()
                 else:
                     self._clear_results()
@@ -478,8 +495,8 @@ class Application:
             
     def _handle_overlay_toggle(self) -> None:
         """Handle overlay enable/disable."""
-        # Always hide analysis overlay when a non-allowed process is focused
-        if not self._is_allowed_process_active():
+        # Hide overlay when effective focus is false
+        if not self._has_effective_focus():
             if self.overlay_enabled_last:
                 try:
                     self.overlay.hide()
@@ -609,8 +626,18 @@ class Application:
         self._quickcraft_positions = trimmed
 
     def _register_quickcraft_hotkeys(self) -> None:
-        # Per-item hotkeys are disabled; only global hotkey is used
-        self._quickcraft_hotkey_map = {}
+        # Load per-item hotkeys and global hotkey
+        mapping: Dict[str, str] = {}
+        for cid, cfg in (self._quickcraft_positions or {}).items():
+            try:
+                raw = str(cfg.get('hotkey', '') or '').strip()
+            except Exception:
+                raw = ''
+            token = normalize_hotkey_name(raw)
+            if not token:
+                continue
+            mapping[token] = str(cid)
+        self._quickcraft_hotkey_map = mapping
         try:
             self._quickcraft_global_hotkey = normalize_hotkey_name(load_global_hotkey())
         except Exception:
@@ -724,8 +751,8 @@ class Application:
         self._quickcraft_runtime_active_ids = set()
 
     def _handle_quickcraft_hotkey(self, token: str) -> None:
-        # Restrict to allowed processes; hide if currently showing and focus lost
-        if not self._is_allowed_process_active():
+        # Restrict to effective focus (game or app focused); hide if currently showing and focus lost
+        if not self._has_effective_focus():
             if self._quickcraft_runtime_active_ids or self._quickcraft_runtime_active:
                 self._hide_quickcraft_overlay()
             return
@@ -748,7 +775,7 @@ class Application:
             self._show_quickcraft_overlay(currency_id, force=True)
 
     def _toggle_quickcraft_global(self) -> None:
-        if not self._is_allowed_process_active():
+        if not self._has_effective_focus():
             return
         # If anything active -> hide all
         if self._quickcraft_runtime_active_ids:
@@ -876,8 +903,8 @@ class Application:
             pass
 
     def _process_quickcraft_click_action(self) -> None:
-        # Only when allowed process is focused
-        if not self._is_allowed_process_active():
+        # Only when effective focus is true (game or app focused)
+        if not self._has_effective_focus():
             self._pending_click_currency_id = None
             return
         if not self._quickcraft_runtime_active_ids:
@@ -1049,8 +1076,8 @@ class Application:
             return
 
         try:
-            # Only operate in allowed processes
-            if not self._is_allowed_process_active():
+            # Only operate with effective focus (game or app focused)
+            if not self._has_effective_focus():
                 if self._triple_ctrl_click_active:
                     self._stop_mouse_simulation()
                 return
@@ -1170,21 +1197,22 @@ class Application:
             # Keep user's requested toggles; only apply effective overlay state
             self.mirrors.set_copy_enabled(self._copy_user_requested)
         else:
-            if self._focus_state_last in (True, None):
-                self.hud.set_status_message(
-                    t(
-                        'status.game_focus_required',
-                        'Focus the Path of Exile window to resume.',
-                    ),
-                    level='warning',
-                )
+            if self._focus_required:
+                if self._focus_state_last in (True, None):
+                    self.hud.set_status_message(
+                        t(
+                            'status.game_focus_required',
+                            'Focus the Path of Exile window to resume.',
+                        ),
+                        level='warning',
+                    )
 
-            if self.overlay_enabled_last:
-                try:
-                    self.overlay.hide()
-                except Exception:
-                    pass
-                self.overlay_enabled_last = False
+                if self.overlay_enabled_last:
+                    try:
+                        self.overlay.hide()
+                    except Exception:
+                        pass
+                    self.overlay_enabled_last = False
             self.mirrors.set_copy_enabled(False)
             # Hide any runtime currency overlays when not allowed
             try:
