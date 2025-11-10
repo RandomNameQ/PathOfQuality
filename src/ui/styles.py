@@ -21,19 +21,31 @@ def configure_modern_styles(root) -> None:
         root: Tk root window
     """
     style = ttk.Style(root)
+    try:
+        style.theme_use('clam')
+    except Exception:
+        pass
+    try:
+        root.configure(background=BG_COLOR)
+    except Exception:
+        pass
     
     try:
         # Notebook (tabs) style
         style.configure('TNotebook', background=BG_COLOR, borderwidth=0)
-        style.configure('TNotebook.Tab', 
-                      padding=[20, 10], 
-                      background='#ffffff',
-                      foreground=FG_COLOR,
-                      borderwidth=0,
-                      font=('Segoe UI', 10, 'normal'))
-        style.map('TNotebook.Tab',
-                 background=[('selected', BG_COLOR), ('active', HOVER_COLOR)],
-                 expand=[('selected', [1, 1, 1, 0])])
+        style.configure(
+            'TNotebook.Tab',
+            padding=[18, 8],
+            background='#ffffff',
+            foreground=FG_COLOR,
+            borderwidth=0,
+            font=('Segoe UI', 10, 'normal'),
+        )
+        style.map(
+            'TNotebook.Tab',
+            background=[('selected', '#ffffff'), ('active', HOVER_COLOR)],
+            foreground=[('selected', FG_COLOR)],
+        )
         
         # Modern buttons - primary
         style.configure('Modern.TButton',
@@ -81,8 +93,9 @@ def configure_modern_styles(root) -> None:
                       background=BG_COLOR,
                       foreground=FG_COLOR)
         
-        # Frame
+        # Frames
         style.configure('TFrame', background=BG_COLOR)
+        style.configure('Card.TFrame', background='#ffffff', relief='flat', borderwidth=1)
         
         # Treeview styles for buffs
         style.configure('BuffTree.Treeview', 
@@ -160,6 +173,9 @@ def configure_modern_styles(root) -> None:
                  background=[('selected', '#dbeafe')],
                  foreground=[('selected', '#1f2937')])
 
+        # Labels
+        style.configure('Title.TLabel', background=BG_COLOR, foreground=FG_COLOR, font=('Segoe UI Semibold', 18))
+        style.configure('Subtitle.TLabel', background=BG_COLOR, foreground='#6b7280', font=('Segoe UI', 10))
         style.configure('Prompt.TFrame', background=BG_COLOR)
         style.configure('Prompt.TLabel', background=BG_COLOR, foreground=FG_COLOR, font=('Segoe UI', 9))
                  

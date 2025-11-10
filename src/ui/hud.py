@@ -216,7 +216,7 @@ class BuffHUD:
         self._monitoring_tab.set_scan_command(self._on_toggle_scan)
         self._monitoring_tab.set_positioning_command(self._on_toggle_positioning)
         self._monitoring_tab.set_copy_area_command(self._on_toggle_copy_area_enabled)
-        self._monitoring_tab.set_exit_command(self._on_exit)
+        # Exit button removed from overview
         self._monitoring_tab.update_copy_area_status()
         
         self._settings_tab.set_select_command(self._on_select_roi)

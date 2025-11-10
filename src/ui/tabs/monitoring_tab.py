@@ -31,104 +31,59 @@ class MonitoringTab:
     def _create_widgets(self) -> None:
         """Create monitoring tab widgets."""
         # Header
-        header = tk.Label(
-            self.frame, 
-            text='Buff HUD', 
-            font=('Segoe UI', 16, 'bold'), 
-            bg=BG_COLOR, 
-            fg=FG_COLOR
-        )
-        header.pack(padx=12, pady=(12, 8))
+        header = ttk.Label(self.frame, text='Buff HUD', style='Title.TLabel')
+        header.pack(padx=12, pady=(16, 4))
         
         # Status message
-        self._status_label = tk.Label(
-            self.frame,
-            text='',
-            bg=BG_COLOR,
-            fg='#9ca3af',
-            font=('Segoe UI', 9),
-            wraplength=720,
-            justify='center'
-        )
+        self._status_label = ttk.Label(self.frame, text='', style='Subtitle.TLabel')
         self._status_label.pack(padx=12, pady=(0, 12))
 
-        # Positioning mode toggle
+        # Card container for controls
+        card = ttk.Frame(self.frame, style='Card.TFrame', padding=(16, 16))
+        card.pack(padx=16, pady=8)
+
+        # Position library overlay toggle
         self._btn_positioning = ttk.Checkbutton(
-            self.frame,
-            text=t('monitoring.positioning', 'Positioning'),
+            card,
+            text=t('monitoring.positioning', 'Position library overlay'),
             variable=self._positioning_var,
             style='Toggle.TCheckbutton',
         )
-        self._btn_positioning.pack(padx=12, pady=(0, 12))
+        self._btn_positioning.grid(row=0, column=0, sticky='w')
 
-        # Copy area enable toggle
-        copy_frame = tk.Frame(self.frame, bg=BG_COLOR)
-        copy_frame.pack(padx=12, pady=(0, 12))
-
+        # Copy area enable toggle with indicator
         self._copy_area_var = tk.BooleanVar(value=False)
         self._copy_area_callback = None
         self._btn_copy_area = ttk.Button(
-            copy_frame,
+            card,
             text=t('monitoring.copy_area_disable', 'Disable copy area'),
             style='Action.TButton',
             command=self._on_copy_area_click,
         )
-        self._btn_copy_area.pack(side='left')
+        self._btn_copy_area.grid(row=1, column=0, pady=(8, 0), sticky='w')
 
-        self._copy_canvas = tk.Canvas(
-            copy_frame,
-            width=16,
-            height=16,
-            highlightthickness=0,
-            bg=BG_COLOR,
-        )
-        self._copy_canvas.pack(side='left', padx=(8, 0))
-        self._copy_circle = self._copy_canvas.create_oval(
-            2,
-            2,
-            14,
-            14,
-            fill='#10b981',
-            outline='#9ca3af',
-        )
-        
+        self._copy_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg='#ffffff')
+        self._copy_canvas.grid(row=1, column=1, padx=(8, 0), pady=(10, 0), sticky='w')
+        self._copy_circle = self._copy_canvas.create_oval(2, 2, 12, 12, fill='#10b981', outline='#d1d5db')
+
+        # Scan button and status indicator
+        self._btn_scan = ttk.Button(card, text=t('monitoring.scan', 'Scan'), style='Modern.TButton')
+        self._btn_scan.grid(row=2, column=0, pady=(12, 0), sticky='w')
+        self._scan_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg='#ffffff')
+        self._scan_canvas.grid(row=2, column=1, padx=(8, 0), pady=(14, 0), sticky='w')
+        self._scan_circle = self._scan_canvas.create_oval(2, 2, 12, 12, fill='#ef4444', outline='#d1d5db')
+
+        for i in range(2):
+            try:
+                card.grid_columnconfigure(i, weight=0)
+            except Exception:
+                pass
+
         # Icons frame for detected buffs
         self._icons_frame = tk.Frame(self.frame, bg=BG_COLOR)
         self._icons_frame.pack(padx=12, pady=8)
         
-        # Scan button and status indicator
-        scan_frame = tk.Frame(self.frame, bg=BG_COLOR)
-        scan_frame.pack(padx=12, pady=(8, 8))
-        
-        self._btn_scan = ttk.Button(
-            scan_frame, 
-            text=t('monitoring.scan', 'Scan'),
-            style='Modern.TButton'
-        )
-        self._btn_scan.pack(side='left')
-        
-        # Status circle
-        self._scan_canvas = tk.Canvas(
-            scan_frame, 
-            width=16, 
-            height=16, 
-            highlightthickness=0, 
-            bg=BG_COLOR
-        )
-        self._scan_canvas.pack(side='left', padx=(8, 0))
-        self._scan_circle = self._scan_canvas.create_oval(
-            2, 2, 14, 14, 
-            fill='#ef4444', 
-            outline='#9ca3af'
-        )
-        
-        # Exit button
-        self._btn_exit = ttk.Button(
-            self.frame, 
-            text=t('button.exit', 'Exit'),
-            style='Modern.TButton'
-        )
-        self._btn_exit.pack(padx=12, pady=(8, 12))
+        # Exit button removed as requested
 
         self.update_copy_area_status()
 
@@ -202,9 +157,7 @@ class MonitoringTab:
         """Set copy area toggle command callback."""
         self._copy_area_callback = command
         
-    def set_exit_command(self, command) -> None:
-        """Set exit button command callback."""
-        self._btn_exit.configure(command=command)
+    # Exit button removed; no setter
         
     def get_scanning_var(self) -> tk.BooleanVar:
         """Get scanning state variable."""
@@ -272,9 +225,8 @@ class MonitoringTab:
     def refresh_texts(self) -> None:
         """Refresh all translatable texts."""
         try:
-            self._btn_positioning.configure(text=t('monitoring.positioning', 'Positioning'))
+            self._btn_positioning.configure(text=t('monitoring.positioning', 'Position library overlay'))
             self._btn_scan.configure(text=t('monitoring.scan', 'Scan'))
-            self._btn_exit.configure(text=t('button.exit', 'Exit'))
             self.update_copy_area_status()
         except Exception:
             pass
@@ -293,7 +245,7 @@ class MonitoringTab:
     def set_status(self, message: str = '', level: str = 'info') -> None:
         """Set status message displayed on the monitoring tab."""
         colors = {
-            'info': '#9ca3af',
+            'info': '#6b7280',
             'success': '#10b981',
             'warning': '#f59e0b',
             'error': '#ef4444',
@@ -301,7 +253,7 @@ class MonitoringTab:
         text = message or ''
         color = colors.get(level, FG_COLOR)
         try:
-            self._status_label.configure(text=text, fg=color)
+            self._status_label.configure(text=text, foreground=color)
         except Exception:
             pass
 
