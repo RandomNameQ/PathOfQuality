@@ -59,6 +59,12 @@ class QuickCraftTab:
         
 
     def _create_widgets(self) -> None:
+        # Description
+        try:
+            ttk.Label(self.frame, text=t('desc.quickcraft', 'Position currency overlay windows and set a global hotkey for showing them near the cursor.'), style='Subtitle.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
+
         controls = tk.Frame(self.frame, bg=BG_COLOR)
         controls.pack(fill='x', padx=12, pady=12)
 
@@ -67,7 +73,7 @@ class QuickCraftTab:
             text=t('quickcraft.currency_positioning', 'Currency positioning'),
             variable=self._positioning_var,
             command=lambda: self._on_toggle_positioning(bool(self._positioning_var.get())),
-            style='Toggle.TCheckbutton',
+            style='ToggleGray.TCheckbutton',
         )
         self._chk_positioning.pack(side='left')
 

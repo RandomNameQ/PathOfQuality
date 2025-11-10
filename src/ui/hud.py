@@ -272,7 +272,8 @@ class BuffHUD:
             grid_size=24,
             on_position_changed=self._on_dock_position_changed,
             on_focus_change=self._on_dock_focus_change,
-            on_button_action=lambda: self._mark_dock_interaction(restore=True),
+            # Do not request focus restoration on any dock button action
+            on_button_action=lambda: self._mark_dock_interaction(restore=False),
             on_lock_change=self._on_dock_lock_change,
             locked=self._dock_locked,
         )
@@ -356,7 +357,7 @@ class BuffHUD:
 
         self.set_copy_area_state(new_state)
         self._events.append('COPY_AREA_TOGGLE')
-        self._mark_dock_interaction(restore=True)
+        # Do not alter window focus on copy area toggle
 
     def _on_toggle_currency_positioning(self, enabled: bool) -> None:
         """Handle currency positioning toggle from quick craft tab."""

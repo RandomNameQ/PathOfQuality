@@ -135,8 +135,8 @@ class Application:
         """
         self.settings_path = settings_path
         self.settings = load_settings(settings_path)
+        # Allowed processes are defined strictly in JSON (no implicit additions)
         self.allowed_processes: Set[str] = self._load_allowed_processes()
-        self.allowed_processes.update(self._get_self_process_names())
         self._focus_required = bool(self.settings.get("require_game_focus", True))
         
         # Initialize components
@@ -272,11 +272,6 @@ class Application:
         
     def _load_allowed_processes(self) -> Set[str]:
         """Load allowed process names from configuration file."""
-        defaults = {
-            'pathofexile.exe',
-            'pathofexilesteam.exe',
-            'pathofexile2steam.exe',
-        }
         processes: Set[str] = set()
 
         try:
@@ -292,9 +287,6 @@ class Application:
                     processes.add(name)
         except Exception:
             processes = set()
-
-        if not processes:
-            processes = defaults
         return processes
 
     def _restore_allowed_focus(self) -> None:
@@ -312,13 +304,6 @@ class Application:
     def _get_self_process_names(self) -> Set[str]:
         """Return possible executable names for the current process."""
         names: Set[str] = set()
-
-        try:
-            current = get_foreground_process_name()
-            if current:
-                names.add(current.strip().lower())
-        except Exception:
-            pass
 
         for candidate in (sys.executable, sys.argv[0]):
             try:
@@ -423,7 +408,7 @@ class Application:
                     self._update_dock_position_settings()
 
                 elif event == 'DOCK_INTERACTION':
-                    self._restore_allowed_focus()
+                    # Do not change OS window focus on dock interaction
                     skip_frame_processing = True
 
                 elif event == 'TRIPLE_CTRL_CLICK_CHANGED':
@@ -480,18 +465,13 @@ class Application:
                 self._process_hotkeys()
 
                 # Process mega QoL wheel events
-                self._process_mega_qol_wheel(focus_active)
+                # Mega QoL wheel should only work in allowed processes
+                self._process_mega_qol_wheel(game_in_focus)
 
                 # Allow positioning toggles even when the game is unfocused
                 self._handle_positioning_toggle()
 
                 if skip_frame_processing:
-                    if not focus_active:
-                        self._clear_results()
-                    continue
-
-                if not focus_active:
-                    self._clear_results()
                     continue
 
                 self._handle_overlay_toggle()
@@ -500,7 +480,8 @@ class Application:
                 if self._triple_ctrl_click_enabled:
                     self._handle_triple_ctrl_click()
 
-                if self._scan_user_requested:
+                # Scan only when allowed process is focused
+                if game_in_focus and self._scan_user_requested:
                     self._scan_frame()
                 else:
                     self._clear_results()
@@ -510,6 +491,16 @@ class Application:
             
     def _handle_overlay_toggle(self) -> None:
         """Handle overlay enable/disable."""
+        # Always hide analysis overlay when a non-allowed process is focused
+        if not self._is_allowed_process_active():
+            if self.overlay_enabled_last:
+                try:
+                    self.overlay.hide()
+                except Exception:
+                    pass
+                self.overlay_enabled_last = False
+            return
+
         overlay_enabled_curr = self.hud.get_overlay_enabled()
         if overlay_enabled_curr != self.overlay_enabled_last:
             if overlay_enabled_curr:
@@ -746,6 +737,11 @@ class Application:
         self._quickcraft_runtime_active_ids = set()
 
     def _handle_quickcraft_hotkey(self, token: str) -> None:
+        # Restrict to allowed processes; hide if currently showing and focus lost
+        if not self._is_allowed_process_active():
+            if self._quickcraft_runtime_active_ids or self._quickcraft_runtime_active:
+                self._hide_quickcraft_overlay()
+            return
         # Global hotkey takes precedence
         if self._quickcraft_global_hotkey and token == self._quickcraft_global_hotkey:
             # If user presses global hotkey while positioning, save current template first
@@ -765,6 +761,8 @@ class Application:
             self._show_quickcraft_overlay(currency_id, force=True)
 
     def _toggle_quickcraft_global(self) -> None:
+        if not self._is_allowed_process_active():
+            return
         # If anything active -> hide all
         if self._quickcraft_runtime_active_ids:
             self._hide_quickcraft_overlay()
@@ -891,6 +889,10 @@ class Application:
             pass
 
     def _process_quickcraft_click_action(self) -> None:
+        # Only when allowed process is focused
+        if not self._is_allowed_process_active():
+            self._pending_click_currency_id = None
+            return
         if not self._quickcraft_runtime_active_ids:
             self._pending_click_currency_id = None
             return
@@ -1060,6 +1062,11 @@ class Application:
             return
 
         try:
+            # Only operate in allowed processes
+            if not self._is_allowed_process_active():
+                if self._triple_ctrl_click_active:
+                    self._stop_mouse_simulation()
+                return
             state = win32api.GetAsyncKeyState(win32con.VK_CONTROL)
             ctrl_held = (state & 0x8000) != 0
 
@@ -1169,13 +1176,7 @@ class Application:
         # Don't override user's dock visibility setting
         # The dock visibility is controlled by the settings checkbox
 
-        if not self._focus_required:
-            if self._focus_state_last is False:
-                self.hud.set_status_message('')
-            self.mirrors.set_copy_enabled(self._copy_user_requested)
-            self._focus_state_last = True
-            return
-
+        # Copy Areas should only be visible in allowed processes
         if game_in_focus:
             if self._focus_state_last is False:
                 self.hud.set_status_message('')
@@ -1197,8 +1198,12 @@ class Application:
                 except Exception:
                     pass
                 self.overlay_enabled_last = False
-
             self.mirrors.set_copy_enabled(False)
+            # Hide any runtime currency overlays when not allowed
+            try:
+                self._hide_quickcraft_overlay()
+            except Exception:
+                pass
 
         self._focus_state_last = game_in_focus
     

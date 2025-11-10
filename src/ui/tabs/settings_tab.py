@@ -71,7 +71,7 @@ class SettingsTab:
             main_container, 
             text=t('settings.show_analysis', 'Show Analysis Area'),
             variable=self._overlay_var,
-            style='Toggle.TCheckbutton'
+            style='ToggleGray.TCheckbutton'
         )
         self._chk_overlay.pack(anchor='w', pady=(0, 12))
         
@@ -92,7 +92,7 @@ class SettingsTab:
             main_container,
             text=t('settings.require_game_focus', 'Run only when the game is focused'),
             variable=self._focus_required_var,
-            style='Toggle.TCheckbutton'
+            style='ToggleGray.TCheckbutton'
         )
         self._chk_focus_required.pack(anchor='w', pady=(0, 12))
         
@@ -101,7 +101,7 @@ class SettingsTab:
             main_container,
             text=t('settings.show_dock', 'Show control panel'),
             variable=self._dock_visible_var,
-            style='Toggle.TCheckbutton'
+            style='ToggleGray.TCheckbutton'
         )
         self._chk_dock_visible.pack(anchor='w', pady=(0, 12))
 

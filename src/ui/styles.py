@@ -47,32 +47,30 @@ def configure_modern_styles(root) -> None:
             foreground=[('selected', FG_COLOR)],
         )
         
-        # Modern buttons - primary
+        # Modern buttons - primary (more expressive)
         style.configure('Modern.TButton',
-                      padding=[16, 8],
-                      font=('Segoe UI', 9, 'normal'),
-                      background=ACCENT_COLOR,
-                      foreground='#000000',  # Black text for better contrast
-                      borderwidth=0,
-                      focuscolor='none')
+                        padding=[16, 10],
+                        font=('Segoe UI Semibold', 10),
+                        background=ACCENT_COLOR,
+                        foreground='#ffffff',
+                        borderwidth=1,
+                        relief='solid')
         style.map('Modern.TButton',
-                 background=[('active', ACCENT_HOVER), ('pressed', '#4338ca')],
-                 foreground=[('active', '#000000'), ('pressed', '#000000')],
-                 relief=[('pressed', 'sunken')])
+                  background=[('active', ACCENT_HOVER), ('pressed', '#4338ca')],
+                  foreground=[('active', '#ffffff'), ('pressed', '#ffffff')],
+                  relief=[('pressed', 'sunken')])
         
-        # Action buttons (secondary)
+        # Action buttons (secondary) - outlined
         style.configure('Action.TButton',
-                      padding=[12, 6],
-                      font=('Segoe UI', 9, 'normal'),
-                      background='#f9fafb',  # Light grey background
-                      foreground='#111827',  # Very dark text for contrast
-                      borderwidth=1,
-                      relief='flat',
-                      bordercolor='#d1d5db')
+                        padding=[12, 8],
+                        font=('Segoe UI', 9),
+                        background='#ffffff',
+                        foreground=FG_COLOR,
+                        borderwidth=1,
+                        relief='solid')
         style.map('Action.TButton',
-                 background=[('active', '#f3f4f6'), ('pressed', '#e5e7eb')],
-                 foreground=[('active', '#000000'), ('pressed', '#000000')],
-                 bordercolor=[('active', '#9ca3af'), ('pressed', '#6b7280')])
+                  background=[('active', '#f3f4f6'), ('pressed', '#e5e7eb')],
+                  foreground=[('active', FG_COLOR), ('pressed', FG_COLOR)])
         
         # Entry fields
         style.configure('TEntry',
@@ -88,10 +86,18 @@ def configure_modern_styles(root) -> None:
         
         # Checkbutton
         style.configure('Toggle.TCheckbutton',
-                      padding=6,
-                      font=('Segoe UI', 9),
-                      background=BG_COLOR,
-                      foreground=FG_COLOR)
+                        padding=6,
+                        font=('Segoe UI', 9),
+                        background=BG_COLOR,
+                        foreground=FG_COLOR)
+        # Gray variant for better contrast on plain backgrounds
+        style.configure('ToggleGray.TCheckbutton',
+                        padding=8,
+                        font=('Segoe UI', 9),
+                        background='#f3f4f6',
+                        foreground=FG_COLOR)
+        style.map('ToggleGray.TCheckbutton',
+                  background=[('active', '#e5e7eb'), ('selected', '#e5e7eb')])
         
         # Frames
         style.configure('TFrame', background=BG_COLOR)

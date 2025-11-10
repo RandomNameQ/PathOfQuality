@@ -43,7 +43,7 @@ class MegaQolTab:
             text=t('mega_qol.enable', 'Enable wheel down → key sequence'),
             variable=self._enabled_var,
             command=self._notify_change,
-            style='Toggle.TCheckbutton',
+            style='ToggleGray.TCheckbutton',
         )
         self._chk_enable.pack(anchor='w')
 
@@ -101,7 +101,7 @@ class MegaQolTab:
             text=t('settings.double_ctrl_click', 'Double Ctrl click emulation'),
             variable=self._double_ctrl_var,
             command=self._notify_change,
-            style='Toggle.TCheckbutton',
+            style='ToggleGray.TCheckbutton',
         )
         self._chk_double_ctrl.pack(anchor='w')
 

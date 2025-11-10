@@ -47,7 +47,7 @@ class MonitoringTab:
             card,
             text=t('monitoring.positioning', 'Position library overlay'),
             variable=self._positioning_var,
-            style='Toggle.TCheckbutton',
+            style='ToggleGray.TCheckbutton',
         )
         self._btn_positioning.grid(row=0, column=0, sticky='w')
 

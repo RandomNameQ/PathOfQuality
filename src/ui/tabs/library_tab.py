@@ -31,6 +31,17 @@ class LibraryTab:
         self.frame = parent
         self.entry_type = entry_type
         
+        # Description per tab
+        try:
+            desc_map = {
+                'buff': 'Manage buff templates recognized in the analysis area.',
+                'debuff': 'Manage debuff templates recognized in the analysis area.',
+            }
+            from tkinter import ttk
+            ttk.Label(parent, text=t('desc.' + ('buffs' if entry_type=='buff' else 'debuffs'), desc_map.get(entry_type, 'Manage items.')), style='Subtitle.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
+
         self._tree_view = LibraryTreeView(
             parent=parent,
             entry_type=entry_type,

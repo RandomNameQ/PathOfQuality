@@ -40,6 +40,11 @@ class CurrencyTab:
         self._create_widgets()
 
     def _create_widgets(self) -> None:
+        # Description
+        try:
+            ttk.Label(self.frame, text=t('desc.currency', 'Manage currency definitions and capture areas used by overlays.'), style='Subtitle.TLabel').pack(anchor='w', padx=12, pady=(8, 4))
+        except Exception:
+            pass
         controls = tk.Frame(self.frame, bg=BG_COLOR)
         controls.pack(fill='x', padx=12, pady=12)
 
