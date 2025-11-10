@@ -277,7 +277,7 @@ class ControlDock:
         if not btn:
             return
         color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
-        text = "■" if active else "▶"
+        text = "⏸" if active else "▶"
         canvas = btn["canvas"]
         canvas.itemconfigure(btn["circle"], fill=color)
         canvas.itemconfigure(btn["label"], text=text)
@@ -289,6 +289,8 @@ class ControlDock:
         color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
         canvas = btn["canvas"]
         canvas.itemconfigure(btn["circle"], fill=color)
+        # Keep copy glyph explicit
+        canvas.itemconfigure(btn["label"], text="⧉")
 
     def set_locked(self, locked: bool) -> None:
         self._locked = bool(locked)

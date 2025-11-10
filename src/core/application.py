@@ -1180,7 +1180,7 @@ class Application:
         if game_in_focus:
             if self._focus_state_last is False:
                 self.hud.set_status_message('')
-
+            # Keep user's requested toggles; only apply effective overlay state
             self.mirrors.set_copy_enabled(self._copy_user_requested)
         else:
             if self._focus_state_last in (True, None):

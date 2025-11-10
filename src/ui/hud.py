@@ -828,13 +828,13 @@ class BuffHUD:
         """Programmatically update scanning toggle state."""
         scan_var = self._monitoring_tab.get_scanning_var()
         current = bool(scan_var.get())
-        if current == enabled:
-            return
-
-        scan_var.set(enabled)
-        self._monitoring_tab.update_scan_status(enabled)
+        if current != enabled:
+            scan_var.set(enabled)
+            self._monitoring_tab.update_scan_status(enabled)
         if self._control_dock is not None:
             self._control_dock.set_scanning_active(enabled)
+            # Refresh other indicators to avoid visual desync
+            self._control_dock.set_copy_active(self.get_copy_area_enabled())
 
         if enabled:
             self._monitoring_tab.start_scan_animation(self._root)
@@ -848,13 +848,13 @@ class BuffHUD:
         """Programmatically update copy area toggle state."""
         copy_var = self._monitoring_tab.get_copy_area_var()
         current = bool(copy_var.get())
-        if current == enabled:
-            return
-
-        copy_var.set(enabled)
-        self._monitoring_tab.update_copy_area_status()
+        if current != enabled:
+            copy_var.set(enabled)
+            self._monitoring_tab.update_copy_area_status()
         if self._control_dock is not None:
             self._control_dock.set_copy_active(enabled)
+            # Refresh scan indicator to avoid visual desync
+            self._control_dock.set_scanning_active(self.get_scanning_enabled())
 
         if notify:
             self._events.append('COPY_AREA_TOGGLE')
