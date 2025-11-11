@@ -34,25 +34,13 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-
-
-
- <iframe width="560" height="315"
-src="[https://www.youtube.com/embed/MUQfKFzIOeU](https://www.youtube.com/watch?v=QHugFgfDJLg)" 
-frameborder="0" 
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
-allowfullscreen></iframe>
-
- <iframe width="560" height="315"
-src="https://www.youtube.com/watch?v=QHugFgfDJLg" 
-frameborder="0" 
-allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
-allowfullscreen></iframe>
-
+![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif width="600")
 
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
 - More: docs/en/library-copy-area.md
+
+
 
 3) Tools — Currency — Quick Craft
 - Shows currency overlays and performs quick interactions via a hotkey (non‑activating, single‑click execution).
