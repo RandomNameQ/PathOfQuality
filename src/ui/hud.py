@@ -5,6 +5,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List, Tuple, Optional
+from src.version import APP_VERSION
 from src.i18n.locale import t, get_lang, set_lang
 from src.buffs.library import (
     load_library,
@@ -65,7 +66,7 @@ class BuffHUD:
             grab_anywhere: Whether to enable drag-from-anywhere
         """
         self._root = tk.Tk()
-        self._root.title('Buff HUD')
+        self._root.title(f'Buff HUD v{APP_VERSION}')
         self._root.resizable(True, True)
         
         try:

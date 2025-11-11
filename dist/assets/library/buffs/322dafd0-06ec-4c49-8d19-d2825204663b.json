@@ -2,21 +2,21 @@
   "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
   "type": "buff",
   "name": {
-    "en": "Shit"
+    "en": "shell"
   },
-  "image_path": "C:/Users/user/Downloads/Screenshot_3.png",
+  "image_path": "assets\\library\\images\\29b3f56c-e37b-41c3-9e59-c01dc64f0d78.png",
   "description": {
     "en": ""
   },
   "sound_on": null,
   "sound_off": null,
   "position": {
-    "left": 481,
-    "top": 528
+    "left": 587,
+    "top": 720
   },
   "size": {
-    "width": 64,
-    "height": 64
+    "width": 124,
+    "height": 124
   },
   "transparency": 1.0,
   "active": true,

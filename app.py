@@ -15,6 +15,7 @@ if sys.platform.startswith('win'):
     except Exception:
         pass
 
+from src.version import APP_VERSION
 from src.i18n.locale import set_lang
 from src.utils.settings import load_settings
 from src.utils.screen import get_screen_size
@@ -27,6 +28,8 @@ def main():
     # Load settings
     settings = load_settings('settings.json')
     set_lang(settings.get('language', 'en'))
+
+    print(f"PathOfQuality version {APP_VERSION}")
     
     # Compute ROI
     screen_w, screen_h = get_screen_size()
