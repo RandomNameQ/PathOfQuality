@@ -38,11 +38,14 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-- <video src='https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4' width=180/>
 
 
 
-[![Demo CountPages alpha][(https://share.gifyoutube.com/KzB6Gb.gif)](https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4)]
+
+[![Watch the video](https://i.sstatic.net/Vp2cE.png)](https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4)
+
+[![Watch the video](https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4)]
+
 
 
 
