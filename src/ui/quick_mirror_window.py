@@ -27,6 +27,7 @@ class QuickMirrorWindow(MirrorWindow):
         WS_EX_LAYERED = 0x00080000
         WS_EX_TRANSPARENT = 0x00000020
         WS_EX_TOOLWINDOW = 0x00000080
+        WS_EX_APPWINDOW = 0x00040000
         WS_EX_NOACTIVATE = 0x08000000
         LWA_ALPHA = 0x00000002
 
@@ -34,6 +35,8 @@ class QuickMirrorWindow(MirrorWindow):
             style = ctypes.windll.user32.GetWindowLongW(self._hwnd, GWL_EXSTYLE)
             # Always layered, toolwindow and no-activate so this window never steals focus
             style |= WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+            # Ensure it does NOT appear in the taskbar
+            style &= ~WS_EX_APPWINDOW
             if enable:
                 style |= WS_EX_TRANSPARENT
             else:

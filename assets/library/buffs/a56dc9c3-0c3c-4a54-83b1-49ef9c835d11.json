@@ -5,15 +5,15 @@
     "en": "Frenzy Chargesssss",
     "ru": "Заряд ярости"
   },
-  "image_path": "C:/Users/user/Downloads/FR.png",
+  "image_path": "assets\\library\\images\\302ecc07-488d-4d85-936a-a5cb941dc92a.png",
   "description": {
     "en": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss11111111111sssaaaaaaaaaaaaaaaaaaaa\n\n\nssssssssssssss\nssssssssssssss"
   },
   "sound_on": null,
   "sound_off": null,
   "position": {
-    "left": 413,
-    "top": 528
+    "left": 848,
+    "top": 912
   },
   "size": {
     "width": 68,

@@ -1,3 +1,5 @@
+import sys
+import ctypes
 import tkinter as tk
 from typing import Optional, Tuple
 
@@ -16,10 +18,39 @@ class OverlayHighlighter:
             self._top.attributes('-alpha', 0.20)
         except Exception:
             pass
+        self._apply_window_styles()
         self._canvas = tk.Canvas(self._top, highlightthickness=0)
         self._canvas.pack(fill='both', expand=True)
         self._rect_id: Optional[int] = None
         self._roi: Optional[Tuple[int, int, int, int]] = None
+
+    def _apply_window_styles(self) -> None:
+        if not sys.platform.startswith('win'):
+            return
+        try:
+            self._top.update_idletasks()
+            hwnd = int(self._top.winfo_id())
+            if not hwnd:
+                return
+            GWL_EXSTYLE = -20
+            WS_EX_TOOLWINDOW = 0x00000080
+            WS_EX_NOACTIVATE = 0x08000000
+            WS_EX_APPWINDOW = 0x00040000
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+            style &= ~WS_EX_APPWINDOW
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+            # Keep on top without activation
+            HWND_TOPMOST = -1
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOACTIVATE = 0x0010
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+            )
+        except Exception:
+            pass
 
     def show(self, roi: Tuple[int, int, int, int]) -> None:
         self._roi = roi
