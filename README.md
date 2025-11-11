@@ -4,7 +4,7 @@
   <b>Windows overlay toolkit to streamline Path of Exile gameplay</b><br/>
   <sub>Built to improve the gaming experience based on personal in‑game practice</sub>
   <br/>
-  <a href="./README.ru.md">🇷🇺 Read in Russian</a>
+  <a href="./README.ru.md"><img alt="Читать на русском" src="https://img.shields.io/badge/%D0%A7%D0%B8%D1%82%D0%B0%D1%82%D1%8C%20%D0%BD%D0%B0%20%D1%80%D1%83%D1%81%D1%81%D0%BA%D0%BE%D0%BC-%F0%9F%87%B7%F0%9F%87%BA-blue?style=for-the-badge" /></a>
   <br/>
   <img alt="OS" src="https://img.shields.io/badge/Windows-10%2B-0078D6?logo=windows&logoColor=white"/>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white"/>
@@ -17,29 +17,6 @@
   <img src="https://img.shields.io/badge/Overlays-non--activating-blue" />
   <img src="https://img.shields.io/badge/Mega%20QoL-wheel%E2%86%92keys-orange" />
 </p>
-
----
-
-## 🚀 Quick Start
-
-```bash
-python -m pip install -r requirements.txt
-python app.py
-```
-
-Build EXE (one‑file):
-
-```bash
-build_exe.bat
-# or
-pyinstaller --noconfirm --clean --onefile --windowed ^
-  --name PathOfQuality ^
-  --add-data "assets;assets" ^
-  --add-data "settings.json;." ^
-  app.py
-```
-
-Settings persist next to the EXE (`settings.json`). Add your game process names to `assets/allowed_processes.json`.
 
 ---
 
