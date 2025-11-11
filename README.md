@@ -39,7 +39,7 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - More: docs/en/library-buffs.md
 
 <video controls width="800">
-  <source src="./video/show scan overlay.mp4" type="video/mp4">
+  <source src="/video/show scan overlay.mp4" type="video/mp4">
   Ваш браузер не поддерживает видео тег.
 </video>
 
