@@ -38,6 +38,8 @@ GitHub also supports linking to YouTube/Vimeo. GIFs are fine for short loops.
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
+- https://github.com/RandomNameQ/PathOfQuality/blob/main/video/2025-11-11-18-30-34.mp4
+
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
 - More: docs/en/library-copy-area.md
