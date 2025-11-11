@@ -26,6 +26,10 @@
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/QHugFgfDJLg" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+[![Watch the video](https://img.youtube.com/vi/QHugFgfDJLg/maxresdefault.jpg)](https://www.youtube.com/watch?v=QHugFgfDJLg)
+
 
 ---
 
