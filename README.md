@@ -41,6 +41,11 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - <video src='https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4' width=180/>
 
 
+
+[![Demo CountPages alpha][(https://share.gifyoutube.com/KzB6Gb.gif)](https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show%20scan%20overlay.mp4)]
+
+
+
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
 - More: docs/en/library-copy-area.md
