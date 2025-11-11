@@ -23,7 +23,7 @@
 ## 📽️ Demo video
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4">
+  <a href="https://github.com/RandomNameQ/PathOfQuality/raw/main/video/show_scan_overlay.mp4">
     <img src="https://img.shields.io/badge/Watch%20demo%20video-%E2%96%B6%EF%B8%8F-red?style=for-the-badge" alt="Watch demo video" />
   </a>
 </p>
