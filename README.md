@@ -34,7 +34,7 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif width="600")
+![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
 
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
