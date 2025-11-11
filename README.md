@@ -30,6 +30,8 @@ Add a short MP4 (H.264/AAC) under `media/demo.mp4`, then embed:
 
 GitHub also supports linking to YouTube/Vimeo. GIFs are fine for short loops.
 
+Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
+
 ---
 
 ## 🧩 Features (summary → details)
