@@ -22,7 +22,7 @@
 
 ## 📽️ Demo video
 
-![Demo](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
+
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
 
@@ -33,7 +33,7 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 1) Library — Buff or Debuff Overlay
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
-
+![Demo](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
 
 
 2) Library — Copy Screen Area
