@@ -34,7 +34,7 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-[![Watch video](https://img.youtube.com/vi/QHugFgfDJLg/0.jpg)](https://www.youtube.com/watch?v=QHugFgfDJLg)
+<video src="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.mp4" controls width="640"></video>
 
 
 2) Library — Copy Screen Area
