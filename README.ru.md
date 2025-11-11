@@ -23,10 +23,12 @@
 ## 📽️ Демо‑видео
 
 <p align="center">
-  <video controls playsinline muted loop width="800">
-    <source src="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4" type="video/mp4" />
-  </video>
+  <a href="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4">
+    <img src="https://img.shields.io/badge/%D0%A1%D0%BC%D0%BE%D1%82%D1%80%D0%B5%D1%82%D1%8C%20%D0%B4%D0%B5%D0%BC%D0%BE-%E2%96%B6%EF%B8%8F-red?style=for-the-badge" alt="Смотреть демо" />
+  </a>
 </p>
+
+Рекомендуется показать в видео: оверлей сканирования (подсветку анализа ROI в работе).
 
 Рекомендуется показать в видео: оверлей сканирования (подсветку анализа ROI в работе).
 

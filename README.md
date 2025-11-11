@@ -23,9 +23,9 @@
 ## 📽️ Demo video
 
 <p align="center">
-  <video controls playsinline muted loop width="800">
-    <source src="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4" type="video/mp4" />
-  </video>
+  <a href="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4">
+    <img src="https://img.shields.io/badge/Watch%20demo%20video-%E2%96%B6%EF%B8%8F-red?style=for-the-badge" alt="Watch demo video" />
+  </a>
 </p>
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
@@ -38,15 +38,6 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-<video controls width="800">
-  <source src="video/show_scan_overlay.mp4" type="video/mp4">
-  Ваш браузер не поддерживает видео тег.
-</video>
-
-<video controls width="800">
-  <source src="https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show_scan_overlay.mp4" type="video/mp4">
-  Ваш браузер не поддерживает видео тег.
-</video>
 
 
 2) Library — Copy Screen Area
