@@ -23,29 +23,21 @@
 
 ## 🧩 Features (summary → details)
 
-1) Library — Buff or Debuff Overlay
+1) Library — Scan Overlay
 - Finds saved icons on screen and displays overlays.
-
+- More: [docs/en/scan-overlay.md](./docs/en/scan-overlay.md)
 
 ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
 
-2) Library — Copy Screen Area
+2) Library — Copy Overlay
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
-
-
-
+- More: [docs/en/copy-overlay.md](./docs/en/copy-overlay.md)
 
 3) Tools — Currency — Quick Craft
 - Shows currency overlays and performs quick interactions via a hotkey (non‑activating, single‑click execution).
+- More: [docs/en/quick-craft.md](./docs/en/quick-craft.md)
 
-
- ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
-
-4) Tools — Mega QoL — Wheel Keys
-- Turning the mouse wheel (down) emulates a sequence of keys (1–4), with burst suppression. Most simple way to use skill and not harm hand.
-
-
-5) Tools — Mega QoL — Double Ctrl Click
+![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
 - Quickly press Ctrl twice to start left‑click emulation; stops when Ctrl is released. No need click left mouse to stored items. Just ctrl+ctrl and hover mouse. Simple.
 
 
