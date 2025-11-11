@@ -38,6 +38,14 @@
 - More: [docs/en/quick-craft.md](./docs/en/quick-craft.md)
 
 ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
+
+4) Tools — Mega QoL — Wheel Keys
+- Turning the mouse wheel (down) emulates a sequence of keys (1–4) with burst suppression.
+- More: [docs/en/wheel-keys.md](./docs/en/wheel-keys.md)
+
+5) Tools — Mega QoL — Double Ctrl Click
+- Press Ctrl twice to start left-click emulation; releasing Ctrl stops it.
+- More: [docs/en/double-ctrl-click.md](./docs/en/double-ctrl-click.md)
 - Quickly press Ctrl twice to start left‑click emulation; stops when Ctrl is released. No need click left mouse to stored items. Just ctrl+ctrl and hover mouse. Simple.
 
 
