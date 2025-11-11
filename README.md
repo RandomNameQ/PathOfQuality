@@ -34,9 +34,20 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-[![Watch the video](https://img.youtube.com/vi/QHugFgfDJLg/maxresdefault.jpg)](https://www.youtube.com/watch?v=QHugFgfDJLg)
 
-[![IMAGE ALT TEXT HERE](https://www.youtube.com/watch?v=StTqXEQ2l-Y)](https://www.youtube.com/watch?v=QHugFgfDJLg)
+
+
+ <iframe width="560" height="315"
+src="[https://www.youtube.com/embed/MUQfKFzIOeU](https://www.youtube.com/watch?v=QHugFgfDJLg)" 
+frameborder="0" 
+allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+allowfullscreen></iframe>
+
+ <iframe width="560" height="315"
+src="https://www.youtube.com/watch?v=QHugFgfDJLg" 
+frameborder="0" 
+allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" 
+allowfullscreen></iframe>
 
 
 2) Library — Copy Screen Area
