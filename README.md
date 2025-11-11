@@ -36,11 +36,7 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 
 [![Watch the video](https://img.youtube.com/vi/QHugFgfDJLg/maxresdefault.jpg)](https://www.youtube.com/watch?v=QHugFgfDJLg)
 
-<div align="left">
-  <a href="https://www.youtube.com/watch?v=QHugFgfDJLg">
-    <img src="https://img.youtube.com/vi/QHugFgfDJLg/0.jpg" alt="Watch the video" style="width:100%;max-width:600px;">
-  </a>
-</div>
+[![IMAGE ALT TEXT HERE](https://www.youtube.com/watch?v=StTqXEQ2l-Y)](https://www.youtube.com/watch?v=QHugFgfDJLg)
 
 
 2) Library — Copy Screen Area
