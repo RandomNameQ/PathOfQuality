@@ -1,5 +1,7 @@
 # Double Ctrl Click
 
+**English** | [Русский](../ru/double-ctrl-click.md)
+
 ## Overview
 Double-press Ctrl to start continuous left-click emulation; releasing Ctrl stops it. Rising-edge detection prevents auto-repeat from triggering the action twice.
 

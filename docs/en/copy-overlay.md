@@ -1,5 +1,7 @@
 # Copy Overlay
 
+**English** | [Русский](../ru/copy-overlay.md)
+
 ## Overview
 Displays a live cropped portion of the screen as an overlay. It can stay always visible or appear only when linked buffs/debuffs are absent.
 

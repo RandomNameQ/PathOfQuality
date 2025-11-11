@@ -34,6 +34,8 @@ https://github.com/RandomNameQ/PathOfQuality/assets/125605136/show_scan_overlay.
 - Находит сохранённые иконки на экране и показывает оверлеи.
 - Подробнее: [docs/ru/scan-overlay.md](./docs/ru/scan-overlay.md)
 
+![Демонстрация](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
+
 2) Библиотека — Оверлей копирования
 - Дублирует выбранную область экрана; опционально: «показывать, если выбранного баффа/дебаффа НЕТ» или «всегда показывать».
 - Подробнее: [docs/ru/copy-overlay.md](./docs/ru/copy-overlay.md)
@@ -41,6 +43,8 @@ https://github.com/RandomNameQ/PathOfQuality/assets/125605136/show_scan_overlay.
 3) Инструменты — Валюта — Quick Craft
 - Показывает оверлеи валюты и выполняет быстрые действия по горячей клавише (без активации окон, один клик).
 - Подробнее: [docs/ru/quick-craft.md](./docs/ru/quick-craft.md)
+
+![Демонстрация](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
 
 4) Инструменты — Mega QoL — Wheel Keys
 - Прокрутка колеса вниз эмулирует последовательность клавиш (1–4) с подавлением «бурстов».

@@ -1,5 +1,7 @@
 # Scan Overlay
 
+**English** | [Русский](../ru/scan-overlay.md)
+
 ## Overview
 Mirrors tracked buff or debuff icons inside the configured scan area and renders them as lightweight, non-activating overlays.
 

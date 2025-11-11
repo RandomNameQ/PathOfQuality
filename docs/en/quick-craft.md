@@ -1,5 +1,7 @@
 # Quick Craft
 
+**English** | [Русский](../ru/quick-craft.md)
+
 ## Overview
 Summons currency overlays near the cursor and performs a rapid right-click on the source item followed by a left-click back at the cursor — all in a single action without stealing focus.
 

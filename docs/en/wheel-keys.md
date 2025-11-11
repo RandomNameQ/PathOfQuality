@@ -1,5 +1,7 @@
 # Wheel Keys
 
+**English** | [Русский](../ru/wheel-keys.md)
+
 ## Overview
 On mouse wheel down, sends a configurable sequence of keys (1–4) with an optional delay. Burst suppression guarantees just one sequence per scroll burst.
 
