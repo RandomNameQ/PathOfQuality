@@ -23,8 +23,9 @@
 ## 📽️ Демо‑видео
 
 <p align="center">
-  <video src="https://github.com/RandomNameQ/PathOfQuality/raw/main/video/2025-11-11-18-30-34.mp4" controls playsinline muted loop width="800"></video>
-  
+  <video controls playsinline muted loop width="800">
+    <source src="https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/2025-11-11-18-30-34.mp4" type="video/mp4" />
+  </video>
 </p>
 
 Рекомендуется показать в видео: оверлей сканирования (подсветку анализа ROI в работе).
