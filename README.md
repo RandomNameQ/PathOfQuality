@@ -22,12 +22,7 @@
 
 ## 📽️ Demo video
 
-<p align="center">
-  
-
-https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show_scan_overlay.mp4
-
-</p>
+https://github.com/RandomNameQ/PathOfQuality/assets/125605136/show_scan_overlay.mp4
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
 

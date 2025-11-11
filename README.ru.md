@@ -22,11 +22,7 @@
 
 ## 📽️ Демо‑видео
 
-<p align="center">
-  
-https://github.com/RandomNameQ/PathOfQuality/assets/show_scan_overlay.mp4
-
-</p>
+https://github.com/RandomNameQ/PathOfQuality/assets/125605136/show_scan_overlay.mp4
 
 Рекомендуется показать в видео: оверлей сканирования (подсветку анализа ROI в работе).
 
