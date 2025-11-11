@@ -22,13 +22,10 @@
 
 ## 📽️ Demo video
 
-Add a short MP4 (H.264/AAC) under `media/demo.mp4`, then embed:
-
-```html
-<video src="media/demo.mp4" controls playsinline width="800"></video>
-```
-
-GitHub also supports linking to YouTube/Vimeo. GIFs are fine for short loops.
+<p align="center">
+  <video src="https://github.com/RandomNameQ/PathOfQuality/raw/main/video/2025-11-11-18-30-34.mp4" controls playsinline muted loop width="800"></video>
+  
+</p>
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
 
@@ -40,7 +37,6 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - Finds saved icons on screen and displays overlays.
 - More: docs/en/library-buffs.md
 
-- https://github.com/RandomNameQ/PathOfQuality/blob/main/video/2025-11-11-18-30-34.mp4
 
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
