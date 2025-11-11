@@ -39,10 +39,14 @@ Recommended to include in the video: show scan overlay (ROI analysis overlay in 
 - More: docs/en/library-buffs.md
 
 <video controls width="800">
-  <source src="/video/show scan overlay.mp4" type="video/mp4">
+  <source src="video/show_scan_overlay.mp4" type="video/mp4">
   Ваш браузер не поддерживает видео тег.
 </video>
 
+<video controls width="800">
+  <source src="https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show_scan_overlay.mp4" type="video/mp4">
+  Ваш браузер не поддерживает видео тег.
+</video>
 
 2) Library — Copy Screen Area
 - Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
