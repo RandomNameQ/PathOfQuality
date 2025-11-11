@@ -23,9 +23,9 @@
 ## 📽️ Demo video
 
 <p align="center">
-  <a href="https://github.com/RandomNameQ/PathOfQuality/raw/main/video/show_scan_overlay.mp4">
-    <img src="https://img.shields.io/badge/Watch%20demo%20video-%E2%96%B6%EF%B8%8F-red?style=for-the-badge" alt="Watch demo video" />
-  </a>
+  
+https://github.com/RandomNameQ/PathOfQuality/assets/show_scan_overlay.mp4
+
 </p>
 
 Recommended to include in the video: show scan overlay (ROI analysis overlay in action).
