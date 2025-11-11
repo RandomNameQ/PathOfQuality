@@ -39,6 +39,8 @@
 - Shows currency overlays and performs quick interactions via a hotkey (non‑activating, single‑click execution).
 - More: docs/en/tools-quick-craft.md
 
+ ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
+
 4) Tools — Mega QoL — Wheel Keys
 - Turning the mouse wheel (down) emulates a sequence of keys (1–4), with burst suppression.
 - More: docs/en/tools-mega-qol-wheel.md
