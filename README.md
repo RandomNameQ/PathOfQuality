@@ -24,7 +24,8 @@
 
 <p align="center">
   
-https://github.com/RandomNameQ/PathOfQuality/video/show_scan_overlay.mp4
+
+https://github.com/RandomNameQ/PathOfQuality/blob/main/video/show_scan_overlay.mp4
 
 </p>
 
