@@ -1,0 +1,30 @@
+{
+  "id": "0f7a6202-152d-415f-8bba-ce012f240b91",
+  "name": {
+    "en": "quicsilver flask"
+  },
+  "image_path": "assets\\library\\images\\349235de-aa9a-4989-a7d2-f89594f1da5e.png",
+  "references": {
+    "buffs": [
+      "fbad2e86-86ab-46eb-8af9-d2d28add12cd"
+    ],
+    "debuffs": []
+  },
+  "capture": {
+    "left": 489,
+    "top": 1010,
+    "width": 44,
+    "height": 60
+  },
+  "position": {
+    "left": 720,
+    "top": 912
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "active": true,
+  "transparency": 1.0,
+  "topmost": true
+}

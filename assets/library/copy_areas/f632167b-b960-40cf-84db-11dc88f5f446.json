@@ -1,9 +1,9 @@
 {
   "id": "f632167b-b960-40cf-84db-11dc88f5f446",
   "name": {
-    "en": "Test"
+    "en": "molten shell"
   },
-  "image_path": "C:/Users/user/Downloads/FR.png",
+  "image_path": "assets\\library\\images\\f1fb7396-7e5d-414e-9463-fa3ba243e19a.png",
   "references": {
     "buffs": [],
     "debuffs": []
@@ -23,6 +23,6 @@
     "height": 48
   },
   "active": true,
-  "transparency": 1.0,
+  "transparency": 0.8408239700374532,
   "topmost": true
 }

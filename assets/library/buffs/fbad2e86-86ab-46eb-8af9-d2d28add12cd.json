@@ -1,0 +1,24 @@
+{
+  "id": "fbad2e86-86ab-46eb-8af9-d2d28add12cd",
+  "type": "buff",
+  "name": {
+    "en": "quicksilver"
+  },
+  "image_path": "assets\\library\\images\\fd6f7387-be63-4d3e-9b75-a4109d9b3fd1.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 720,
+    "top": 912
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 0.4744744744744745,
+  "active": true,
+  "extend_bottom": 30
+}

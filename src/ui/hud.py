@@ -764,6 +764,7 @@ class BuffHUD:
             top=top,
             width=display_w,
             height=display_h,
+            transparency=float(res.get('transparency', 1.0)),
             topmost=res.get('topmost', True),
         )
         entry.name.update(res['name'])
@@ -810,6 +811,7 @@ class BuffHUD:
                 'top': res['top'],
                 'width': res['width'],
                 'height': res['height'],
+                'transparency': res.get('transparency', current.get('transparency', 1.0)),
                 'topmost': res.get('topmost', True),
             },
         )

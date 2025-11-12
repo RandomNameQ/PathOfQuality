@@ -29,6 +29,7 @@ class CopyAreaEditorDialog:
 
         self._initial_capture = self._initial.get('capture', {}) or {}
         self._initial_topmost = bool(self._initial.get('topmost', True))
+        self._initial_transparency = float(self._initial.get('transparency', 1.0))
 
         self._result: Optional[dict] = None
         self._img_preview_photo = None
@@ -244,6 +245,28 @@ class CopyAreaEditorDialog:
         ttk.Label(size_frame, text='H').pack(side='left', padx=(8, 2))
         ttk.Entry(size_frame, textvariable=height_var, width=8).pack(side='left')
 
+        transparency_frame = ttk.Frame(frm)
+        transparency_frame.pack(fill='x', pady=(0, 12))
+        transparency_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(transparency_frame, text=t('copy_area.transparency', 'Transparency')).grid(row=0, column=0, sticky='w')
+        transparency_var = tk.DoubleVar(value=self._initial_transparency)
+        tr_scale = ttk.Scale(transparency_frame, variable=transparency_var, from_=0.0, to=1.0, orient='horizontal')
+        tr_scale.grid(row=0, column=1, sticky='ew', padx=(8, 8))
+        tr_value_var = tk.StringVar(value=f"{self._initial_transparency:.2f}")
+
+        def _update_tr_label(*_args) -> None:
+            try:
+                value = max(0.0, min(1.0, float(transparency_var.get())))
+            except Exception:
+                value = 1.0
+            tr_value_var.set(f"{value:.2f}")
+
+        tr_label = ttk.Label(transparency_frame, textvariable=tr_value_var, width=6, anchor='e')
+        tr_label.grid(row=0, column=2, sticky='e')
+        transparency_var.trace_add('write', _update_tr_label)
+        _update_tr_label()
+
         topmost_var = tk.BooleanVar(value=self._initial_topmost)
         topmost_check = ttk.Checkbutton(
             size_frame,
@@ -255,7 +278,9 @@ class CopyAreaEditorDialog:
 
         # Buttons
         btns = ttk.Frame(frm)
-        btns.pack(fill='x')
+        btns.pack(fill='x', pady=(0, 8))
+        btns.columnconfigure(0, weight=1)
+        btns.columnconfigure(1, weight=1)
 
         def on_save() -> None:
             name_text = name_var.get().strip()
@@ -290,6 +315,7 @@ class CopyAreaEditorDialog:
                 'width': int(width_var.get()),
                 'height': int(height_var.get()),
                 'topmost': bool(topmost_var.get()),
+                'transparency': float(transparency_var.get()),
             }
             dlg.destroy()
 
@@ -312,7 +338,7 @@ class CopyAreaEditorDialog:
             activeforeground='#ffffff',
             cursor='hand2',
         )
-        save_btn.pack(side='left', padx=(0, 8))
+        save_btn.grid(row=0, column=0, sticky='w', padx=(0, 8))
 
         cancel_btn = tk.Button(
             btns,
@@ -329,7 +355,7 @@ class CopyAreaEditorDialog:
             activeforeground='#ffffff',
             cursor='hand2',
         )
-        cancel_btn.pack(side='right')
+        cancel_btn.grid(row=0, column=1, sticky='e')
 
         dlg.wait_window()
         return self._result
