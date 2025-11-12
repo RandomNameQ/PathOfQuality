@@ -25,6 +25,7 @@ class LibraryTreeView:
         entry_type: str,
         on_add: Callable,
         on_edit: Callable,
+        on_delete: Callable,
         on_toggle_active: Callable
     ) -> None:
         """
@@ -41,6 +42,7 @@ class LibraryTreeView:
         self.entry_type = entry_type
         self._on_add = on_add
         self._on_edit = on_edit
+        self._on_delete = on_delete
         self._on_toggle_active = on_toggle_active
         
         self._search_var = tk.StringVar(value='')
@@ -71,6 +73,14 @@ class LibraryTreeView:
             style='Action.TButton'
         )
         self._btn_edit.pack(side='left', padx=(8, 0))
+
+        self._btn_delete = ttk.Button(
+            controls,
+            text=t('library.delete', 'Delete'),
+            command=self._on_delete,
+            style='Action.TButton'
+        )
+        self._btn_delete.pack(side='left', padx=(8, 0))
         
         # Search box
         search = tk.Frame(self.frame, bg=BG_COLOR)
@@ -334,6 +344,7 @@ class LibraryTreeView:
         try:
             self._btn_add.configure(text=t('buffs.add', 'Add'))
             self._btn_edit.configure(text=t('buffs.edit', 'Edit'))
+            self._btn_delete.configure(text=t('library.delete', 'Delete'))
             self._lbl_search.configure(text=t('buffs.search', 'Search'))
             self._btn_clear_search.configure(text=t('button.clear', 'Clear'))
             self._tree.heading('name', text=t('buffs.name', 'Name'))

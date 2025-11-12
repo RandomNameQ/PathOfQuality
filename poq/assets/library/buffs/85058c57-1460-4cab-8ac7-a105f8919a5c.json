@@ -1,0 +1,24 @@
+{
+  "id": "85058c57-1460-4cab-8ac7-a105f8919a5c",
+  "type": "buff",
+  "name": {
+    "en": "blood rage"
+  },
+  "image_path": "assets\\library\\images\\82975f59-a7ce-4cc7-85d6-e7b0fa190865.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 784,
+    "top": 912
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 0.47147147147147145,
+  "active": true,
+  "extend_bottom": 20
+}

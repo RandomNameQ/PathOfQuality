@@ -1,0 +1,13 @@
+{
+  "id": "51b1c2b4-7b1a-4ffd-a034-c607a2671877",
+  "name": "as",
+  "interface": "as",
+  "image_path": "assets\\library\\images\\d5dea5f9-a135-456b-8cc7-1151e425003c.png",
+  "capture": {
+    "left": 412,
+    "top": 493,
+    "width": 51,
+    "height": 49
+  },
+  "active": true
+}

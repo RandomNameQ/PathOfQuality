@@ -31,6 +31,7 @@
   "error.name_required": "Требуется имя",
   "error.image_required": "Требуется картинка",
   "info.select_item": "Выберите элемент для редактирования"
+  ,"info.select_item_delete": "Выберите элемент для удаления"
   ,"button.clear": "Очистить",
   "actions.activate": "Активировать",
   "actions.position": "Позиционировать"
@@ -42,6 +43,7 @@
   ,"monitoring.copy_area_disable": "Выключить область копирования"
   ,"copy_area.add": "Добавить область"
   ,"copy_area.edit": "Редактировать"
+  ,"copy_area.delete": "Удалить"
   ,"copy_area.search": "Поиск"
   ,"copy_area.name": "Имя"
   ,"copy_area.links": "Связанные элементы"
@@ -53,5 +55,9 @@
   ,"copy_area.select_area": "Выбрать область"
   ,"copy_area.capture": "Область копирования"
   ,"copy_area.topmost": "Поверх всех"
+  ,"copy_area.confirm_delete": "Вы уверены, что хотите удалить элемент?"
+  ,"library.delete": "Удалить"
+  ,"library.confirm_delete_buff": "Удалить выбранный бафф?"
+  ,"library.confirm_delete_debuff": "Удалить выбранный дебафф?"
   ,"status.game_focus_required": "Активируйте окно Path of Exile, чтобы продолжить работу."
 }

@@ -1,0 +1,24 @@
+{
+  "id": "322dafd0-06ec-4c49-8d19-d2825204663b",
+  "type": "buff",
+  "name": {
+    "en": "shell"
+  },
+  "image_path": "assets\\library\\images\\29b3f56c-e37b-41c3-9e59-c01dc64f0d78.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 587,
+    "top": 720
+  },
+  "size": {
+    "width": 124,
+    "height": 124
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 30
+}

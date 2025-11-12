@@ -1,0 +1,24 @@
+{
+  "id": "24cf84a2-0ecc-4879-a1df-aa79e13cd3af",
+  "type": "debuff",
+  "name": {
+    "en": "poison grouind"
+  },
+  "image_path": "assets\\library\\images\\b0250f0f-04f7-48be-b8d5-12c8cd2fa319.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 928,
+    "top": 753
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 50
+}

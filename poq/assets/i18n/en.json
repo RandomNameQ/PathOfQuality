@@ -1,0 +1,57 @@
+{
+  "tab.monitoring": "Monitoring",
+  "tab.settings": "Settings",
+  "tab.buffs": "Buffs",
+  "tab.debuffs": "Debuffs",
+  "tab.copy_area": "Copy Area",
+  "settings.select_zone": "Select Area",
+  "settings.show_analysis": "Show Analysis Area",
+  "settings.roi": "ROI",
+  "settings.language": "Language",
+  "settings.reset_dock": "Reset panel position",
+  "settings.show_dock": "Show control panel",
+  "settings.require_game_focus": "Run only when the game is focused",
+  "button.exit": "Exit",
+  "buffs.add": "Add",
+  "buffs.name": "Name",
+  "buffs.image": "Image",
+  "buffs.description": "Description",
+  "buffs.sound_on": "Appear Sound",
+  "buffs.sound_off": "Disappear Sound",
+  "buffs.location": "Location",
+  "buffs.size": "Size",
+  "buffs.transparency": "Transparency",
+  "buffs.edit": "Edit",
+  "buffs.search": "Search",
+  "dialog.create": "Create",
+  "dialog.save": "Save",
+  "dialog.cancel": "Cancel",
+  "dialog.localize": "Localize",
+  "dialog.choose_language": "Choose Language",
+  "error.name_required": "Name is required",
+  "error.image_required": "Image is required",
+  "info.select_item": "Select an item to edit"
+  ,"button.clear": "Clear",
+  "actions.activate": "Activate",
+  "actions.position": "Position"
+  ,"monitoring.scan": "Scan"
+  ,"monitoring.scanning_on": "Scanning"
+  ,"monitoring.scanning_off": "Not scanning"
+  ,"monitoring.copy_area": "Enable copy area"
+  ,"monitoring.copy_area_enable": "Enable copy area"
+  ,"monitoring.copy_area_disable": "Disable copy area"
+  ,"copy_area.add": "Add copy area"
+  ,"copy_area.edit": "Edit"
+  ,"copy_area.search": "Search"
+  ,"copy_area.name": "Name"
+  ,"copy_area.links": "Linked items"
+  ,"copy_area.position": "Position"
+  ,"copy_area.size": "Size"
+  ,"copy_area.image": "Image"
+  ,"copy_area.preview": "Preview"
+  ,"copy_area.targets": "Linked buffs / debuffs"
+  ,"copy_area.select_area": "Select area"
+  ,"copy_area.capture": "Capture area"
+  ,"copy_area.topmost": "Topmost"
+  ,"status.game_focus_required": "Focus the Path of Exile window to resume."
+}

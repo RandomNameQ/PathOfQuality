@@ -26,11 +26,13 @@ class CopyAreaTab:
         parent: tk.Frame,
         on_add: Callable[[], None],
         on_edit: Callable[[], None],
+        on_delete: Callable[[], None],
         on_toggle_active: Callable[[str, tk.BooleanVar], None],
     ) -> None:
         self.frame = parent
         self._on_add = on_add
         self._on_edit = on_edit
+        self._on_delete = on_delete
         self._on_toggle_active = on_toggle_active
 
         self._search_var = tk.StringVar(value='')
@@ -64,6 +66,14 @@ class CopyAreaTab:
             style='Action.TButton',
         )
         self._btn_edit.pack(side='left', padx=(8, 0))
+
+        self._btn_delete = ttk.Button(
+            controls,
+            text=t('copy_area.delete', 'Delete'),
+            command=self._on_delete,
+            style='Action.TButton',
+        )
+        self._btn_delete.pack(side='left', padx=(8, 0))
 
         search = tk.Frame(self.frame, bg=BG_COLOR)
         search.pack(fill='x', padx=12, pady=(0, 12))
@@ -311,6 +321,7 @@ class CopyAreaTab:
         try:
             self._btn_add.configure(text=t('copy_area.add', 'Add copy area'))
             self._btn_edit.configure(text=t('copy_area.edit', 'Edit'))
+            self._btn_delete.configure(text=t('copy_area.delete', 'Delete'))
             self._lbl_search.configure(text=t('copy_area.search', 'Search'))
             self._btn_clear.configure(text=t('button.clear', 'Clear'))
             self._tree.heading('name', text=t('copy_area.name', 'Name'))

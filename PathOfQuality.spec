@@ -1,5 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+from src.version import APP_VERSION
+
+_version = APP_VERSION
+_exe_name = f"PathOfQuality_{_version}"
+_dist_dir = os.path.join('dist', f'poq_{_version}')
+
 
 a = Analysis(
     ['app.py'],
@@ -22,7 +30,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='PathOfQuality',
+    name=_exe_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,4 +43,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    distpath=_dist_dir,
 )

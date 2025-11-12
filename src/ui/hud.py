@@ -15,6 +15,8 @@ from src.buffs.library import (
     add_copy_area_entry,
     update_copy_area_entry,
     make_copy_area_entry,
+    delete_entry,
+    delete_copy_area_entry,
 )
 from src.currency.library import (
     load_currencies,
@@ -141,6 +143,7 @@ class BuffHUD:
             'buff',
             on_add=lambda: self._on_add_entry('buff'),
             on_edit=lambda: self._on_edit_entry('buff'),
+            on_delete=lambda: self._on_delete_entry('buff'),
             on_toggle_active=self._on_toggle_active
         )
         self._debuffs_tab = LibraryTab(
@@ -148,6 +151,7 @@ class BuffHUD:
             'debuff',
             on_add=lambda: self._on_add_entry('debuff'),
             on_edit=lambda: self._on_edit_entry('debuff'),
+            on_delete=lambda: self._on_delete_entry('debuff'),
             on_toggle_active=self._on_toggle_active
         )
         self._currency_tab = CurrencyTab(
@@ -168,6 +172,7 @@ class BuffHUD:
             self._tab_copy_frame,
             on_add=self._on_add_copy_area,
             on_edit=self._on_edit_copy_area,
+            on_delete=self._on_delete_copy_area,
             on_toggle_active=self._on_toggle_copy_active,
         )
         self._mega_qol_tab = MegaQolTab(
@@ -488,6 +493,42 @@ class BuffHUD:
         res['type'] = entry_type
         update_entry(entry_id, entry_type, res)
         self._reload_library()
+
+    def _on_delete_entry(self, entry_type: str) -> None:
+        tab = self._buffs_tab if entry_type == 'buff' else self._debuffs_tab
+        entry_id = tab.get_selected_id()
+
+        if not entry_id:
+            try:
+                messagebox.showinfo(
+                    title='Info',
+                    message=t('info.select_item_delete', 'Select an item to delete'),
+                )
+            except Exception:
+                pass
+            return
+
+        confirm_key = 'library.confirm_delete_buff' if entry_type == 'buff' else 'library.confirm_delete_debuff'
+        try:
+            confirm = messagebox.askyesno(
+                title='Confirm',
+                message=t(confirm_key, 'Delete selected item?'),
+            )
+        except Exception:
+            confirm = True
+
+        if not confirm:
+            return
+
+        if not delete_entry(entry_id, entry_type):
+            try:
+                messagebox.showerror(title='Error', message=t('error.delete_failed', 'Unable to delete selected item'))
+            except Exception:
+                pass
+            return
+
+        self._events.append('LIBRARY_UPDATED')
+        self._reload_library()
         
     def _on_add_currency(self) -> None:
         dlg = CurrencyEditorDialog(self._root)
@@ -772,6 +813,39 @@ class BuffHUD:
                 'topmost': res.get('topmost', True),
             },
         )
+        self._events.append('COPY_UPDATED')
+        self._reload_library()
+
+    def _on_delete_copy_area(self) -> None:
+        area_id = self._copy_tab.get_selected_id()
+        if not area_id:
+            try:
+                messagebox.showinfo(
+                    title='Info',
+                    message=t('info.select_item_delete', 'Select an item to delete'),
+                )
+            except Exception:
+                pass
+            return
+
+        try:
+            confirm = messagebox.askyesno(
+                title='Confirm',
+                message=t('copy_area.confirm_delete', 'Are you sure you want to delete it?'),
+            )
+        except Exception:
+            confirm = True
+
+        if not confirm:
+            return
+
+        if not delete_copy_area_entry(area_id):
+            try:
+                messagebox.showerror(title='Error', message=t('error.delete_failed', 'Unable to delete selected item'))
+            except Exception:
+                pass
+            return
+
         self._events.append('COPY_UPDATED')
         self._reload_library()
 

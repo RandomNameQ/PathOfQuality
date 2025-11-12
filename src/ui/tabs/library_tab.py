@@ -16,6 +16,7 @@ class LibraryTab:
         entry_type: str,
         on_add: Callable,
         on_edit: Callable,
+        on_delete: Callable,
         on_toggle_active: Callable
     ) -> None:
         """
@@ -47,6 +48,7 @@ class LibraryTab:
             entry_type=entry_type,
             on_add=on_add,
             on_edit=on_edit,
+            on_delete=on_delete,
             on_toggle_active=on_toggle_active
         )
         

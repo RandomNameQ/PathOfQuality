@@ -231,6 +231,14 @@ def add_entry(entry: BuffEntry) -> None:
     _save_item_to_file(item_dict, directory)
 
 
+def delete_entry(entry_id: str, entry_type: str) -> bool:
+    """Delete a buff or debuff entry by id."""
+    if not entry_id:
+        return False
+    directory = BUFFS_DIR if entry_type == 'buff' else DEBUFFS_DIR
+    return _delete_item_file(entry_id, directory)
+
+
 def update_entry(entry_id: str, entry_type: str, updates: Dict) -> bool:
     """Update an existing entry by id.
 
@@ -342,6 +350,13 @@ def add_copy_area_entry(entry: CopyAreaEntry) -> None:
     """Add a new copy area entry."""
     item_dict = asdict(entry)
     _save_item_to_file(item_dict, COPY_AREAS_DIR)
+
+
+def delete_copy_area_entry(entry_id: str) -> bool:
+    """Delete a copy area entry by id."""
+    if not entry_id:
+        return False
+    return _delete_item_file(entry_id, COPY_AREAS_DIR)
 
 
 def update_copy_area_entry(entry_id: str, updates: Dict) -> bool:
