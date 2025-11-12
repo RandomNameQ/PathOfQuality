@@ -47,7 +47,7 @@ class CopyAreaEditorDialog:
         self._debuff_ids.clear()
 
         try:
-            w, h = 720, 620
+            w, h = 720, 720
             sw = dlg.winfo_screenwidth()
             sh = dlg.winfo_screenheight()
             x = max(0, (sw - w) // 2)
