@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Dict, Optional
 
 from src.buffs.library import copy_image_to_library
+from src.ui.dialogs.capture_utils import capture_area_to_library
 from src.i18n.locale import t
 from src.ui.roi_selector import select_roi
 
@@ -61,6 +62,25 @@ class CurrencyEditorDialog:
         name_var = tk.StringVar(value=str(self._initial.get('name', '')))
         ttk.Entry(name_row, textvariable=name_var).pack(side='left', fill='x', expand=True, padx=(8, 0))
 
+        capture_btn_row = ttk.Frame(frame)
+        capture_btn_row.pack(fill='x', pady=(0, 8))
+        take_area_btn = tk.Button(
+            capture_btn_row,
+            text=t('button.take_area', 'Take area'),
+            command=lambda: None,
+            bg='#10b981',
+            fg='#ffffff',
+            font=('Segoe UI', 9, 'bold'),
+            padx=16,
+            pady=6,
+            relief='flat',
+            borderwidth=0,
+            activebackground='#059669',
+            activeforeground='#ffffff',
+            cursor='hand2',
+        )
+        take_area_btn.pack(anchor='w')
+
         # Image selection
         image_row = ttk.Frame(frame)
         image_row.pack(fill='x', pady=(0, 8))
@@ -109,6 +129,17 @@ class CurrencyEditorDialog:
 
         image_var.trace_add('write', lambda *_: update_preview(image_var.get().strip()))
         update_preview(image_var.get().strip())
+
+        def on_take_area() -> None:
+            result = capture_area_to_library(self._master)
+            if not result:
+                return
+            path, (_left_sel, _top_sel, width_sel, height_sel) = result
+            image_var.set(path)
+            capture_width.set(int(width_sel))
+            capture_height.set(int(height_sel))
+
+        take_area_btn.configure(command=on_take_area)
 
         # Capture section
         capture_group = ttk.LabelFrame(frame, text=t('currency.capture', 'Capture area'))

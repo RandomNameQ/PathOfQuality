@@ -33,6 +33,7 @@
   "info.select_item": "Select an item to edit"
   ,"info.select_item_delete": "Select an item to delete"
   ,"button.clear": "Clear",
+  "button.take_area": "Take area",
   "actions.activate": "Activate",
   "actions.position": "Position"
   ,"monitoring.scan": "Scan"

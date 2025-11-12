@@ -226,7 +226,7 @@ class LibraryTreeView:
             pass
             
         # Create row controls
-        var = tk.BooleanVar(value=bool(item.get('active', False)))
+        var = tk.BooleanVar(value=bool(item.get('active', True)))
         chk = ttk.Checkbutton(
             self._tree, 
             text=t('actions.activate', 'Activate'),

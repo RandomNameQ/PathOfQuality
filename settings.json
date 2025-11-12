@@ -4,10 +4,10 @@
   },
   "roi": {
     "mode": "absolute",
-    "width": 1651,
-    "height": 176,
+    "width": 1078,
+    "height": 233,
     "top": 4,
-    "left": 4
+    "left": 7
   },
   "threshold": 0.9,
   "scan_interval_ms": 50,

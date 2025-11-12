@@ -12,11 +12,11 @@
   "sound_on": null,
   "sound_off": null,
   "position": {
-    "left": 848,
+    "left": 816,
     "top": 912
   },
   "size": {
-    "width": 68,
+    "width": 64,
     "height": 64
   },
   "transparency": 0.5219298245614035,

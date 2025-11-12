@@ -1,9 +1,14 @@
 import json
 import os
-import uuid
 import shutil
+import uuid
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional
+
+try:
+    from PIL import Image
+except Exception:  # pragma: no cover - optional dependency
+    Image = None
 from pathlib import Path
 
 
@@ -85,6 +90,20 @@ def copy_image_to_library(source_path: str) -> Optional[str]:
         
         # Return relative path from project root
         return os.path.join('assets', 'library', 'images', new_filename)
+    except Exception:
+        return None
+
+
+def save_image_to_library(image: "Image.Image") -> Optional[str]:
+    """Save a PIL image into the library images directory."""
+    if Image is None or image is None:
+        return None
+    try:
+        _ensure_directories()
+        filename = f"{uuid.uuid4()}.png"
+        dest_path = os.path.join(IMAGES_DIR, filename)
+        image.save(dest_path, format='PNG')
+        return os.path.join('assets', 'library', 'images', filename)
     except Exception:
         return None
 
@@ -173,7 +192,7 @@ def load_library() -> Dict[str, List[Dict]]:
         for bucket in ('buffs', 'debuffs'):
             for item in data.get(bucket, []):
                 if 'active' not in item:
-                    item['active'] = False
+                    item['active'] = True
                 item.setdefault('position', {"left": 0, "top": 0})
                 item.setdefault('size', {"width": 64, "height": 64})
                 item.setdefault('transparency', 1.0)
@@ -188,7 +207,7 @@ def load_library() -> Dict[str, List[Dict]]:
             item.setdefault('capture', {"left": 0, "top": 0, "width": 0, "height": 0})
             item.setdefault('position', {"left": 0, "top": 0})
             item.setdefault('size', {"width": 64, "height": 64})
-            item.setdefault('active', False)
+            item.setdefault('active', True)
             item.setdefault('transparency', 1.0)
             item.setdefault('topmost', True)
         
@@ -305,7 +324,7 @@ def make_entry(
         position={"left": int(left), "top": int(top)},
         size={"width": int(width), "height": int(height)},
         transparency=float(transparency),
-        active=False,
+        active=True,
         extend_bottom=int(extend_bottom),
     )
 

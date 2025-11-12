@@ -4,6 +4,7 @@ from tkinter import ttk, filedialog, messagebox
 from typing import Optional, Dict
 from src.i18n.locale import t, get_lang
 from src.buffs.library import copy_image_to_library
+from src.ui.dialogs.capture_utils import capture_area_to_library
 try:
     from PIL import Image, ImageTk
 except Exception:
@@ -75,6 +76,9 @@ class BuffEditorDialog:
         frm = ttk.Frame(dlg, padding=8)
         frm.pack(fill='both', expand=True)
 
+        width_var = tk.IntVar(value=int(self._initial.get('size', {}).get('width', 0)))
+        height_var = tk.IntVar(value=int(self._initial.get('size', {}).get('height', 0)))
+
         # Name + localization
         name_row = ttk.Frame(frm)
         name_row.pack(fill='x', pady=(0, 4))
@@ -90,6 +94,25 @@ class BuffEditorDialog:
         name_entry.pack(side='left', fill='x', expand=True, padx=(6, 6))
         loc_btn1 = ttk.Button(name_row, text=t('dialog.localize', 'Localize'), command=lambda: self._open_loc(self._name_texts, name_var))
         loc_btn1.pack(side='left')
+
+        capture_btn_row = ttk.Frame(frm)
+        capture_btn_row.pack(fill='x', pady=(0, 4))
+        take_area_btn = tk.Button(
+            capture_btn_row,
+            text=t('button.take_area', 'Take area'),
+            command=lambda: None,
+            bg='#10b981',
+            fg='#ffffff',
+            font=('Segoe UI', 9, 'bold'),
+            padx=16,
+            pady=6,
+            relief='flat',
+            borderwidth=0,
+            activebackground='#059669',
+            activeforeground='#ffffff',
+            cursor='hand2',
+        )
+        take_area_btn.pack(anchor='w')
 
         # Image path
         img_row = ttk.Frame(frm)
@@ -144,6 +167,17 @@ class BuffEditorDialog:
             update_preview(img_var.get().strip())
         img_var.trace_add('write', _on_img_path_change)
         update_preview(img_var.get().strip())
+
+        def on_take_area() -> None:
+            result = capture_area_to_library(self._master)
+            if not result:
+                return
+            path, (_left_sel, _top_sel, width_sel, height_sel) = result
+            img_var.set(path)
+            width_var.set(int(width_sel))
+            height_var.set(int(height_sel))
+
+        take_area_btn.configure(command=on_take_area)
 
         # Description (multiline) + localization
         desc_row = ttk.Frame(frm)
@@ -203,8 +237,6 @@ class BuffEditorDialog:
         size_row = ttk.Frame(frm)
         size_row.pack(fill='x', pady=(0, 4))
         ttk.Label(size_row, text=t('buffs.size', 'Size')).pack(side='left')
-        width_var = tk.IntVar(value=int(self._initial.get('size', {}).get('width', 0)))
-        height_var = tk.IntVar(value=int(self._initial.get('size', {}).get('height', 0)))
         ttk.Label(size_row, text='W').pack(side='left', padx=(6, 2))
         ttk.Entry(size_row, textvariable=width_var, width=8).pack(side='left')
         ttk.Label(size_row, text='H').pack(side='left', padx=(6, 2))
@@ -256,6 +288,7 @@ class BuffEditorDialog:
                 'height': int(height_var.get()),
                 'transparency': float(tr_var.get()),
                 'extend_bottom': int(extend_var.get()),
+            'active': True,
             }
             dlg.destroy()
 

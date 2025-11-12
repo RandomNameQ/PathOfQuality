@@ -450,9 +450,10 @@ class BuffHUD:
             extend_bottom=int(res.get('extend_bottom', 0)),
         )
         
-        # Update localizations
+        # Update localizations and ensure active
         entry.name.update(res['name'])
         entry.description.update(res['description'])
+        entry.active = True
         
         add_entry(entry)
         self._reload_library()
@@ -740,8 +741,8 @@ class BuffHUD:
         cap_w = int(capture_cfg.get('width', 0))
         cap_h = int(capture_cfg.get('height', 0))
 
-        display_w = int(res.get('width', 0)) or cap_w or 200
-        display_h = int(res.get('height', 0)) or cap_h or 200
+        display_w = int(res.get('width', 0)) or cap_w or 64
+        display_h = int(res.get('height', 0)) or cap_h or 64
         display_w = max(50, display_w)
         display_h = max(50, display_h)
 

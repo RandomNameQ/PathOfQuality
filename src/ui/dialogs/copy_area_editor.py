@@ -5,6 +5,7 @@ from tkinter import ttk, filedialog, messagebox
 from typing import Dict, List, Optional
 
 from src.buffs.library import load_library, copy_image_to_library
+from src.ui.dialogs.capture_utils import capture_area_to_library
 from src.i18n.locale import t, get_lang
 from src.ui.roi_selector import select_roi
 
@@ -58,6 +59,9 @@ class CopyAreaEditorDialog:
 
         frm = ttk.Frame(dlg, padding=12)
         frm.pack(fill='both', expand=True)
+
+        width_var = tk.IntVar(value=int(self._initial.get('size', {}).get('width', 64)))
+        height_var = tk.IntVar(value=int(self._initial.get('size', {}).get('height', 64)))
 
         # Name with localization
         name_row = ttk.Frame(frm)
@@ -130,6 +134,13 @@ class CopyAreaEditorDialog:
         img_var.trace_add('write', lambda *_: update_preview(img_var.get().strip()))
         update_preview(img_var.get().strip())
 
+        def _apply_captured(path: str, width_sel: int, height_sel: int) -> None:
+            img_var.set(path)
+            if width_var.get() <= 0:
+                width_var.set(64)
+            if height_var.get() <= 0:
+                height_var.set(64)
+
         # Capture area (source)
         capture_frame = ttk.LabelFrame(frm, text=t('copy_area.capture', 'Capture area'))
         capture_frame.pack(fill='x', pady=(0, 12))
@@ -142,10 +153,40 @@ class CopyAreaEditorDialog:
         capture_width_var = tk.IntVar(value=int(self._initial_capture.get('width', 0)))
         capture_height_var = tk.IntVar(value=int(self._initial_capture.get('height', 0)))
 
+        def select_capture_area(use_capture: bool = False) -> None:
+            if use_capture:
+                captured = capture_area_to_library(self._master)
+                if captured is None:
+                    return
+                path, (left_sel, top_sel, width_sel, height_sel) = captured
+                _apply_captured(path, width_sel, height_sel)
+                capture_left_var.set(int(left_sel))
+                capture_top_var.set(int(top_sel))
+                capture_width_var.set(int(width_sel))
+                capture_height_var.set(int(height_sel))
+                if width_var.get() <= 0:
+                    width_var.set(64)
+                if height_var.get() <= 0:
+                    height_var.set(64)
+                return
+
+            selected = select_roi(self._master)
+            if selected is None:
+                return
+            left_sel, top_sel, width_sel, height_sel = selected
+            capture_left_var.set(int(left_sel))
+            capture_top_var.set(int(top_sel))
+            capture_width_var.set(int(width_sel))
+            capture_height_var.set(int(height_sel))
+            if width_var.get() <= 0:
+                width_var.set(64)
+            if height_var.get() <= 0:
+                height_var.set(64)
+
         btn_select_capture = tk.Button(
             capture_row,
             text=t('copy_area.select_area', 'Select area'),
-            command=lambda: select_capture_area(),
+            command=lambda: select_capture_area(use_capture=True),
             bg='#10b981',
             fg='#ffffff',
             activebackground='#059669',
@@ -168,19 +209,9 @@ class CopyAreaEditorDialog:
         ttk.Label(capture_row, text='H').pack(side='left')
         ttk.Entry(capture_row, textvariable=capture_height_var, width=8).pack(side='left', padx=(4, 0))
 
-        def select_capture_area() -> None:
-            selected = select_roi(self._master)
-            if selected is None:
-                return
-            left_sel, top_sel, width_sel, height_sel = selected
-            capture_left_var.set(int(left_sel))
-            capture_top_var.set(int(top_sel))
-            capture_width_var.set(int(width_sel))
-            capture_height_var.set(int(height_sel))
-            if width_var.get() <= 0:
-                width_var.set(int(width_sel))
-            if height_var.get() <= 0:
-                height_var.set(int(height_sel))
+        # For manual ROI selection (without saving image)
+        def select_capture_area_manual() -> None:
+            select_capture_area(use_capture=False)
 
         # References
         refs_frame = ttk.LabelFrame(frm, text=t('copy_area.targets', 'Linked buffs / debuffs'))
@@ -238,8 +269,6 @@ class CopyAreaEditorDialog:
         size_frame = ttk.Frame(frm)
         size_frame.pack(fill='x', pady=(0, 12))
         ttk.Label(size_frame, text=t('copy_area.size', 'Size')).pack(side='left')
-        width_var = tk.IntVar(value=int(self._initial.get('size', {}).get('width', 64)))
-        height_var = tk.IntVar(value=int(self._initial.get('size', {}).get('height', 64)))
         ttk.Label(size_frame, text='W').pack(side='left', padx=(8, 2))
         ttk.Entry(size_frame, textvariable=width_var, width=8).pack(side='left')
         ttk.Label(size_frame, text='H').pack(side='left', padx=(8, 2))

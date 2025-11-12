@@ -33,6 +33,7 @@
   "info.select_item": "Выберите элемент для редактирования"
   ,"info.select_item_delete": "Выберите элемент для удаления"
   ,"button.clear": "Очистить",
+  "button.take_area": "Снять область",
   "actions.activate": "Активировать",
   "actions.position": "Позиционировать"
   ,"monitoring.scan": "Сканировать"

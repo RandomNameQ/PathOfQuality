@@ -164,10 +164,12 @@ class IconMirrorsOverlay:
                     img = self._build_copy_preview(area)
 
             size_cfg = area.get('size', {}) or {}
-            out_w = int(size_cfg.get('width', cap_width))
-            out_h = int(size_cfg.get('height', cap_height))
-            out_w = max(1, out_w)
-            out_h = max(1, out_h)
+            out_w = int(size_cfg.get('width', 0))
+            out_h = int(size_cfg.get('height', 0))
+            if out_w <= 0:
+                out_w = 64
+            if out_h <= 0:
+                out_h = 64
 
             try:
                 img = img.resize((out_w, out_h), Image.LANCZOS)

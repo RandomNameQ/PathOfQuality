@@ -1,27 +1,65 @@
 import tkinter as tk
 from typing import Optional, Tuple
 
+try:
+    from PIL import ImageGrab, ImageTk, Image
+except Exception:  # pragma: no cover - optional dependency
+    ImageGrab = None
+    ImageTk = None
+    Image = None
+
+_LAST_SNAPSHOT = None
+
+
+def get_last_roi_snapshot(clear: bool = True):
+    global _LAST_SNAPSHOT
+    snap = _LAST_SNAPSHOT
+    if clear:
+        _LAST_SNAPSHOT = None
+    if snap is not None and Image is not None:
+        try:
+            return snap.copy()
+        except Exception:
+            return snap
+    return snap
+
 
 def select_roi(master: tk.Tk) -> Optional[Tuple[int, int, int, int]]:
     """
     Отображает полноэкранный полупрозрачный оверлей и позволяет мышью выделить прямоугольник.
     Возвращает (left, top, width, height) в координатах экрана или None, если выбор отменён (ESC).
     """
+    screen_w = master.winfo_screenwidth()
+    screen_h = master.winfo_screenheight()
+
     overlay = tk.Toplevel(master)
     overlay.attributes('-topmost', True)
     overlay.overrideredirect(True)
-    try:
-        overlay.attributes('-alpha', 0.15)
-    except Exception:
-        pass
-    screen_w = master.winfo_screenwidth()
-    screen_h = master.winfo_screenheight()
     overlay.geometry(f"{screen_w}x{screen_h}+0+0")
-    overlay.configure(bg='black')
+
+    global _LAST_SNAPSHOT
+    _LAST_SNAPSHOT = None
+    bg_image = None
+    if ImageGrab is not None and ImageTk is not None:
+        try:
+            snapshot = ImageGrab.grab()
+            bg_image = ImageTk.PhotoImage(snapshot)
+            _LAST_SNAPSHOT = snapshot
+        except Exception:
+            bg_image = None
 
     canvas = tk.Canvas(overlay, width=screen_w, height=screen_h, highlightthickness=0)
     canvas.pack(fill='both', expand=True)
     canvas.configure(cursor='crosshair')
+
+    if bg_image is not None:
+        canvas.create_image(0, 0, image=bg_image, anchor='nw')
+    else:
+        overlay.configure(bg='black')
+        try:
+            overlay.attributes('-alpha', 0.15)
+        except Exception:
+            pass
 
     start = {'x': 0, 'y': 0}
     rect_id = {'id': None}

@@ -1,0 +1,24 @@
+{
+  "id": "fb4137b3-9eaa-4497-a545-ee9d5e04f853",
+  "type": "buff",
+  "name": {
+    "en": "te"
+  },
+  "image_path": "assets\\library\\images\\8b2f94e0-a2c4-4c74-b16f-351add377ccf.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 524,
+    "top": 848
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 0
+}
