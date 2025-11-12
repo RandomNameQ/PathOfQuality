@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from src.buffs.library import load_library
+from src.utils.settings import resource_path
 
 
 @dataclass
@@ -36,10 +37,15 @@ class LibraryMatcher:
         data = load_library()
         for bucket in ("buffs", "debuffs"):
             for item in data.get(bucket, []):
-                if not item.get("active"):
+                # Учитываем флаг активности как bool, чтобы строки типа "false" не считались активными
+                if not bool(item.get("active", True)):
                     continue
-                path = item.get("image_path") or ""
-                if not path or not os.path.isfile(path):
+                raw_path = item.get("image_path") or ""
+                if not raw_path:
+                    continue
+                # Разрешаем путь к ресурсу надёжно и кросс-режимно (dev/pyinstaller)
+                path = resource_path(raw_path) if not os.path.isabs(raw_path) else raw_path
+                if not os.path.isfile(path):
                     continue
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
                 if img is None:
@@ -59,6 +65,12 @@ class LibraryMatcher:
         Матчит все активные шаблоны в переданном сером кадре (ROI).
         Возвращает список результатов по порогу.
         """
+        # Если шаблоны ещё не загружены (или список пуст), попробуем обновиться перед матчингом
+        if not self.templates:
+            try:
+                self.refresh()
+            except Exception:
+                pass
         results: List[Dict[str, int]] = []
         for t in self.templates:
             try:

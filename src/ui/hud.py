@@ -456,6 +456,7 @@ class BuffHUD:
         entry.active = True
         
         add_entry(entry)
+        self._events.append('LIBRARY_UPDATED')
         self._reload_library()
         
     def _on_edit_entry(self, entry_type: str) -> None:
@@ -493,6 +494,7 @@ class BuffHUD:
         res['id'] = entry_id
         res['type'] = entry_type
         update_entry(entry_id, entry_type, res)
+        self._events.append('LIBRARY_UPDATED')
         self._reload_library()
 
     def _on_delete_entry(self, entry_type: str) -> None:

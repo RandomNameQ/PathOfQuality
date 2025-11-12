@@ -1,18 +1,18 @@
 {
-  "id": "fb4137b3-9eaa-4497-a545-ee9d5e04f853",
+  "id": "f870d351-ad0a-4a0f-95f4-150ae6026bea",
   "type": "buff",
   "name": {
-    "en": "te"
+    "en": "12"
   },
-  "image_path": "assets\\library\\images\\8b2f94e0-a2c4-4c74-b16f-351add377ccf.png",
+  "image_path": "assets\\library\\images\\18bad293-6051-4cb2-99d4-6ee6abfa984f.png",
   "description": {
     "en": ""
   },
   "sound_on": null,
   "sound_off": null,
   "position": {
-    "left": 524,
-    "top": 848
+    "left": 320,
+    "top": 496
   },
   "size": {
     "width": 64,
