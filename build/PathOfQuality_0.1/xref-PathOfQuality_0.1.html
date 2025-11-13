@@ -486,6 +486,7 @@ imports:
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFilter">PIL.ImageFilter</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageMath">PIL.ImageMath</a>
  &#8226;   <a href="#PIL.ImageMode">PIL.ImageMode</a>
  &#8226;   <a href="#PIL.ImageOps">PIL.ImageOps</a>
@@ -550,6 +551,7 @@ imported by:
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFilter">PIL.ImageFilter</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageMath">PIL.ImageMath</a>
  &#8226;   <a href="#PIL.ImageMode">PIL.ImageMode</a>
  &#8226;   <a href="#PIL.ImageOps">PIL.ImageOps</a>
@@ -608,13 +610,16 @@ imported by:
  &#8226;   <a href="#PIL.features">PIL.features</a>
  &#8226;   <a href="#pystray._darwin">pystray._darwin</a>
  &#8226;   <a href="#pystray._xorg">pystray._xorg</a>
+ &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.ui.components.library_tree">src.ui.components.library_tree</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
  &#8226;   <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.icon_mirrors">src.ui.icon_mirrors</a>
  &#8226;   <a href="#src.ui.mirror_window">src.ui.mirror_window</a>
+ &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
  &#8226;   <a href="#src.ui.tabs.copy_area_tab">src.ui.tabs.copy_area_tab</a>
  &#8226;   <a href="#src.ui.tabs.currency_tab">src.ui.tabs.currency_tab</a>
  &#8226;   <a href="#src.ui.tabs.quickcraft_tab">src.ui.tabs.quickcraft_tab</a>
@@ -695,6 +700,7 @@ imported by:
  &#8226;   <a href="#PIL.CurImagePlugin">PIL.CurImagePlugin</a>
  &#8226;   <a href="#PIL.IcoImagePlugin">PIL.IcoImagePlugin</a>
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
 
   </div>
 
@@ -1266,6 +1272,7 @@ imported by:
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFilter">PIL.ImageFilter</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageMath">PIL.ImageMath</a>
  &#8226;   <a href="#PIL.ImageOps">PIL.ImageOps</a>
  &#8226;   <a href="#PIL.ImagePalette">PIL.ImagePalette</a>
@@ -1304,13 +1311,16 @@ imported by:
  &#8226;   <a href="#PIL.XbmImagePlugin">PIL.XbmImagePlugin</a>
  &#8226;   <a href="#PIL.XpmImagePlugin">PIL.XpmImagePlugin</a>
  &#8226;   <a href="#PIL.features">PIL.features</a>
+ &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.ui.components.library_tree">src.ui.components.library_tree</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
  &#8226;   <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.icon_mirrors">src.ui.icon_mirrors</a>
  &#8226;   <a href="#src.ui.mirror_window">src.ui.mirror_window</a>
+ &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
  &#8226;   <a href="#src.ui.tabs.copy_area_tab">src.ui.tabs.copy_area_tab</a>
  &#8226;   <a href="#src.ui.tabs.currency_tab">src.ui.tabs.currency_tab</a>
  &#8226;   <a href="#src.ui.tabs.quickcraft_tab">src.ui.tabs.quickcraft_tab</a>
@@ -1590,6 +1600,36 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="PIL.ImageGrab"></a>
+  <a target="code" href="///C:/Users/user/AppData/Local/Programs/Python/Python313/Lib/site-packages/PIL/ImageGrab.py" type="text/plain"><tt>PIL.ImageGrab</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#PIL">PIL</a>
+ &#8226;   <a href="#PIL.BmpImagePlugin">PIL.BmpImagePlugin</a>
+ &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#PIL.ImageWin">PIL.ImageWin</a>
+ &#8226;   <a href="#PIL.PngImagePlugin">PIL.PngImagePlugin</a>
+ &#8226;   <a href="#__future__">__future__</a>
+ &#8226;   <a href="#binascii">binascii</a>
+ &#8226;   <a href="#io">io</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#shutil">shutil</a>
+ &#8226;   <a href="#struct">struct</a>
+ &#8226;   <a href="#subprocess">subprocess</a>
+ &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#tempfile">tempfile</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#PIL">PIL</a>
+ &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="PIL.ImageMath"></a>
   <a target="code" href="///C:/Users/user/AppData/Local/Programs/Python/Python313/Lib/site-packages/PIL/ImageMath.py" type="text/plain"><tt>PIL.ImageMath</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -1843,6 +1883,7 @@ imported by:
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.mirror_window">src.ui.mirror_window</a>
+ &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
  &#8226;   <a href="#src.ui.tabs.copy_area_tab">src.ui.tabs.copy_area_tab</a>
  &#8226;   <a href="#src.ui.tabs.currency_tab">src.ui.tabs.currency_tab</a>
  &#8226;   <a href="#src.ui.tabs.quickcraft_tab">src.ui.tabs.quickcraft_tab</a>
@@ -1865,6 +1906,7 @@ imports:
 imported by:
     <a href="#PIL">PIL</a>
  &#8226;   <a href="#PIL.ImageCms">PIL.ImageCms</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
 
   </div>
 
@@ -2301,6 +2343,7 @@ imported by:
  &#8226;   <a href="#PIL.IcnsImagePlugin">PIL.IcnsImagePlugin</a>
  &#8226;   <a href="#PIL.IcoImagePlugin">PIL.IcoImagePlugin</a>
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
 
   </div>
 
@@ -3019,6 +3062,7 @@ imported by:
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFilter">PIL.ImageFilter</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageMath">PIL.ImageMath</a>
  &#8226;   <a href="#PIL.ImageMode">PIL.ImageMode</a>
  &#8226;   <a href="#PIL.ImageOps">PIL.ImageOps</a>
@@ -3186,6 +3230,7 @@ imported by:
  &#8226;   <a href="#src.qol.quick_mouse_listener">src.qol.quick_mouse_listener</a>
  &#8226;   <a href="#src.quickcraft.hotkeys">src.quickcraft.hotkeys</a>
  &#8226;   <a href="#src.ui.copy_mirror_window">src.ui.copy_mirror_window</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.quick_mirror_window">src.ui.quick_mirror_window</a>
  &#8226;   <a href="#src.ui.tabs.mega_qol_tab">src.ui.tabs.mega_qol_tab</a>
  &#8226;   <a href="#tomllib._parser">tomllib._parser</a>
@@ -6171,7 +6216,8 @@ imported by:
   <a name="binascii"></a>
   <tt>binascii</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
 imported by:
-    <a href="#base64">base64</a>
+    <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
+ &#8226;   <a href="#base64">base64</a>
  &#8226;   <a href="#email._encoded_words">email._encoded_words</a>
  &#8226;   <a href="#email.base64mime">email.base64mime</a>
  &#8226;   <a href="#email.contentmanager">email.contentmanager</a>
@@ -12164,6 +12210,7 @@ imported by:
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageQt">PIL.ImageQt</a>
  &#8226;   <a href="#PIL.ImageTk">PIL.ImageTk</a>
  &#8226;   <a href="#PIL.IptcImagePlugin">PIL.IptcImagePlugin</a>
@@ -14291,6 +14338,7 @@ imported by:
  &#8226;   <a href="#src.capture.mss_capture">src.capture.mss_capture</a>
  &#8226;   <a href="#src.detector.library_matcher">src.detector.library_matcher</a>
  &#8226;   <a href="#src.detector.template_matcher">src.detector.template_matcher</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
 
   </div>
 
@@ -20800,6 +20848,7 @@ imported by:
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageShow">PIL.ImageShow</a>
  &#8226;   <a href="#PIL.Jpeg2KImagePlugin">PIL.Jpeg2KImagePlugin</a>
  &#8226;   <a href="#PIL.JpegImagePlugin">PIL.JpegImagePlugin</a>
@@ -27027,6 +27076,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageShow">PIL.ImageShow</a>
  &#8226;   <a href="#argparse">argparse</a>
  &#8226;   <a href="#ctypes.util">ctypes.util</a>
@@ -27309,7 +27359,9 @@ imported by:
   <a target="code" href="///D:/Unity/PathOfQuality/src/buffs/library.py" type="text/plain"><tt>src.buffs.library</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#dataclasses">dataclasses</a>
+    <a href="#PIL">PIL</a>
+ &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#dataclasses">dataclasses</a>
  &#8226;   <a href="#json">json</a>
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#pathlib">pathlib</a>
@@ -27323,6 +27375,7 @@ imports:
 imported by:
     <a href="#src.detector.library_matcher">src.detector.library_matcher</a>
  &#8226;   <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.hud">src.ui.hud</a>
@@ -27367,6 +27420,7 @@ imported by:
     <a href="#src.capture.mss_capture">src.capture.mss_capture</a>
  &#8226;   <a href="#src.core.application">src.core.application</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.icon_mirrors">src.ui.icon_mirrors</a>
  &#8226;   <a href="#src.utils.roi">src.utils.roi</a>
 
@@ -27390,6 +27444,7 @@ imports:
 imported by:
     <a href="#src.core.application">src.core.application</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.icon_mirrors">src.ui.icon_mirrors</a>
 
   </div>
@@ -27523,6 +27578,7 @@ imports:
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.detector">src.detector</a>
+ &#8226;   <a href="#src.utils.settings">src.utils.settings</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
@@ -27873,6 +27929,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.dialogs.localize_dialog">src.ui.dialogs.localize_dialog</a>
@@ -27893,6 +27950,7 @@ imports:
  &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.i18n.locale">src.i18n.locale</a>
  &#8226;   <a href="#src.ui.dialogs">src.ui.dialogs</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.localize_dialog">src.ui.dialogs.localize_dialog</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
@@ -27910,6 +27968,34 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="src.ui.dialogs.capture_utils"></a>
+  <a target="code" href="///D:/Unity/PathOfQuality/src/ui/dialogs/capture_utils.py" type="text/plain"><tt>src.ui.dialogs.capture_utils</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#PIL">PIL</a>
+ &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#__future__">__future__</a>
+ &#8226;   <a href="#numpy">numpy</a>
+ &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
+ &#8226;   <a href="#src.capture.base_capture">src.capture.base_capture</a>
+ &#8226;   <a href="#src.capture.mss_capture">src.capture.mss_capture</a>
+ &#8226;   <a href="#src.ui.dialogs">src.ui.dialogs</a>
+ &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="src.ui.dialogs.copy_area_editor"></a>
   <a target="code" href="///D:/Unity/PathOfQuality/src/ui/dialogs/copy_area_editor.py" type="text/plain"><tt>src.ui.dialogs.copy_area_editor</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -27921,6 +28007,7 @@ imports:
  &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.i18n.locale">src.i18n.locale</a>
  &#8226;   <a href="#src.ui.dialogs">src.ui.dialogs</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.localize_dialog">src.ui.dialogs.localize_dialog</a>
  &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
  &#8226;   <a href="#tkinter">tkinter</a>
@@ -27950,6 +28037,7 @@ imports:
  &#8226;   <a href="#src.buffs.library">src.buffs.library</a>
  &#8226;   <a href="#src.i18n.locale">src.i18n.locale</a>
  &#8226;   <a href="#src.ui.dialogs">src.ui.dialogs</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.roi_selector">src.ui.roi_selector</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
@@ -28144,7 +28232,11 @@ imported by:
   <a target="code" href="///D:/Unity/PathOfQuality/src/ui/roi_selector.py" type="text/plain"><tt>src.ui.roi_selector</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#src.ui">src.ui</a>
+    <a href="#PIL">PIL</a>
+ &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
+ &#8226;   <a href="#PIL.ImageTk">PIL.ImageTk</a>
+ &#8226;   <a href="#src.ui">src.ui</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#typing">typing</a>
 
@@ -28152,6 +28244,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#src.core.application">src.core.application</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.hud">src.ui.hud</a>
@@ -28462,6 +28555,7 @@ imports:
 imported by:
     <a href="#app.py">app.py</a>
  &#8226;   <a href="#src.core.application">src.core.application</a>
+ &#8226;   <a href="#src.detector.library_matcher">src.detector.library_matcher</a>
 
   </div>
 
@@ -28697,6 +28791,7 @@ imported by:
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
  &#8226;   <a href="#PIL.ImageDraw">PIL.ImageDraw</a>
  &#8226;   <a href="#PIL.ImageFile">PIL.ImageFile</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.Jpeg2KImagePlugin">PIL.Jpeg2KImagePlugin</a>
  &#8226;   <a href="#PIL.JpegImagePlugin">PIL.JpegImagePlugin</a>
  &#8226;   <a href="#PIL.McIdasImagePlugin">PIL.McIdasImagePlugin</a>
@@ -28770,6 +28865,7 @@ imports:
 imported by:
     <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
  &#8226;   <a href="#PIL.GifImagePlugin">PIL.GifImagePlugin</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageShow">PIL.ImageShow</a>
  &#8226;   <a href="#PIL.JpegImagePlugin">PIL.JpegImagePlugin</a>
  &#8226;   <a href="#_aix_support">_aix_support</a>
@@ -28821,6 +28917,7 @@ imported by:
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
  &#8226;   <a href="#PIL.ImageCms">PIL.ImageCms</a>
  &#8226;   <a href="#PIL.ImageFont">PIL.ImageFont</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.ImageMode">PIL.ImageMode</a>
  &#8226;   <a href="#PIL.ImageQt">PIL.ImageQt</a>
  &#8226;   <a href="#PIL.ImageShow">PIL.ImageShow</a>
@@ -29178,6 +29275,7 @@ imports:
 imported by:
     <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
+ &#8226;   <a href="#PIL.ImageGrab">PIL.ImageGrab</a>
  &#8226;   <a href="#PIL.JpegImagePlugin">PIL.JpegImagePlugin</a>
  &#8226;   <a href="#_pyrepl.pager">_pyrepl.pager</a>
  &#8226;   <a href="#asyncio.windows_utils">asyncio.windows_utils</a>
@@ -29428,6 +29526,7 @@ imported by:
  &#8226;   <a href="#src.ui.components.library_tree">src.ui.components.library_tree</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
  &#8226;   <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.dialogs.localize_dialog">src.ui.dialogs.localize_dialog</a>
@@ -30175,6 +30274,7 @@ imported by:
  &#8226;   <a href="#src.ui.components.library_tree">src.ui.components.library_tree</a>
  &#8226;   <a href="#src.ui.currency_overlay">src.ui.currency_overlay</a>
  &#8226;   <a href="#src.ui.dialogs.buff_editor">src.ui.dialogs.buff_editor</a>
+ &#8226;   <a href="#src.ui.dialogs.capture_utils">src.ui.dialogs.capture_utils</a>
  &#8226;   <a href="#src.ui.dialogs.copy_area_editor">src.ui.dialogs.copy_area_editor</a>
  &#8226;   <a href="#src.ui.dialogs.currency_editor">src.ui.dialogs.currency_editor</a>
  &#8226;   <a href="#src.ui.dialogs.localize_dialog">src.ui.dialogs.localize_dialog</a>
