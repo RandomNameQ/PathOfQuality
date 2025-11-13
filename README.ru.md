@@ -33,16 +33,19 @@ https://github.com/RandomNameQ/PathOfQuality/assets/125605136/show_scan_overlay.
 1) Библиотека — Оверлей сканирования
 - Находит сохранённые иконки на экране и показывает оверлеи.
 - Подробнее: [docs/ru/scan-overlay.md](./docs/ru/scan-overlay.md)
+- Видео-гайд (настройка Scan & Copy Area): [YouTube](https://www.youtube.com/watch?v=P4fPhLa3OZU)
 
 ![Демонстрация](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
 
 2) Библиотека — Оверлей копирования
 - Дублирует выбранную область экрана; опционально: «показывать, если выбранного баффа/дебаффа НЕТ» или «всегда показывать».
 - Подробнее: [docs/ru/copy-overlay.md](./docs/ru/copy-overlay.md)
+- Видео-гайд (настройка Scan & Copy Area): [YouTube](https://www.youtube.com/watch?v=P4fPhLa3OZU)
 
 3) Инструменты — Валюта — Quick Craft
 - Показывает оверлеи валюты и выполняет быстрые действия по горячей клавише (без активации окон, один клик).
 - Подробнее: [docs/ru/quick-craft.md](./docs/ru/quick-craft.md)
+- Видео-гайд (настройка Quick Craft): [YouTube](https://www.youtube.com/watch?v=EY1q780P3GI)
 
 ![Демонстрация](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
 

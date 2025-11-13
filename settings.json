@@ -4,9 +4,9 @@
   },
   "roi": {
     "mode": "absolute",
-    "width": 1078,
-    "height": 233,
-    "top": 4,
+    "width": 1011,
+    "height": 263,
+    "top": 0,
     "left": 7
   },
   "threshold": 0.9,

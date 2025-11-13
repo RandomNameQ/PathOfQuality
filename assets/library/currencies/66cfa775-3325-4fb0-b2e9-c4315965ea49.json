@@ -1,0 +1,13 @@
+{
+  "id": "66cfa775-3325-4fb0-b2e9-c4315965ea49",
+  "name": "wisdwom",
+  "interface": "wisdwom",
+  "image_path": "assets\\library\\images\\575a56f2-171b-49d8-8fe8-4f2eef8b4eaf.png",
+  "capture": {
+    "left": 91,
+    "top": 186,
+    "width": 48,
+    "height": 45
+  },
+  "active": true
+}

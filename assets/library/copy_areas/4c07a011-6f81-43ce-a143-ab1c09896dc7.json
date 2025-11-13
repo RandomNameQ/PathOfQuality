@@ -1,0 +1,30 @@
+{
+  "id": "4c07a011-6f81-43ce-a143-ab1c09896dc7",
+  "name": {
+    "en": "quikcsilver"
+  },
+  "image_path": "assets\\library\\images\\34af5e9b-3b43-4843-b7cb-bb0add8a8808.png",
+  "references": {
+    "buffs": [
+      "a3f4aaee-5cc8-4081-921d-c70febfbc7da"
+    ],
+    "debuffs": []
+  },
+  "capture": {
+    "left": 489,
+    "top": 1012,
+    "width": 48,
+    "height": 57
+  },
+  "position": {
+    "left": 688,
+    "top": 928
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "active": true,
+  "transparency": 0.6722846441947565,
+  "topmost": true
+}
