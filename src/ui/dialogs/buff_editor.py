@@ -142,17 +142,28 @@ class BuffEditorDialog:
         self._img_preview_photo = None
         def update_preview(path: str):
             try:
-                if not path or not os.path.isfile(path):
+                resolved = path
+                if path and not os.path.isabs(path):
+                    try:
+                        from src.utils.settings import external_path, resource_path
+                        ext = external_path(path)
+                        if os.path.isfile(ext):
+                            resolved = ext
+                        else:
+                            resolved = resource_path(path)
+                    except Exception:
+                        resolved = path
+                if not resolved or not os.path.isfile(resolved):
                     preview_label.configure(image='', text='')
                     self._img_preview_photo = None
                     return
                 if Image is None or ImageTk is None:
                     # Fallback: try Tk PhotoImage (PNG only)
-                    photo = tk.PhotoImage(file=path)
+                    photo = tk.PhotoImage(file=resolved)
                     self._img_preview_photo = photo
                     preview_label.configure(image=photo)
                     return
-                img = Image.open(path)
+                img = Image.open(resolved)
                 img = img.convert('RGBA')
                 # Fit into 128x128 thumbnail keeping aspect
                 img.thumbnail((128, 128), Image.LANCZOS)

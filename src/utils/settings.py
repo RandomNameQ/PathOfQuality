@@ -55,6 +55,10 @@ def resource_path(rel_path: str) -> str:
         base = _app_base_dir()
     return os.path.abspath(os.path.join(base, rel_path.replace('/', os.sep)))
 
+def external_path(rel_path: str) -> str:
+    base = _app_base_dir()
+    return os.path.abspath(os.path.join(base, rel_path.replace('/', os.sep)))
+
 
 def load_settings(path: str) -> Dict[str, Any]:
     """

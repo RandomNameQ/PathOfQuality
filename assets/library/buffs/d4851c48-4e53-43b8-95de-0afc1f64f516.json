@@ -1,0 +1,24 @@
+{
+  "id": "d4851c48-4e53-43b8-95de-0afc1f64f516",
+  "type": "buff",
+  "name": {
+    "en": "1"
+  },
+  "image_path": "assets\\library\\images\\570e2fd7-090a-4ae8-8c28-24c2d8625794.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 752,
+    "top": 800
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 0
+}

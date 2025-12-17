@@ -1,0 +1,24 @@
+{
+  "id": "f0c4a265-af59-414e-b5f4-fd9be9b836f5",
+  "type": "buff",
+  "name": {
+    "en": "totem"
+  },
+  "image_path": "assets\\library\\images\\46aa41d6-a490-402b-88f1-bed1a4579481.png",
+  "description": {
+    "en": ""
+  },
+  "sound_on": null,
+  "sound_off": null,
+  "position": {
+    "left": 816,
+    "top": 800
+  },
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "transparency": 1.0,
+  "active": true,
+  "extend_bottom": 0
+}

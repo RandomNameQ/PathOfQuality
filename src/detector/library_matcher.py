@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from src.buffs.library import load_library
-from src.utils.settings import resource_path
+from src.utils.settings import resource_path, external_path
 
 
 @dataclass
@@ -43,8 +43,13 @@ class LibraryMatcher:
                 raw_path = item.get("image_path") or ""
                 if not raw_path:
                     continue
-                # Разрешаем путь к ресурсу надёжно и кросс-режимно (dev/pyinstaller)
-                path = resource_path(raw_path) if not os.path.isabs(raw_path) else raw_path
+                path = raw_path
+                if not os.path.isabs(path):
+                    ext = external_path(raw_path)
+                    if os.path.isfile(ext):
+                        path = ext
+                    else:
+                        path = resource_path(raw_path)
                 if not os.path.isfile(path):
                     continue
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)

@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Callable, Optional, Tuple
 from src.i18n.locale import t, get_lang
+from src.utils.settings import resource_path, external_path
 from src.ui.styles import BG_COLOR, FG_COLOR
 
 try:
@@ -256,12 +257,19 @@ class LibraryTreeView:
     def _make_thumbnail(self, path: str) -> Optional[tk.PhotoImage]:
         """Create thumbnail from image path."""
         try:
-            if not path or not os.path.isfile(path):
+            resolved = path
+            if path and not os.path.isabs(path):
+                ext = external_path(path)
+                if os.path.isfile(ext):
+                    resolved = ext
+                else:
+                    resolved = resource_path(path)
+            if not resolved or not os.path.isfile(resolved):
                 return None
                 
             if Image is None or ImageTk is None:
                 # Fallback: use Tk PhotoImage
-                photo = tk.PhotoImage(file=path)
+                photo = tk.PhotoImage(file=resolved)
                 try:
                     w = photo.width()
                     h = photo.height()
@@ -273,7 +281,7 @@ class LibraryTreeView:
                     pass
                 return photo
                 
-            img = Image.open(path).convert('RGBA')
+            img = Image.open(resolved).convert('RGBA')
             img.thumbnail((64, 64), Image.LANCZOS)
             
             if ImageOps is not None:

@@ -10,10 +10,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     Image = None
 from pathlib import Path
+from src.utils.settings import external_path
 
 
 # New structure: each object is a separate JSON file
-LIBRARY_ROOT = os.path.join('assets', 'library')
+LIBRARY_ROOT = external_path(os.path.join('assets', 'library'))
 BUFFS_DIR = os.path.join(LIBRARY_ROOT, 'buffs')
 DEBUFFS_DIR = os.path.join(LIBRARY_ROOT, 'debuffs')
 COPY_AREAS_DIR = os.path.join(LIBRARY_ROOT, 'copy_areas')
