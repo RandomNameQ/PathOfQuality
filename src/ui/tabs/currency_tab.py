@@ -184,9 +184,8 @@ class CurrencyTab:
             idx = len(self._tree.get_children(''))
             tag = 'odd' if (idx % 2 == 1) else 'even'
             try:
-                self._tree.item(iid, tags=(tag,))
-                self._tree.tag_configure('odd', background='#f9fafb')
-                self._tree.tag_configure('even', background='#ffffff')
+                self._tree.tag_configure('odd', background=theme.BG_SECONDARY)
+                self._tree.tag_configure('even', background=theme.BG_TERTIARY)
             except Exception:
                 pass
 
@@ -248,7 +247,7 @@ class CurrencyTab:
         for iid, widgets in self._row_controls.items():
             try:
                 tags = self._tree.item(iid, 'tags')
-                bg = '#f9fafb' if ('odd' in tags) else '#ffffff'
+                bg = theme.BG_SECONDARY if ('odd' in tags) else theme.BG_TERTIARY
 
                 # Preview image
                 if len(widgets) > 1:
