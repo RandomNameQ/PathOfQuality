@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from src.i18n.locale import t, get_lang
 from src.ui.styles import BG_COLOR, FG_COLOR
-
+from src.ui import theme
 
 class SettingsTab:
     """Settings tab for ROI selection and application configuration."""
@@ -44,7 +44,7 @@ class SettingsTab:
             text=t('settings.language', 'Language'),
             bg=BG_COLOR, 
             fg=FG_COLOR, 
-            font=('Segoe UI', 9)
+            font=theme.FONT_BODY
         )
         self._lbl_language.pack(side='left', padx=(0, 8))
         
@@ -54,7 +54,7 @@ class SettingsTab:
             values=['en', 'ru'],
             state='readonly',
             width=6,
-            font=('Segoe UI', 9)
+            font=theme.FONT_BODY
         )
         self._lang_cmb.pack(side='left')
         
@@ -131,7 +131,7 @@ class SettingsTab:
             text=f"{t('settings.roi', 'ROI')}: —",
             bg=BG_COLOR, 
             fg=FG_COLOR, 
-            font=('Segoe UI', 9)
+            font=theme.FONT_BODY
         )
         self._roi_label.pack(anchor='w')
         

@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Optional
 from src.buffs.library import load_library
 from src.i18n.locale import t, get_lang
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 
 try:
     from PIL import Image, ImageTk, ImageOps
@@ -83,14 +84,14 @@ class CopyAreaTab:
             text=t('copy_area.search', 'Search'),
             bg=BG_COLOR,
             fg=FG_COLOR,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
         )
         self._lbl_search.pack(side='left', padx=(0, 8))
 
         search_entry = ttk.Entry(
             search,
             textvariable=self._search_var,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
             width=30,
         )
         search_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
@@ -196,8 +197,8 @@ class CopyAreaTab:
             try:
                 tag = 'odd' if ((len(self._tree.get_children('')) % 2) == 1) else 'even'
                 self._tree.item(iid, tags=(tag,))
-                self._tree.tag_configure('odd', background='#f9fafb')
-                self._tree.tag_configure('even', background='#ffffff')
+                self._tree.tag_configure('odd', background=theme.BG_TERTIARY)
+                self._tree.tag_configure('even', background=theme.BG_SECONDARY)
             except Exception:
                 pass
 
@@ -278,7 +279,7 @@ class CopyAreaTab:
                     continue
 
                 tags = self._tree.item(iid, 'tags')
-                bg_color = '#f9fafb' if ('odd' in tags) else '#ffffff'
+                bg_color = theme.BG_TERTIARY if ('odd' in tags) else theme.BG_SECONDARY
 
                 chk = ctrls[0]
                 try:

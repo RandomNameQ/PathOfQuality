@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Optional
 
 from src.i18n.locale import t
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 from src.quickcraft.hotkeys import format_hotkey_display, normalize_hotkey_name, keysym_to_hotkey
 
 _HOTKEY_GROUPS = {
@@ -120,7 +121,7 @@ class QuickCraftTab:
             text=t('currency.search', 'Search'),
             bg=BG_COLOR,
             fg=FG_COLOR,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
         )
         self._lbl_search.pack(side='left', padx=(0, 8))
 
@@ -248,8 +249,8 @@ class QuickCraftTab:
             tag = 'odd' if (idx % 2 == 1) else 'even'
             try:
                 self._tree.item(iid, tags=(tag,))
-                self._tree.tag_configure('odd', background='#f9fafb')
-                self._tree.tag_configure('even', background='#ffffff')
+                self._tree.tag_configure('odd', background=theme.BG_TERTIARY)
+                self._tree.tag_configure('even', background=theme.BG_SECONDARY)
             except Exception:
                 pass
 
@@ -292,7 +293,7 @@ class QuickCraftTab:
                 lw = label.winfo_reqwidth() or 64
                 lh = label.winfo_reqheight() or 64
                 tags = self._tree.item(iid, 'tags')
-                bg = '#f9fafb' if ('odd' in tags) else '#ffffff'
+                bg = theme.BG_TERTIARY if ('odd' in tags) else theme.BG_SECONDARY
                 label.configure(bg=bg)
                 label.place(
                     x=x + max(0, (width - lw) // 2),
@@ -583,7 +584,7 @@ class QuickCraftTab:
         height = max(1, int(capture.get('height', 32)))
         try:
             img = tk.PhotoImage(width=width, height=height)
-            img.put('#10B981', to=(0, 0, width, height))
+            img.put(theme.ACCENT_GREEN, to=(0, 0, width, height))
             return img
         except Exception:
             return None

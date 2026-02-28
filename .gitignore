@@ -1,2 +1,15 @@
 dist/
-dist/*
+build/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Tooling
+.sisyphus/

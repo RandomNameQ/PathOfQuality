@@ -7,6 +7,7 @@ from typing import Callable
 
 from src.i18n.locale import t
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 
 
 class MegaQolTab:
@@ -55,7 +56,7 @@ class MegaQolTab:
             text=t('mega_qol.sequence', 'Sequence (comma-separated)'),
             bg=BG_COLOR,
             fg=FG_COLOR,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
         )
         lbl_seq.pack(side='left', padx=(0, 8))
 
@@ -72,7 +73,7 @@ class MegaQolTab:
             text=t('mega_qol.delay', 'Delay per key (ms)'),
             bg=BG_COLOR,
             fg=FG_COLOR,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
         )
         lbl_delay.pack(side='left', padx=(0, 8))
 

@@ -61,5 +61,9 @@
   ,"library.delete": "Удалить"
   ,"library.confirm_delete_buff": "Удалить выбранный бафф?"
   ,"library.confirm_delete_debuff": "Удалить выбранный дебафф?"
+  ,"tab.wasd": "WASD"
+  ,"desc.wasd": "Удерживайте {movement_keys} для движения (эмуляция движения мыши + удержание ЛКМ). Нажмите {toggle_hotkey}, чтобы переключить WASD OFF/ON."
+  ,"wasd.enable": "Включить WASD-перемещение"
+  ,"wasd.open_config": "Открыть папку конфига"
   ,"status.game_focus_required": "Активируйте окно Path of Exile, чтобы продолжить работу."
 }

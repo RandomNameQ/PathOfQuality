@@ -6,13 +6,16 @@ import ctypes
 import tkinter as tk
 from typing import Callable, Dict, Optional, Tuple
 
-
+from src.ui import theme
 class ControlDock:
     """Small overlay with circular buttons to control scanning and copy areas."""
 
-    ACTIVE_COLOR = "#10b981"
-    INACTIVE_COLOR = "#4b5563"
-    BG_COLOR = "#111827"
+    ACTIVE_COLOR = theme.ACCENT_GOLD
+    INACTIVE_COLOR = theme.BG_TERTIARY
+    BG_COLOR = theme.BG_SECONDARY
+    TEXT_ACTIVE = '#000000'
+    TEXT_INACTIVE = theme.FG_PRIMARY
+    BG_COLOR = theme.BG_SECONDARY
     BTN_SIZE = 44
     BTN_PADDING = 6
 
@@ -143,7 +146,7 @@ class ControlDock:
             self.BTN_SIZE // 2,
             self.BTN_SIZE // 2,
             text=text,
-            fill="#ffffff",
+            fill=self.TEXT_INACTIVE,
             font=font,
         )
 
@@ -281,8 +284,9 @@ class ControlDock:
         color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
         text = "⏸" if active else "▶"
         canvas = btn["canvas"]
+        text_color = self.TEXT_ACTIVE if active else self.TEXT_INACTIVE
         canvas.itemconfigure(btn["circle"], fill=color)
-        canvas.itemconfigure(btn["label"], text=text)
+        canvas.itemconfigure(btn["label"], text=text, fill=text_color)
 
     def set_copy_active(self, active: bool) -> None:
         btn = self._buttons.get("copy")
@@ -290,9 +294,9 @@ class ControlDock:
             return
         color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
         canvas = btn["canvas"]
+        text_color = self.TEXT_ACTIVE if active else self.TEXT_INACTIVE
         canvas.itemconfigure(btn["circle"], fill=color)
-        # Keep copy glyph explicit
-        canvas.itemconfigure(btn["label"], text="⧉")
+        canvas.itemconfigure(btn["label"], text="⧉", fill=text_color)
 
     def set_locked(self, locked: bool) -> None:
         self._locked = bool(locked)
@@ -413,8 +417,9 @@ class ControlDock:
         label = btn["label"]
         color = self.INACTIVE_COLOR if self._locked else self.ACTIVE_COLOR
         text = "🔒" if self._locked else "🔓"
+        text_color = self.TEXT_ACTIVE if not self._locked else self.TEXT_INACTIVE
         canvas.itemconfigure(circle, fill=color)
-        canvas.itemconfigure(label, text=text)
+        canvas.itemconfigure(label, text=text, fill=text_color)
 
     def _update_click_indicator(self, active: bool) -> None:
         btn = self._buttons.get("click")
@@ -423,7 +428,9 @@ class ControlDock:
         canvas = btn["canvas"]
         circle = btn["circle"]
         color = self.ACTIVE_COLOR if active else self.INACTIVE_COLOR
+        text_color = self.TEXT_ACTIVE if active else self.TEXT_INACTIVE
         canvas.itemconfigure(circle, fill=color)
+        canvas.itemconfigure(btn["label"], fill=text_color)
 
     def set_click_active(self, active: bool) -> None:
         self._update_click_indicator(bool(active))

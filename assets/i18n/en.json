@@ -61,5 +61,9 @@
   ,"library.delete": "Delete"
   ,"library.confirm_delete_buff": "Delete selected buff?"
   ,"library.confirm_delete_debuff": "Delete selected debuff?"
+  ,"tab.wasd": "WASD"
+  ,"desc.wasd": "Hold {movement_keys} to move (emulates mouse move + Mouse1 hold). Press {toggle_hotkey} to toggle WASD OFF/ON."
+  ,"wasd.enable": "Enable WASD movement"
+  ,"wasd.open_config": "Open config folder"
   ,"status.game_focus_required": "Focus the Path of Exile window to resume."
 }

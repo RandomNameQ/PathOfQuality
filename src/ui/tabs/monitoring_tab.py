@@ -6,6 +6,7 @@ from tkinter import ttk
 from typing import Dict, List, Tuple, Optional
 from src.i18n.locale import t
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 
 
 class MonitoringTab:
@@ -40,7 +41,7 @@ class MonitoringTab:
 
         # Card container for controls
         card = ttk.Frame(self.frame, style='Card.TFrame', padding=(16, 16))
-        card.pack(padx=16, pady=8)
+        card.pack(padx=16, pady=8, fill='x')
 
         # Position library overlay toggle
         self._btn_positioning = ttk.Checkbutton(
@@ -62,16 +63,16 @@ class MonitoringTab:
         )
         self._btn_copy_area.grid(row=1, column=0, pady=(8, 0), sticky='w')
 
-        self._copy_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg='#ffffff')
+        self._copy_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg=theme.BG_TERTIARY)
         self._copy_canvas.grid(row=1, column=1, padx=(8, 0), pady=(10, 0), sticky='w')
-        self._copy_circle = self._copy_canvas.create_oval(2, 2, 12, 12, fill='#10b981', outline='#d1d5db')
+        self._copy_circle = self._copy_canvas.create_oval(2, 2, 12, 12, fill=theme.ACCENT_GREEN, outline=theme.BORDER_PRIMARY)
 
         # Scan button and status indicator
         self._btn_scan = ttk.Button(card, text=t('monitoring.scan', 'Scan'), style='Modern.TButton')
         self._btn_scan.grid(row=2, column=0, pady=(12, 0), sticky='w')
-        self._scan_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg='#ffffff')
+        self._scan_canvas = tk.Canvas(card, width=14, height=14, highlightthickness=0, bg=theme.BG_TERTIARY)
         self._scan_canvas.grid(row=2, column=1, padx=(8, 0), pady=(14, 0), sticky='w')
-        self._scan_circle = self._scan_canvas.create_oval(2, 2, 12, 12, fill='#ef4444', outline='#d1d5db')
+        self._scan_circle = self._scan_canvas.create_oval(2, 2, 12, 12, fill=theme.ACCENT_RED, outline=theme.BORDER_PRIMARY)
 
         for i in range(2):
             try:

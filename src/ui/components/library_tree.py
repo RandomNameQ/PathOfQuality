@@ -8,6 +8,7 @@ from typing import Dict, List, Callable, Optional, Tuple
 from src.i18n.locale import t, get_lang
 from src.utils.settings import resource_path, external_path
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 
 try:
     from PIL import Image, ImageTk, ImageOps
@@ -92,14 +93,14 @@ class LibraryTreeView:
             text=t('buffs.search', 'Search'),
             bg=BG_COLOR, 
             fg=FG_COLOR, 
-            font=('Segoe UI', 9)
+            font=theme.FONT_BODY
         )
         self._lbl_search.pack(side='left', padx=(0, 8))
         
         search_entry = ttk.Entry(
             search, 
             textvariable=self._search_var,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
             width=30
         )
         search_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
@@ -221,8 +222,8 @@ class LibraryTreeView:
             idx = len(self._tree.get_children(''))
             tag = 'odd' if (idx % 2 == 1) else 'even'
             self._tree.item(iid, tags=(tag,))
-            self._tree.tag_configure('odd', background='#f9fafb')
-            self._tree.tag_configure('even', background='#ffffff')
+            self._tree.tag_configure('odd', background=theme.BG_TERTIARY)
+            self._tree.tag_configure('even', background=theme.BG_SECONDARY)
         except Exception:
             pass
             
@@ -240,7 +241,7 @@ class LibraryTreeView:
         try:
             ph = self._entry_thumbs.get(iid)
             if ph is not None:
-                bg_color = '#f9fafb' if (idx % 2 == 1) else '#ffffff'
+                bg_color = theme.BG_TERTIARY if (idx % 2 == 1) else theme.BG_SECONDARY
                 thumb_lbl = tk.Label(
                     self._tree, 
                     image=ph, 
@@ -288,7 +289,7 @@ class LibraryTreeView:
                 try:
                     img = ImageOps.expand(img, border=(0, 0, 0, 0), fill=(0, 0, 0, 0))
                 except Exception:
-                    img = ImageOps.expand(img, border=(0, 0, 0, 0), fill='#ffffff')
+                    img = ImageOps.expand(img, border=(0, 0, 0, 0), fill=theme.BG_SECONDARY)
                     
             return ImageTk.PhotoImage(img)
         except Exception:
@@ -305,7 +306,7 @@ class LibraryTreeView:
                     continue
                     
                 tags = self._tree.item(iid, 'tags')
-                bg_color = '#f9fafb' if 'odd' in tags else '#ffffff'
+                bg_color = theme.BG_TERTIARY if 'odd' in tags else theme.BG_SECONDARY
                 
                 # Thumbnail in icon column
                 if len(ctrls) > 1 and ctrls[1] is not None:

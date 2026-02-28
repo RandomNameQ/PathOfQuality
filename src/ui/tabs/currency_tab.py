@@ -7,6 +7,7 @@ from typing import Callable, Dict, Optional
 from src.currency.library import load_currencies
 from src.i18n.locale import t
 from src.ui.styles import BG_COLOR, FG_COLOR
+from src.ui import theme
 
 try:
     from PIL import Image, ImageTk
@@ -80,7 +81,7 @@ class CurrencyTab:
             text=t('currency.search', 'Search'),
             bg=BG_COLOR,
             fg=FG_COLOR,
-            font=('Segoe UI', 9),
+            font=theme.FONT_BODY,
         )
         self._lbl_search.pack(side='left', padx=(0, 8))
 

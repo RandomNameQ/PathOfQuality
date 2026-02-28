@@ -1,12 +1,14 @@
 """
 Main application logic and event loop.
 """
+
 import os
 import sys
 import json
+import subprocess
 import cv2
 import time
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
@@ -20,18 +22,24 @@ from src.ui.tray import TrayIcon
 from src.utils.settings import load_settings, save_settings, resource_path
 from src.i18n.locale import t
 from src.currency.library import load_currencies
-from src.quickcraft.library import load_positions as load_quickcraft_positions, save_positions as save_quickcraft_positions, load_global_hotkey
+from src.quickcraft.library import (
+    load_positions as load_quickcraft_positions,
+    save_positions as save_quickcraft_positions,
+    load_global_hotkey,
+)
 
 ALLOWED_PROCESSES_FILE = resource_path(os.path.join("assets", "allowed_processes.json"))
 
 # Windows API for checking active process and mouse simulation
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     import ctypes
     from ctypes import wintypes
     import win32api
     import win32con
     from src.quickcraft.hotkeys import HotkeyListener, normalize_hotkey_name
     from src.qol.mouse_listener import MouseListener
+    from src.qol.wasd_controller import WasdController
+
     try:
         from src.qol.quick_mouse_listener import QuickMouseListener
     except Exception:
@@ -42,7 +50,11 @@ if sys.platform.startswith('win'):
         ULONG_PTR = wintypes.ULONG_PTR  # type: ignore[attr-defined]
     except AttributeError:
         # Determine pointer size to choose correct underlying type
-        ULONG_PTR = ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
+        ULONG_PTR = (
+            ctypes.c_ulonglong
+            if ctypes.sizeof(ctypes.c_void_p) == 8
+            else ctypes.c_ulong
+        )
 
     # Define SendInput structures
     class MOUSEINPUT(ctypes.Structure):
@@ -58,6 +70,7 @@ if sys.platform.startswith('win'):
     class INPUT(ctypes.Structure):
         class _INPUT(ctypes.Union):
             _fields_ = [("mi", MOUSEINPUT)]
+
         _anonymous_ = ("_input",)
         _fields_ = [
             ("type", wintypes.DWORD),
@@ -78,42 +91,43 @@ if sys.platform.startswith('win'):
     SendInput.restype = wintypes.UINT
 else:
     HotkeyListener = None  # type: ignore
+    WasdController = None  # type: ignore
 
     def normalize_hotkey_name(name: str) -> str:  # type: ignore
-        return ''
+        return ""
 
 
 def get_foreground_process_name() -> Optional[str]:
     """Get the name of the process that owns the foreground window."""
-    if not sys.platform.startswith('win'):
+    if not sys.platform.startswith("win"):
         return None
-    
+
     try:
         # Get foreground window handle
         hwnd = ctypes.windll.user32.GetForegroundWindow()
         if not hwnd:
             return None
-        
+
         # Get process ID from window handle
         process_id = wintypes.DWORD()
         ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
-        
+
         # Open process to get executable name
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         h_process = ctypes.windll.kernel32.OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION, 
-            False, 
-            process_id.value
+            PROCESS_QUERY_LIMITED_INFORMATION, False, process_id.value
         )
-        
+
         if not h_process:
             return None
-        
+
         try:
             # Get executable path
             exe_path = ctypes.create_unicode_buffer(1024)
             size = wintypes.DWORD(1024)
-            if ctypes.windll.kernel32.QueryFullProcessImageNameW(h_process, 0, exe_path, ctypes.byref(size)):
+            if ctypes.windll.kernel32.QueryFullProcessImageNameW(
+                h_process, 0, exe_path, ctypes.byref(size)
+            ):
                 # Extract filename from path
                 full_path = exe_path.value
                 return os.path.basename(full_path)
@@ -121,17 +135,17 @@ def get_foreground_process_name() -> Optional[str]:
             ctypes.windll.kernel32.CloseHandle(h_process)
     except Exception:
         pass
-    
+
     return None
 
 
 class Application:
     """Main application controller."""
-    
-    def __init__(self, settings_path: str = 'settings.json'):
+
+    def __init__(self, settings_path: str = "settings.json"):
         """
         Initialize application.
-        
+
         Args:
             settings_path: Path to settings file
         """
@@ -140,7 +154,7 @@ class Application:
         # Allowed processes are defined strictly in JSON (no implicit additions)
         self.allowed_processes: Set[str] = self._load_allowed_processes()
         self._focus_required = bool(self.settings.get("require_game_focus", True))
-        
+
         # Initialize components
         self.capture: MSSCapture = None
         self.matcher: TemplateMatcher = None
@@ -150,7 +164,7 @@ class Application:
         self.mirrors: IconMirrorsOverlay = None
         self.currency_overlay: CurrencyOverlay = None
         self.tray: TrayIcon = None
-        
+
         # State
         self.roi: Region = None
         self.last_found: List[str] = []
@@ -160,19 +174,63 @@ class Application:
         self._copy_user_requested = False
         self._currency_positioning_requested = False
         self._currency_positioning_enabled = False
-        self._quickcraft_positions: Dict[str, Dict[str, object]] = load_quickcraft_positions()
+        self._quickcraft_positions: Dict[str, Dict[str, object]] = (
+            load_quickcraft_positions()
+        )
         self._quickcraft_hotkey_map: Dict[str, str] = {}
-        self._quickcraft_global_hotkey: str = ''
+        self._quickcraft_global_hotkey: str = ""
         self._quickcraft_runtime_active: Optional[str] = None
         self._quickcraft_runtime_active_ids: Set[str] = set()
         self._currencies_cache: List[Dict] = []
-        self._hotkeys = HotkeyListener() if sys.platform.startswith('win') and HotkeyListener is not None else None
-        self._mouse: Optional[MouseListener] = MouseListener() if sys.platform.startswith('win') else None
-        self._mouse_clicks = QuickMouseListener() if sys.platform.startswith('win') and 'QuickMouseListener' in globals() and QuickMouseListener is not None else None
+        self._hotkeys = (
+            HotkeyListener()
+            if sys.platform.startswith("win") and HotkeyListener is not None
+            else None
+        )
+        self._mouse: Optional[MouseListener] = (
+            MouseListener() if sys.platform.startswith("win") else None
+        )
+        self._mouse_clicks = (
+            QuickMouseListener()
+            if sys.platform.startswith("win")
+            and "QuickMouseListener" in globals()
+            and QuickMouseListener is not None
+            else None
+        )
         self._focus_state_last: Optional[bool] = None
-        self._triple_ctrl_click_enabled = bool(self.settings.get("triple_ctrl_click_enabled", False))
+        self._last_allowed_hwnd = None
+        self._triple_ctrl_click_enabled = bool(
+            self.settings.get("triple_ctrl_click_enabled", False)
+        )
         self._triple_ctrl_click_active = False
-        # Double Ctrl press detection state
+        self._wasd_cfg = self.settings.get("wasd", {})
+        if not self._wasd_cfg:
+            self._wasd_cfg = {"enabled": bool(self.settings.get("wasd_enabled", False))}
+        self._wasd_enabled = bool(self._wasd_cfg.get("enabled", False))
+        self._wasd_top = int(self._wasd_cfg.get("top_offset", 0))
+        self._wasd_bot = int(self._wasd_cfg.get("bot_offset", 0))
+        self._wasd_left = int(self._wasd_cfg.get("left_offset", 0))
+        self._wasd_right = int(self._wasd_cfg.get("right_offset", 0))
+        self._wasd_movement_keys, self._wasd_toggle_hotkey = (
+            self._get_wasd_hotkey_config(self.settings.get("hotkeys", {}))
+        )
+        self._wasd_movement_hint = self._format_wasd_movement_hint(
+            self._wasd_movement_keys
+        )
+        self._wasd_toggle_hint = self._format_hotkey_tokens(self._wasd_toggle_hotkey)
+        hotkeys_cfg = self.settings.setdefault("hotkeys", {})
+        hotkeys_cfg["wasd"] = dict(self._wasd_movement_keys)
+        hotkeys_cfg["tool_wasd_toggle"] = list(self._wasd_toggle_hotkey)
+        self._wasd_controller = (
+            WasdController(
+                is_target_active=self._is_wasd_target_active,
+                on_toggle=self._handle_wasd_toggle,
+                movement_keys=self._wasd_movement_keys,
+                toggle_hotkey=self._wasd_toggle_hotkey,
+            )
+            if sys.platform.startswith("win") and WasdController is not None
+            else None
+        )
         self._ctrl_press_count: int = 0
         self._last_ctrl_press_time: float = 0.0
         self._ctrl_prev_held: bool = False
@@ -184,11 +242,11 @@ class Application:
         self._last_click_time: float = 0.0
         self._pending_click_currency_id: Optional[str] = None
         # Mega QoL settings
-        mq = self.settings.get('mega_qol', {}) or {}
-        self._mega_qol_enabled: bool = bool(mq.get('wheel_down_enabled', False))
-        self._mega_qol_seq_str: str = str(mq.get('wheel_down_sequence', '1,2,3,4'))
+        mq = self.settings.get("mega_qol", {}) or {}
+        self._mega_qol_enabled: bool = bool(mq.get("wheel_down_enabled", False))
+        self._mega_qol_seq_str: str = str(mq.get("wheel_down_sequence", "1,2,3,4"))
         try:
-            self._mega_qol_delay_ms: int = int(mq.get('wheel_down_delay_ms', 50))
+            self._mega_qol_delay_ms: int = int(mq.get("wheel_down_delay_ms", 50))
         except Exception:
             self._mega_qol_delay_ms = 50
         # Wheel burst suppression: emit once per scroll burst, rearm after 50ms of silence
@@ -196,7 +254,7 @@ class Application:
         self._mega_qol_last_wheel: float = 0.0
         # Focus-loss debounce for runtime overlays
         self._focus_loss_started: float = 0.0
-        
+
     def _has_effective_focus(self) -> bool:
         """Return True when functionality should be enabled.
 
@@ -213,33 +271,243 @@ class Application:
         except Exception:
             pass
         return self._is_allowed_process_active()
-        
+
+    def _is_wasd_target_active(self) -> bool:
+        if not self._focus_required:
+            return True
+        if sys.platform.startswith("win"):
+            try:
+                foreground_hwnd = ctypes.windll.user32.GetForegroundWindow()
+                if (
+                    foreground_hwnd
+                    and self._last_allowed_hwnd
+                    and int(foreground_hwnd) == int(self._last_allowed_hwnd)
+                ):
+                    return True
+            except Exception:
+                pass
+        return self._is_allowed_process_active()
+
+    def _handle_wasd_toggle(self) -> None:
+        root = getattr(self, "root", None)
+        if root is not None:
+            try:
+                root.after(0, self._do_wasd_toggle)
+                return
+            except Exception:
+                pass
+
+        self._wasd_enabled = not self._wasd_enabled
+        self._wasd_cfg["enabled"] = self._wasd_enabled
+        self.settings["wasd"] = self._wasd_cfg
+        save_settings(self.settings_path, self.settings)
+        if self._wasd_controller is not None:
+            self._wasd_controller.set_enabled(self._wasd_enabled)
+
+    def _do_wasd_toggle(self) -> None:
+        self._wasd_enabled = not self._wasd_enabled
+        self.hud._wasd_tab._enabled_var.set(self._wasd_enabled)
+        self._wasd_cfg["enabled"] = self._wasd_enabled
+        self.settings["wasd"] = self._wasd_cfg
+        save_settings(self.settings_path, self.settings)
+        self._apply_wasd_config(self._wasd_cfg)
+        self._show_notification(
+            "WASD ON" if self._wasd_enabled else "WASD OFF",
+            "#4CAF50" if self._wasd_enabled else "#F44336",
+        )
+
+    def _normalize_hotkey_token(self, token: object) -> str:
+        token_text = str(token or "").strip().replace("-", "_")
+        normalized = normalize_hotkey_name(token_text)
+        if normalized:
+            return normalized
+        return token_text.upper()
+
+    def _get_wasd_hotkey_config(
+        self, hotkeys_cfg: dict
+    ) -> Tuple[Dict[str, str], List[str]]:
+        defaults = {
+            "up": "W",
+            "left": "A",
+            "down": "S",
+            "right": "D",
+        }
+        movement_raw = (
+            hotkeys_cfg.get("wasd", {}) if isinstance(hotkeys_cfg, dict) else {}
+        )
+        movement: Dict[str, str] = {}
+        for direction, fallback in defaults.items():
+            candidate = fallback
+            if isinstance(movement_raw, dict):
+                candidate = movement_raw.get(direction, fallback)
+            normalized = self._normalize_hotkey_token(candidate)
+            if not normalized:
+                normalized = fallback
+            movement[direction] = normalized
+
+        toggle_raw = (
+            hotkeys_cfg.get("tool_wasd_toggle", ["GRAVE"])
+            if isinstance(hotkeys_cfg, dict)
+            else ["GRAVE"]
+        )
+        if isinstance(toggle_raw, str):
+            toggle_items = [
+                part.strip()
+                for part in toggle_raw.replace("+", " ").replace(",", " ").split()
+                if part.strip()
+            ]
+        elif isinstance(toggle_raw, list):
+            toggle_items = [
+                str(item).strip() for item in toggle_raw if str(item).strip()
+            ]
+        else:
+            toggle_items = []
+
+        toggle: List[str] = []
+        for token in toggle_items:
+            normalized = self._normalize_hotkey_token(token)
+            if normalized:
+                toggle.append(normalized)
+        if not toggle:
+            toggle = ["GRAVE"]
+
+        return movement, toggle
+
+    def _format_hotkey_tokens(self, tokens: List[str]) -> str:
+        names = {
+            "SHIFT": "Shift",
+            "CTRL": "Ctrl",
+            "CONTROL": "Ctrl",
+            "ALT": "Alt",
+            "GRAVE": "~",
+            "TILDE": "~",
+            "OEM_3": "~",
+        }
+        parts = []
+        for token in tokens:
+            key = str(token or "").strip().upper()
+            if not key:
+                continue
+            parts.append(names.get(key, key))
+        return "+".join(parts) if parts else "~"
+
+    def _format_wasd_movement_hint(self, movement: Dict[str, str]) -> str:
+        up = movement.get("up", "W")
+        left = movement.get("left", "A")
+        down = movement.get("down", "S")
+        right = movement.get("right", "D")
+        return f"{up}/{left}/{down}/{right}"
+
+    def _open_settings_location(self) -> None:
+        folder = os.path.dirname(os.path.abspath(self.settings_path))
+        if not folder:
+            folder = os.getcwd()
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(folder)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as exc:
+            print(f"[Config] Failed to open settings folder: {exc}")
+
+    def _show_notification(self, text: str, bg_color: str) -> None:
+        if hasattr(self, "_notif_win") and self._notif_win:
+            self._notif_win.destroy()
+            if hasattr(self, "_notif_timer") and self._notif_timer:
+                self.root.after_cancel(self._notif_timer)
+
+        import tkinter as tk
+
+        self._notif_win = tk.Toplevel(self.root)
+        self._notif_win.overrideredirect(True)
+        self._notif_win.attributes("-topmost", True)
+        self._notif_win.geometry("+20+20")
+        self._notif_win.configure(bg=bg_color)
+        lbl = tk.Label(
+            self._notif_win,
+            text=text,
+            bg=bg_color,
+            fg="black",
+            font=("Arial", 16, "bold"),
+            padx=10,
+            pady=5,
+        )
+        lbl.pack()
+
+        def hide():
+            if self._notif_win:
+                self._notif_win.destroy()
+                self._notif_win = None
+
+        self._notif_timer = self.root.after(1500, hide)
+
+    def _apply_wasd_config(self, cfg: dict) -> None:
+        self._wasd_enabled = bool(cfg.get("enabled", False))
+        self._wasd_top = int(cfg.get("top_offset", 0))
+        self._wasd_bot = int(cfg.get("bot_offset", 0))
+        self._wasd_left = int(cfg.get("left_offset", 0))
+        self._wasd_right = int(cfg.get("right_offset", 0))
+
+        if self._wasd_controller:
+            self._wasd_controller.set_enabled(self._wasd_enabled)
+            self._wasd_controller.set_offsets(
+                self._wasd_top, self._wasd_bot, self._wasd_left, self._wasd_right
+            )
+
+        if self._wasd_enabled:
+            self._start_wasd_controller()
+        else:
+            self._stop_wasd_controller()
+
+    def _start_wasd_controller(self) -> None:
+        if self._wasd_controller is None:
+            return
+        try:
+            self._wasd_controller.start()
+        except Exception as exc:
+            print(f"[WASD] Failed to start controller: {exc}")
+
+    def _stop_wasd_controller(self) -> None:
+        if self._wasd_controller is None:
+            return
+        try:
+            self._wasd_controller.stop()
+        except Exception as exc:
+            print(f"[WASD] Failed to stop controller: {exc}")
+
     def initialize(self, roi: Region) -> None:
         """
         Initialize application components.
-        
+
         Args:
             roi: Initial ROI region
         """
         self.roi = roi
-        
+
         # Initialize capture
         self.capture = MSSCapture()
-        
+
         # Initialize matchers
         raw_templates_dir = self.settings.get("templates_dir", "assets/templates")
         templates_dir = resource_path(raw_templates_dir)
         threshold = float(self.settings.get("threshold", 0.9))
-        
+
         self.matcher = TemplateMatcher(templates_dir=templates_dir, threshold=threshold)
         self.lib_matcher = LibraryMatcher(threshold=threshold)
-        
+
         print(f"Загружено шаблонов: {len(self.matcher.templates)} из '{templates_dir}'")
         if len(self.matcher.templates) > 0:
-            print("Список шаблонов:", ", ".join([t[0] for t in self.matcher.get_template_infos()]))
+            print(
+                "Список шаблонов:",
+                ", ".join([t[0] for t in self.matcher.get_template_infos()]),
+            )
         else:
-            print(f"Шаблоны не найдены в каталоге '{templates_dir}'. Добавьте .png/.jpg, вырезанные ровно по иконке.")
-            
+            print(
+                f"Шаблоны не найдены в каталоге '{templates_dir}'. Добавьте .png/.jpg, вырезанные ровно по иконке."
+            )
+
         # Initialize UI
         ui_cfg = self.settings.get("ui", {})
         dock_cfg = ui_cfg.get("dock_position") or {}
@@ -263,10 +531,17 @@ class Application:
             mega_qol_enabled=self._mega_qol_enabled,
             mega_qol_sequence=self._mega_qol_seq_str,
             mega_qol_delay_ms=self._mega_qol_delay_ms,
+            wasd_enabled=self._wasd_enabled,
+            wasd_top_offset=self._wasd_top,
+            wasd_bot_offset=self._wasd_bot,
+            wasd_left_offset=self._wasd_left,
+            wasd_right_offset=self._wasd_right,
+            wasd_movement_hint=self._wasd_movement_hint,
+            wasd_toggle_hint=self._wasd_toggle_hint,
         )
-        
+
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
-        
+
         # Initialize overlays
         self.overlay = OverlayHighlighter(self.hud.get_root())
         self.mirrors = IconMirrorsOverlay(self.hud.get_root())
@@ -274,32 +549,32 @@ class Application:
         self.currency_overlay = CurrencyOverlay(self.hud.get_root())
         self.hud.set_currency_positioning(False)
         self._currencies_cache = load_currencies()
-        
+
         # Initialize tray
         self.tray = TrayIcon()
         self.tray.start()
-        
 
         # Initialize focus-dependent state
         self._scan_user_requested = self.hud.get_scanning_enabled()
         self._copy_user_requested = self.hud.get_copy_area_enabled()
+        self._apply_wasd_config(self.hud.get_wasd_config())
         self._focus_state_last = None
         self._last_allowed_hwnd = None
-        self.hud.set_status_message('')
+        self.hud.set_status_message("")
         try:
             self.hud.set_dock_visible(True)
         except Exception:
             pass
-        
+
     def _load_allowed_processes(self) -> Set[str]:
         """Load allowed process names from configuration file."""
         processes: Set[str] = set()
 
         try:
-            with open(ALLOWED_PROCESSES_FILE, 'r', encoding='utf-8') as fh:
+            with open(ALLOWED_PROCESSES_FILE, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, dict):
-                items = data.get('processes', [])
+                items = data.get("processes", [])
             else:
                 items = data
             for item in items or []:
@@ -312,9 +587,9 @@ class Application:
 
     def _restore_allowed_focus(self) -> None:
         """Attempt to return focus to the last allowed window."""
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
-        hwnd = getattr(self, '_last_allowed_hwnd', None)
+        hwnd = getattr(self, "_last_allowed_hwnd", None)
         if not hwnd:
             return
         try:
@@ -333,26 +608,26 @@ class Application:
                 name = os.path.basename(candidate).strip().lower()
                 if name:
                     names.add(name)
-                    if name.endswith('python.exe'):
-                        names.add('pythonw.exe')
-                    elif name.endswith('pythonw.exe'):
-                        names.add('python.exe')
+                    if name.endswith("python.exe"):
+                        names.add("pythonw.exe")
+                    elif name.endswith("pythonw.exe"):
+                        names.add("python.exe")
             except Exception:
                 continue
 
         if not names:
-            names.add('python.exe')
-            names.add('pythonw.exe')
+            names.add("python.exe")
+            names.add("pythonw.exe")
 
         return names
 
-    
-            
     def run(self) -> None:
         """Run main application loop."""
         scan_interval_ms = int(self.settings.get("scan_interval_ms", 50))
 
-        print(f"ROI: left={self.roi.left}, top={self.roi.top}, width={self.roi.width}, height={self.roi.height}")
+        print(
+            f"ROI: left={self.roi.left}, top={self.roi.top}, width={self.roi.width}, height={self.roi.height}"
+        )
         print(f"Порог совпадения: {self.matcher.threshold}")
         print(f"Интервал опроса: {scan_interval_ms} мс")
 
@@ -362,103 +637,138 @@ class Application:
                 game_in_focus = self._is_allowed_process_active()
                 effective_focus = self._has_effective_focus()
 
-                if event == 'EXIT' or self.tray.is_exit_requested():
+                if event == "EXIT" or self.tray.is_exit_requested():
                     break
 
                 refresh_copy = False
                 skip_frame_processing = False
 
-                if event == 'LIBRARY_UPDATED':
+                if event == "LIBRARY_UPDATED":
                     try:
                         self.lib_matcher.refresh()
                     except Exception:
                         pass
                     skip_frame_processing = True
 
-                elif event == 'COPY_UPDATED':
+                elif event == "COPY_UPDATED":
                     refresh_copy = True
                     skip_frame_processing = True
 
-                elif event == 'CURRENCY_UPDATED':
+                elif event == "CURRENCY_UPDATED":
                     self._currencies_cache = load_currencies()
-                    active_ids = {str(entry.get('id')) for entry in self._currencies_cache if entry.get('id')}
+                    active_ids = {
+                        str(entry.get("id"))
+                        for entry in self._currencies_cache
+                        if entry.get("id")
+                    }
                     self._trim_quickcraft_positions(active_ids)
                     self._register_quickcraft_hotkeys()
-                    if self._quickcraft_runtime_active and self._quickcraft_runtime_active not in self._quickcraft_positions:
+                    if (
+                        self._quickcraft_runtime_active
+                        and self._quickcraft_runtime_active
+                        not in self._quickcraft_positions
+                    ):
                         self._hide_quickcraft_overlay()
                     if self._currency_positioning_enabled:
                         self._enable_currency_positioning()
                     if self._quickcraft_runtime_active:
-                        self._show_quickcraft_overlay(self._quickcraft_runtime_active, force=True)
+                        self._show_quickcraft_overlay(
+                            self._quickcraft_runtime_active, force=True
+                        )
                     skip_frame_processing = True
 
-                elif event == 'QUICKCRAFT_UPDATED':
+                elif event == "QUICKCRAFT_UPDATED":
                     self._reload_quickcraft_data()
                     skip_frame_processing = True
 
-                elif event == 'SELECT_ROI':
+                elif event == "SELECT_ROI":
                     self._handle_roi_selection()
                     skip_frame_processing = True
 
-                elif event == 'SCAN_ON':
+                elif event == "SCAN_ON":
                     self._scan_user_requested = True
 
-                elif event == 'SCAN_OFF':
+                elif event == "SCAN_OFF":
                     self._scan_user_requested = False
 
-                elif event == 'COPY_AREA_TOGGLE':
+                elif event == "COPY_AREA_TOGGLE":
                     self._copy_user_requested = self.hud.get_copy_area_enabled()
                     refresh_copy = True
 
-                elif event == 'FOCUS_POLICY_CHANGED':
+                elif event == "FOCUS_POLICY_CHANGED":
                     self._focus_required = self.hud.get_focus_required()
-                    self.settings['require_game_focus'] = self._focus_required
+                    self.settings["require_game_focus"] = self._focus_required
                     save_settings(self.settings_path, self.settings)
                     refresh_copy = True
 
-                elif event == 'DOCK_MOVED':
+                elif event == "DOCK_MOVED":
                     self._update_dock_position_settings()
 
-                elif event == 'DOCK_INTERACTION':
+                elif event == "DOCK_INTERACTION":
                     # Do not change OS window focus on dock interaction
                     skip_frame_processing = True
 
-                elif event == 'TRIPLE_CTRL_CLICK_CHANGED':
-                    self._triple_ctrl_click_enabled = self.hud.get_triple_ctrl_click_enabled()
-                    self.settings['triple_ctrl_click_enabled'] = self._triple_ctrl_click_enabled
+                elif event == "TRIPLE_CTRL_CLICK_CHANGED":
+                    self._triple_ctrl_click_enabled = (
+                        self.hud.get_triple_ctrl_click_enabled()
+                    )
+                    self.settings["triple_ctrl_click_enabled"] = (
+                        self._triple_ctrl_click_enabled
+                    )
                     save_settings(self.settings_path, self.settings)
                     # If feature disabled while active, stop emulation
-                    if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
+                    if (
+                        not self._triple_ctrl_click_enabled
+                        and self._triple_ctrl_click_active
+                    ):
                         self._stop_mouse_simulation()
 
-                elif event == 'MEGA_QOL_CHANGED':
+                elif event == "MEGA_QOL_CHANGED":
                     cfg = self.hud.get_mega_qol_config()
-                    self._mega_qol_enabled = bool(cfg.get('enabled'))
-                    self._mega_qol_seq_str = str(cfg.get('sequence') or '')
+                    self._mega_qol_enabled = bool(cfg.get("enabled"))
+                    self._mega_qol_seq_str = str(cfg.get("sequence") or "")
                     try:
-                        self._mega_qol_delay_ms = int(cfg.get('delay_ms') or 50)
+                        self._mega_qol_delay_ms = int(cfg.get("delay_ms") or 50)
                     except Exception:
                         self._mega_qol_delay_ms = 50
-                    self.settings.setdefault('mega_qol', {})
-                    self.settings['mega_qol'].update({
-                        'wheel_down_enabled': self._mega_qol_enabled,
-                        'wheel_down_sequence': self._mega_qol_seq_str,
-                        'wheel_down_delay_ms': int(self._mega_qol_delay_ms),
-                    })
+                    self.settings.setdefault("mega_qol", {})
+                    self.settings["mega_qol"].update(
+                        {
+                            "wheel_down_enabled": self._mega_qol_enabled,
+                            "wheel_down_sequence": self._mega_qol_seq_str,
+                            "wheel_down_delay_ms": int(self._mega_qol_delay_ms),
+                        }
+                    )
                     # Sync double-ctrl emulation from Mega QoL tab
-                    self._triple_ctrl_click_enabled = self.hud.get_triple_ctrl_click_enabled()
-                    self.settings['triple_ctrl_click_enabled'] = self._triple_ctrl_click_enabled
-                    if not self._triple_ctrl_click_enabled and self._triple_ctrl_click_active:
+                    self._triple_ctrl_click_enabled = (
+                        self.hud.get_triple_ctrl_click_enabled()
+                    )
+                    self.settings["triple_ctrl_click_enabled"] = (
+                        self._triple_ctrl_click_enabled
+                    )
+                    if (
+                        not self._triple_ctrl_click_enabled
+                        and self._triple_ctrl_click_active
+                    ):
                         self._stop_mouse_simulation()
                     save_settings(self.settings_path, self.settings)
 
+                elif event == "WASD_CHANGED":
+                    self._wasd_cfg = self.hud.get_wasd_config()
+                    self._apply_wasd_config(self._wasd_cfg)
+                    self.settings["wasd"] = self._wasd_cfg
+                    save_settings(self.settings_path, self.settings)
 
-                elif event == 'CURRENCY_POSITIONING_ON':
+                elif event == "WASD_OPEN_CONFIG":
+                    self._open_settings_location()
+                    skip_frame_processing = True
+
+                elif event == "CURRENCY_POSITIONING_ON":
                     self._currency_positioning_requested = True
                     self._enable_currency_positioning()
                     skip_frame_processing = True
 
-                elif event == 'CURRENCY_POSITIONING_OFF':
+                elif event == "CURRENCY_POSITIONING_OFF":
                     self._currency_positioning_requested = False
                     self._disable_currency_positioning(save_changes=True)
                     skip_frame_processing = True
@@ -499,7 +809,7 @@ class Application:
 
         finally:
             self._cleanup()
-            
+
     def _handle_overlay_toggle(self) -> None:
         """Handle overlay enable/disable."""
         # Hide overlay when effective focus is false
@@ -515,11 +825,13 @@ class Application:
         overlay_enabled_curr = self.hud.get_overlay_enabled()
         if overlay_enabled_curr != self.overlay_enabled_last:
             if overlay_enabled_curr:
-                self.overlay.show((self.roi.left, self.roi.top, self.roi.width, self.roi.height))
+                self.overlay.show(
+                    (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+                )
             else:
                 self.overlay.hide()
             self.overlay_enabled_last = overlay_enabled_curr
-            
+
     def _handle_positioning_toggle(self) -> None:
         """Handle positioning mode toggle."""
         positioning_enabled_curr = self.hud.get_positioning_enabled()
@@ -534,64 +846,66 @@ class Application:
             except Exception as e:
                 print("[UI] Ошибка переключения позиционирования:", e)
             self.positioning_enabled_last = positioning_enabled_curr
-            
+
     def _handle_roi_selection(self) -> None:
         """Handle ROI selection."""
         selected = select_roi(self.hud.get_root())
         if selected is not None:
             left, top, width, height = selected
             self.roi = Region(left=left, top=top, width=width, height=height)
-            
+
             # Save to settings
-            self.settings.setdefault('roi', {})
-            self.settings['roi']['mode'] = 'absolute'
-            self.settings['roi']['left'] = left
-            self.settings['roi']['top'] = top
-            self.settings['roi']['width'] = width
-            self.settings['roi']['height'] = height
+            self.settings.setdefault("roi", {})
+            self.settings["roi"]["mode"] = "absolute"
+            self.settings["roi"]["left"] = left
+            self.settings["roi"]["top"] = top
+            self.settings["roi"]["width"] = width
+            self.settings["roi"]["height"] = height
             save_settings(self.settings_path, self.settings)
-            
+
             self.hud.set_roi_info(left, top, width, height)
-            
+
             if self.overlay_enabled_last:
                 self.overlay.update((left, top, width, height))
-                
+
     def _scan_frame(self) -> None:
         """Scan current frame for buffs."""
         frame_bgr = self.capture.grab(self.roi)
         if frame_bgr is None:
             self.hud.update([])
             return
-            
+
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         found = self.matcher.match(gray)
         lib_results = self.lib_matcher.match(gray)
-        
+
         self.hud.update(found)
-        
+
         try:
             self.mirrors.update(
                 lib_results,
                 frame_bgr,
-                (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+                (self.roi.left, self.roi.top, self.roi.width, self.roi.height),
             )
         except Exception:
             pass
-            
+
         if found != self.last_found:
             print("Найдены шаблоны:", ", ".join(found) if found else "—")
             self.last_found = found
-            
+
     def _clear_results(self) -> None:
         """Clear scan results when scanning is disabled."""
         if self.last_found:
             print("Найдены шаблоны: —")
             self.last_found = []
-            
+
         self.hud.update([])
-        
+
         try:
-            self.mirrors.update([], None, (self.roi.left, self.roi.top, self.roi.width, self.roi.height))
+            self.mirrors.update(
+                [], None, (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+            )
         except Exception:
             pass
 
@@ -599,9 +913,7 @@ class Application:
         """Refresh copy area overlays after configuration changes."""
         try:
             self.mirrors.update(
-                [],
-                None,
-                (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
+                [], None, (self.roi.left, self.roi.top, self.roi.width, self.roi.height)
             )
         except Exception:
             pass
@@ -624,12 +936,12 @@ class Application:
             if cid not in valid_ids:
                 continue
             try:
-                left = int(cfg.get('left', 0))
-                top = int(cfg.get('top', 0))
+                left = int(cfg.get("left", 0))
+                top = int(cfg.get("top", 0))
             except Exception:
                 left, top = 0, 0
-            hotkey = str(cfg.get('hotkey', '') or '').strip()
-            trimmed[cid] = {'left': left, 'top': top, 'hotkey': hotkey}
+            hotkey = str(cfg.get("hotkey", "") or "").strip()
+            trimmed[cid] = {"left": left, "top": top, "hotkey": hotkey}
         self._quickcraft_positions = trimmed
 
     def _register_quickcraft_hotkeys(self) -> None:
@@ -637,9 +949,9 @@ class Application:
         mapping: Dict[str, str] = {}
         for cid, cfg in (self._quickcraft_positions or {}).items():
             try:
-                raw = str(cfg.get('hotkey', '') or '').strip()
+                raw = str(cfg.get("hotkey", "") or "").strip()
             except Exception:
-                raw = ''
+                raw = ""
             token = normalize_hotkey_name(raw)
             if not token:
                 continue
@@ -648,12 +960,16 @@ class Application:
         try:
             self._quickcraft_global_hotkey = normalize_hotkey_name(load_global_hotkey())
         except Exception:
-            self._quickcraft_global_hotkey = ''
+            self._quickcraft_global_hotkey = ""
 
     def _reload_quickcraft_data(self) -> None:
         self._quickcraft_positions = load_quickcraft_positions()
         if self._currencies_cache:
-            active_ids = {str(entry.get('id')) for entry in self._currencies_cache if entry.get('id')}
+            active_ids = {
+                str(entry.get("id"))
+                for entry in self._currencies_cache
+                if entry.get("id")
+            }
             self._trim_quickcraft_positions(active_ids)
         self._register_quickcraft_hotkeys()
         if self._quickcraft_runtime_active:
@@ -669,40 +985,42 @@ class Application:
         for cid, cfg in self._quickcraft_positions.items():
             cid = str(cid)
             try:
-                left = int(cfg.get('left', 0))
-                top = int(cfg.get('top', 0))
+                left = int(cfg.get("left", 0))
+                top = int(cfg.get("top", 0))
             except Exception:
                 left, top = 0, 0
-            mapping[cid] = {'left': left, 'top': top}
+            mapping[cid] = {"left": left, "top": top}
 
         # Fill missing or zero positions from currency capture defaults
-        for item in (self._currencies_cache or []):
-            cid = str(item.get('id') or '')
+        for item in self._currencies_cache or []:
+            cid = str(item.get("id") or "")
             if not cid:
                 continue
-            cap = item.get('capture') or {}
-            cap_left = int(cap.get('left', 0))
-            cap_top = int(cap.get('top', 0))
+            cap = item.get("capture") or {}
+            cap_left = int(cap.get("left", 0))
+            cap_top = int(cap.get("top", 0))
             if cid not in mapping:
-                mapping[cid] = {'left': cap_left, 'top': cap_top}
+                mapping[cid] = {"left": cap_left, "top": cap_top}
             else:
-                if mapping[cid].get('left', 0) == 0 and mapping[cid].get('top', 0) == 0:
-                    mapping[cid] = {'left': cap_left, 'top': cap_top}
+                if mapping[cid].get("left", 0) == 0 and mapping[cid].get("top", 0) == 0:
+                    mapping[cid] = {"left": cap_left, "top": cap_top}
         return mapping
 
-    def _build_position_map_from_anchor(self, anchor_left: int, anchor_top: int) -> Dict[str, Dict[str, int]]:
+    def _build_position_map_from_anchor(
+        self, anchor_left: int, anchor_top: int
+    ) -> Dict[str, Dict[str, int]]:
         """Build absolute positions from saved OFFSETS relative to an anchor square."""
         mapping: Dict[str, Dict[str, int]] = {}
         for cid, cfg in self._quickcraft_positions.items():
             cid = str(cid)
             try:
-                off_left = int(cfg.get('left', 0))
-                off_top = int(cfg.get('top', 0))
+                off_left = int(cfg.get("left", 0))
+                off_top = int(cfg.get("top", 0))
             except Exception:
                 off_left, off_top = 0, 0
             mapping[cid] = {
-                'left': int(anchor_left) + off_left,
-                'top': int(anchor_top) + off_top,
+                "left": int(anchor_left) + off_left,
+                "top": int(anchor_top) + off_top,
             }
         return mapping
 
@@ -717,7 +1035,7 @@ class Application:
 
     def _get_currency_by_id(self, currency_id: str) -> Optional[Dict]:
         for item in self._currencies_cache:
-            if item.get('id') == currency_id:
+            if item.get("id") == currency_id:
                 return item
         try:
             self._currencies_cache = load_currencies()
@@ -725,7 +1043,7 @@ class Application:
             self._currencies_cache = []
             return None
         for item in self._currencies_cache:
-            if item.get('id') == currency_id:
+            if item.get("id") == currency_id:
                 return item
         return None
 
@@ -743,8 +1061,8 @@ class Application:
         position_cfg = self._quickcraft_positions.get(currency_id, {})
         position_map = {
             currency_id: {
-                'left': int(position_cfg.get('left', 0)),
-                'top': int(position_cfg.get('top', 0)),
+                "left": int(position_cfg.get("left", 0)),
+                "top": int(position_cfg.get("top", 0)),
             }
         }
         self.currency_overlay.activate_runtime([currency], position_map)
@@ -788,7 +1106,9 @@ class Application:
             return
 
         # Show all active currencies with saved positions
-        currencies = [c for c in (self._currencies_cache or load_currencies()) if c.get('active')]
+        currencies = [
+            c for c in (self._currencies_cache or load_currencies()) if c.get("active")
+        ]
         # Build absolute positions using Win32 mouse coordinates as the center square
         try:
             cur_x, cur_y = win32api.GetCursorPos()
@@ -801,7 +1121,7 @@ class Application:
         show_list = []
         ids: Set[str] = set()
         for c in currencies:
-            cid = str(c.get('id'))
+            cid = str(c.get("id"))
             if not cid:
                 continue
             show_list.append(c)
@@ -836,37 +1156,37 @@ class Application:
         if not token:
             return None
         t = token.upper()
-        if t.startswith('F') and t[1:].isdigit():
+        if t.startswith("F") and t[1:].isdigit():
             n = int(t[1:])
             if 1 <= n <= 24:
-                return getattr(win32con, f'VK_F{n}', None)
-        if len(t) == 1 and 'A' <= t <= 'Z':
+                return getattr(win32con, f"VK_F{n}", None)
+        if len(t) == 1 and "A" <= t <= "Z":
             return ord(t)
-        if len(t) == 1 and '0' <= t <= '9':
+        if len(t) == 1 and "0" <= t <= "9":
             return ord(t)
         mapping = {
-            'ESC': win32con.VK_ESCAPE,
-            'ENTER': win32con.VK_RETURN,
-            'SPACE': win32con.VK_SPACE,
-            'TAB': win32con.VK_TAB,
-            'UP': win32con.VK_UP,
-            'DOWN': win32con.VK_DOWN,
-            'LEFT': win32con.VK_LEFT,
-            'RIGHT': win32con.VK_RIGHT,
-            'HOME': win32con.VK_HOME,
-            'END': win32con.VK_END,
-            'PAGE_UP': win32con.VK_PRIOR,
-            'PAGE_DOWN': win32con.VK_NEXT,
-            'INSERT': win32con.VK_INSERT,
-            'DELETE': win32con.VK_DELETE,
-            'CTRL': win32con.VK_CONTROL,
-            'ALT': win32con.VK_MENU,
-            'SHIFT': win32con.VK_SHIFT,
+            "ESC": win32con.VK_ESCAPE,
+            "ENTER": win32con.VK_RETURN,
+            "SPACE": win32con.VK_SPACE,
+            "TAB": win32con.VK_TAB,
+            "UP": win32con.VK_UP,
+            "DOWN": win32con.VK_DOWN,
+            "LEFT": win32con.VK_LEFT,
+            "RIGHT": win32con.VK_RIGHT,
+            "HOME": win32con.VK_HOME,
+            "END": win32con.VK_END,
+            "PAGE_UP": win32con.VK_PRIOR,
+            "PAGE_DOWN": win32con.VK_NEXT,
+            "INSERT": win32con.VK_INSERT,
+            "DELETE": win32con.VK_DELETE,
+            "CTRL": win32con.VK_CONTROL,
+            "ALT": win32con.VK_MENU,
+            "SHIFT": win32con.VK_SHIFT,
         }
         return mapping.get(t)
 
     def _poll_hotkeys_fallback(self) -> None:
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
         now = time.time()
         # poll only keys that are mapped
@@ -913,7 +1233,10 @@ class Application:
             self._pending_click_currency_id = None
             return
         # Require either global (multiple) or single runtime overlay active
-        if not self._quickcraft_runtime_active_ids and not self._quickcraft_runtime_active:
+        if (
+            not self._quickcraft_runtime_active_ids
+            and not self._quickcraft_runtime_active
+        ):
             self._pending_click_currency_id = None
             return
         # Prefer low-level mouse hook for reliable click detection
@@ -923,7 +1246,7 @@ class Application:
             events = []
         now = time.time()
         for ev in events:
-            if ev == 'LBUTTON_DOWN':
+            if ev == "LBUTTON_DOWN":
                 try:
                     hovered_id = self.currency_overlay.get_hovered_currency_id()
                 except Exception:
@@ -980,12 +1303,12 @@ class Application:
     def _execute_quickcraft_for(self, hovered_id: str) -> None:
         # Determine SOURCE location from the currency's original capture rect (true source)
         cur = self._get_currency_by_id(str(hovered_id)) or {}
-        cap = cur.get('capture', {}) if isinstance(cur, dict) else {}
+        cap = cur.get("capture", {}) if isinstance(cur, dict) else {}
         try:
-            src_left = int(cap.get('left', 0))
-            src_top = int(cap.get('top', 0))
-            w = max(1, int(cap.get('width', 1)))
-            h = max(1, int(cap.get('height', 1)))
+            src_left = int(cap.get("left", 0))
+            src_top = int(cap.get("top", 0))
+            w = max(1, int(cap.get("width", 1)))
+            h = max(1, int(cap.get("height", 1)))
         except Exception:
             src_left, src_top, w, h = 0, 0, 32, 32
         cx = int(src_left + w // 2)
@@ -1028,14 +1351,14 @@ class Application:
             for cid, pos in intermediate.items():
                 cid_key = str(cid)
                 cfg = self._quickcraft_positions.get(cid_key, {})
-                cfg['left'] = int(pos.get('left', 0))
-                cfg['top'] = int(pos.get('top', 0))
-                cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
+                cfg["left"] = int(pos.get("left", 0))
+                cfg["top"] = int(pos.get("top", 0))
+                cfg["hotkey"] = str(cfg.get("hotkey", "") or "").strip()
                 self._quickcraft_positions[cid_key] = cfg
 
         currencies = load_currencies()
         self._currencies_cache = currencies
-        active_ids = {str(entry.get('id')) for entry in currencies if entry.get('id')}
+        active_ids = {str(entry.get("id")) for entry in currencies if entry.get("id")}
         self._trim_quickcraft_positions(active_ids)
 
         try:
@@ -1059,18 +1382,20 @@ class Application:
 
         updated = {}
         try:
-            updated = self.currency_overlay.disable_positioning(save_changes=save_changes)
+            updated = self.currency_overlay.disable_positioning(
+                save_changes=save_changes
+            )
         except Exception as exc:
             print(f"[QuickCraft] Failed to disable positioning: {exc}")
 
         if save_changes:
             if updated:
                 # Extract center anchor from special window if present
-                center = updated.pop('__center__', None)
+                center = updated.pop("__center__", None)
                 if center is not None:
                     try:
-                        a_left = int(center.get('left', 0))
-                        a_top = int(center.get('top', 0))
+                        a_left = int(center.get("left", 0))
+                        a_top = int(center.get("top", 0))
                     except Exception:
                         a_left, a_top = self._get_center_anchor()
                 else:
@@ -1079,28 +1404,35 @@ class Application:
                 for cid, pos in updated.items():
                     cid_key = str(cid)
                     try:
-                        abs_left = int(pos.get('left', 0))
-                        abs_top = int(pos.get('top', 0))
+                        abs_left = int(pos.get("left", 0))
+                        abs_top = int(pos.get("top", 0))
                     except Exception:
                         abs_left, abs_top = 0, 0
                     off_left = abs_left - a_left
                     off_top = abs_top - a_top
                     cfg = self._quickcraft_positions.get(cid_key, {})
-                    cfg['left'] = int(off_left)
-                    cfg['top'] = int(off_top)
-                    cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
+                    cfg["left"] = int(off_left)
+                    cfg["top"] = int(off_top)
+                    cfg["hotkey"] = str(cfg.get("hotkey", "") or "").strip()
                     self._quickcraft_positions[cid_key] = cfg
             currencies = load_currencies()
             self._currencies_cache = currencies
-            active_ids = {str(entry.get('id')) for entry in currencies if entry.get('id')}
+            active_ids = {
+                str(entry.get("id")) for entry in currencies if entry.get("id")
+            }
             self._trim_quickcraft_positions(active_ids)
             try:
                 save_quickcraft_positions(self._quickcraft_positions)
             except Exception as exc:
                 print(f"[QuickCraft] Failed to save positions: {exc}")
             self._register_quickcraft_hotkeys()
-            if self._quickcraft_runtime_active and self._quickcraft_runtime_active in self._quickcraft_positions:
-                self._show_quickcraft_overlay(self._quickcraft_runtime_active, force=True)
+            if (
+                self._quickcraft_runtime_active
+                and self._quickcraft_runtime_active in self._quickcraft_positions
+            ):
+                self._show_quickcraft_overlay(
+                    self._quickcraft_runtime_active, force=True
+                )
 
         self._currency_positioning_enabled = False
         self.hud.set_currency_positioning(False)
@@ -1111,7 +1443,7 @@ class Application:
         Double press (within 300ms) starts emulation. Releasing Ctrl stops it.
         We detect only rising edges (Up -> Down) to avoid auto-repeat while holding Ctrl.
         """
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
 
         try:
@@ -1152,27 +1484,30 @@ class Application:
 
     def _start_mouse_simulation(self) -> None:
         """Start simulating continuous left mouse button clicks every 20ms."""
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
         try:
             import threading
+
             # Set active first to avoid race on thread start
             self._triple_ctrl_click_active = True
             self.hud.set_click_emulation_state(True)
-            self._mouse_simulation_thread = threading.Thread(target=self._mouse_click_loop, daemon=True)
+            self._mouse_simulation_thread = threading.Thread(
+                target=self._mouse_click_loop, daemon=True
+            )
             self._mouse_simulation_thread.start()
         except Exception as e:
             print(f"[Double Ctrl] Error starting mouse simulation: {e}")
 
     def _stop_mouse_simulation(self) -> None:
         """Stop simulating left mouse button clicks."""
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
         try:
             self._triple_ctrl_click_active = False
             self.hud.set_click_emulation_state(False)
             # Wait a bit for the thread to stop
-            if hasattr(self, '_mouse_simulation_thread'):
+            if hasattr(self, "_mouse_simulation_thread"):
                 self._mouse_simulation_thread.join(timeout=0.1)
         except Exception as e:
             print(f"[Double Ctrl] Error stopping mouse simulation: {e}")
@@ -1233,7 +1568,7 @@ class Application:
         if game_in_focus:
             self._focus_loss_started = 0.0
             if self._focus_state_last is False:
-                self.hud.set_status_message('')
+                self.hud.set_status_message("")
             # Keep user's requested toggles; only apply effective overlay state
             self.mirrors.set_copy_enabled(self._copy_user_requested)
         else:
@@ -1251,10 +1586,10 @@ class Application:
                 if self._focus_state_last in (True, None):
                     self.hud.set_status_message(
                         t(
-                            'status.game_focus_required',
-                            'Focus the Path of Exile window to resume.',
+                            "status.game_focus_required",
+                            "Focus the Path of Exile window to resume.",
                         ),
-                        level='warning',
+                        level="warning",
                     )
                 if long_loss and self.overlay_enabled_last:
                     try:
@@ -1271,20 +1606,23 @@ class Application:
                     pass
 
         self._focus_state_last = game_in_focus
-    
+
     def _is_allowed_process_active(self) -> bool:
         """Check if one of the allowed game processes is in foreground (focus)."""
         foreground_process = get_foreground_process_name()
-        
+
         if foreground_process is None:
             # Can't determine - assume not active
             return False
-        
+
         normalized = foreground_process.strip().lower()
         is_game_focused = normalized in self.allowed_processes
-        
+
         # Debug: print when state changes
-        if not hasattr(self, '_last_foreground') or self._last_foreground != foreground_process:
+        if (
+            not hasattr(self, "_last_foreground")
+            or self._last_foreground != foreground_process
+        ):
             if is_game_focused:
                 print(f"[Game Focus] Game in focus: {foreground_process}")
             self._last_foreground = foreground_process
@@ -1295,11 +1633,13 @@ class Application:
                     self._last_allowed_hwnd = hwnd
             except Exception:
                 pass
-        
+
         return is_game_focused
-            
+
     def _cleanup(self) -> None:
         """Cleanup application resources."""
+        self._stop_wasd_controller()
+
         try:
             self._disable_currency_positioning(save_changes=True)
         except Exception:
@@ -1317,23 +1657,23 @@ class Application:
                 pass
 
         self.hud.close()
-        
+
         try:
             self.overlay.hide()
             self.overlay.close()
         except Exception:
             pass
-            
+
         try:
             self.mirrors.disable_positioning_mode(save_changes=True)
         except Exception:
             pass
-            
+
         try:
             self.mirrors.close()
         except Exception:
             pass
-            
+
         try:
             if self.currency_overlay is not None:
                 self.currency_overlay.close()
@@ -1344,18 +1684,18 @@ class Application:
             self.tray.stop()
         except Exception:
             pass
-            
+
         self.capture.close()
         try:
-            if hasattr(self, '_mouse_clicks') and self._mouse_clicks is not None:
+            if hasattr(self, "_mouse_clicks") and self._mouse_clicks is not None:
                 self._mouse_clicks.stop()
         except Exception:
             pass
 
     def _parse_sequence_tokens(self, seq: str) -> list[str]:
         tokens: list[str] = []
-        raw = (seq or '').replace(';', ',').replace(' ', ',')
-        for part in raw.split(','):
+        raw = (seq or "").replace(";", ",").replace(" ", ",")
+        for part in raw.split(","):
             tok = part.strip().upper()
             if tok:
                 tokens.append(tok)
@@ -1381,7 +1721,7 @@ class Application:
                 time.sleep(delay)
 
     def _process_mega_qol_wheel(self, focus_active: bool) -> None:
-        if not sys.platform.startswith('win') or self._mouse is None:
+        if not sys.platform.startswith("win") or self._mouse is None:
             return
         # Always poll to avoid queue growth even when not focused/disabled
         try:
@@ -1392,7 +1732,7 @@ class Application:
         any_down = False
         now = time.time()
         for evt in events:
-            if evt == 'WHEEL_DOWN':
+            if evt == "WHEEL_DOWN":
                 any_down = True
                 self._mega_qol_last_wheel = now
 
@@ -1410,4 +1750,3 @@ class Application:
                 self._run_mega_qol_sequence()
             except Exception:
                 pass
-

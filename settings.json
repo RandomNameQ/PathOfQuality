@@ -23,11 +23,30 @@
   },
   "language": "en",
   "templates_dir": "assets/templates",
+  "wasd": {
+    "enabled": false,
+    "top_offset": 50,
+    "bot_offset": 0,
+    "left_offset": 0,
+    "right_offset": 0
+  },
+  "hotkeys": {
+    "tool_wasd_toggle": [
+      "GRAVE"
+    ],
+    "wasd": {
+      "up": "W",
+      "left": "A",
+      "down": "S",
+      "right": "D"
+    }
+  },
   "triple_ctrl_click_enabled": true,
   "mega_qol": {
     "wheel_down_enabled": true,
     "wheel_down_sequence": "W,1",
     "wheel_down_delay_ms": 50
   },
-  "mirror_mode": "auto"
+  "mirror_mode": "auto",
+  "wasd_enabled": true
 }
