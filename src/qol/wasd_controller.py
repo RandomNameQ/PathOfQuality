@@ -54,6 +54,40 @@ INPUT_MOUSE = 0
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 
+# System cursor constants
+SPI_SETCURSORS = 0x0057
+OCR_NORMAL = 32512
+OCR_IBEAM = 32513
+OCR_WAIT = 32514
+OCR_CROSS = 32515
+OCR_UP = 32516
+OCR_SIZENWSE = 32642
+OCR_SIZENESW = 32643
+OCR_SIZEWE = 32644
+OCR_SIZENS = 32645
+OCR_SIZEALL = 32646
+OCR_NO = 32648
+OCR_HAND = 32649
+OCR_APPSTARTING = 32650
+OCR_HELP = 32651
+
+CURSOR_IDS_TO_HIDE = (
+    OCR_NORMAL,
+    OCR_IBEAM,
+    OCR_WAIT,
+    OCR_CROSS,
+    OCR_UP,
+    OCR_SIZENWSE,
+    OCR_SIZENESW,
+    OCR_SIZEWE,
+    OCR_SIZENS,
+    OCR_SIZEALL,
+    OCR_NO,
+    OCR_HAND,
+    OCR_APPSTARTING,
+    OCR_HELP,
+)
+
 try:
     ULONG_PTR = wintypes.ULONG_PTR  # type: ignore[attr-defined]
 except AttributeError:  # pragma: no cover
@@ -114,6 +148,31 @@ kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 user32.CallNextHookEx.argtypes = [HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
 user32.CallNextHookEx.restype = LRESULT
 
+user32.CreateCursor.argtypes = [
+    wintypes.HANDLE,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+]
+user32.CreateCursor.restype = wintypes.HANDLE
+
+user32.DestroyCursor.argtypes = [wintypes.HANDLE]
+user32.DestroyCursor.restype = wintypes.BOOL
+
+user32.SetSystemCursor.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+user32.SetSystemCursor.restype = wintypes.BOOL
+
+user32.SystemParametersInfoW.argtypes = [
+    wintypes.UINT,
+    wintypes.UINT,
+    ctypes.c_void_p,
+    wintypes.UINT,
+]
+user32.SystemParametersInfoW.restype = wintypes.BOOL
+
 SendInput = user32.SendInput
 SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
 SendInput.restype = wintypes.UINT
@@ -162,6 +221,7 @@ class WasdController:
 
         self._mouse_held = False
         self._moving_active = False
+        self._cursor_hidden = False
 
     @property
     def is_enabled(self) -> bool:
@@ -276,27 +336,26 @@ class WasdController:
     def stop(self) -> None:
         self._stop_event.set()
 
-        if self._hook_thread_id is not None:
-            if self._hook_queue_ready.is_set():
-                user32.PostThreadMessageW(self._hook_thread_id, WM_QUIT, 0, 0)
+        try:
+            if self._hook_thread_id is not None:
+                if self._hook_queue_ready.is_set():
+                    user32.PostThreadMessageW(self._hook_thread_id, WM_QUIT, 0, 0)
 
-        if self._hook_thread is not None:
-            self._hook_thread.join(timeout=1.0)
-            self._hook_thread = None
+            if self._hook_thread is not None:
+                self._hook_thread.join(timeout=1.0)
+                self._hook_thread = None
 
-        if self._worker_thread is not None:
-            self._worker_thread.join(timeout=1.0)
-            self._worker_thread = None
+            if self._worker_thread is not None:
+                self._worker_thread.join(timeout=1.0)
+                self._worker_thread = None
+        finally:
+            self._hook_thread_id = None
+            self._hook_queue_ready.clear()
+            self._exit_moving_active()
 
-        self._hook_thread_id = None
-        self._hook_queue_ready.clear()
-        self._moving_active = False
-
-        with self._pressed_lock:
-            self._pressed_vks.clear()
-            self._held_vks.clear()
-
-        self._release_mouse_once()
+            with self._pressed_lock:
+                self._pressed_vks.clear()
+                self._held_vks.clear()
 
     def set_offsets(self, top: int, bot: int, left: int, right: int) -> None:
         self._top_offset = top
@@ -307,8 +366,7 @@ class WasdController:
     def set_enabled(self, enabled: bool) -> None:
         self._enabled = bool(enabled)
         if not self._enabled:
-            self._moving_active = False
-            self._release_mouse_once()
+            self._exit_moving_active()
 
     def _keyboard_callback(self, nCode: int, wParam: int, lParam: int) -> int:
         if nCode == 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
@@ -386,8 +444,7 @@ class WasdController:
 
                 if should_move:
                     if not self._moving_active:
-                        self._hold_mouse_once()
-                        self._moving_active = True
+                        self._enter_moving_active()
 
                     center = self._get_foreground_window_center()
                     if center is not None:
@@ -395,14 +452,11 @@ class WasdController:
                         y = int(center[1] + dy)
                         user32.SetCursorPos(x, y)
                 else:
-                    if self._moving_active:
-                        self._release_mouse_once()
-                        self._moving_active = False
+                    self._exit_moving_active()
 
                 time.sleep(self._tick_interval)
         finally:
-            self._release_mouse_once()
-            self._moving_active = False
+            self._exit_moving_active()
 
     def _compute_offset(self) -> Tuple[int, int]:
         with self._pressed_lock:
@@ -449,7 +503,7 @@ class WasdController:
         down = INPUT()
         down.type = INPUT_MOUSE
         down.mi.dwFlags = MOUSEEVENTF_LEFTDOWN
-        SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT))
+        SendInput(1, ctypes.pointer(down), ctypes.sizeof(INPUT))
         self._mouse_held = True
 
     def _release_mouse_once(self) -> None:
@@ -458,8 +512,60 @@ class WasdController:
         up = INPUT()
         up.type = INPUT_MOUSE
         up.mi.dwFlags = MOUSEEVENTF_LEFTUP
-        SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT))
+        SendInput(1, ctypes.pointer(up), ctypes.sizeof(INPUT))
         self._mouse_held = False
+
+    def _enter_moving_active(self) -> None:
+        self._hide_system_cursors_once()
+        self._hold_mouse_once()
+        self._moving_active = True
+
+    def _exit_moving_active(self) -> None:
+        self._release_mouse_once()
+        self._restore_system_cursors_once()
+        self._moving_active = False
+
+    def _create_invisible_cursor(self) -> Optional[wintypes.HANDLE]:
+        width = 32
+        height = 32
+        mask_size = (width * height) // 8
+        and_mask = (ctypes.c_ubyte * mask_size)(*([0xFF] * mask_size))
+        xor_mask = (ctypes.c_ubyte * mask_size)()
+
+        cursor = user32.CreateCursor(
+            0,
+            0,
+            0,
+            width,
+            height,
+            ctypes.cast(and_mask, ctypes.c_void_p),
+            ctypes.cast(xor_mask, ctypes.c_void_p),
+        )
+        if not cursor:
+            return None
+        return cursor
+
+    def _hide_system_cursors_once(self) -> None:
+        if self._cursor_hidden:
+            return
+
+        changed_any = False
+        for cursor_id in CURSOR_IDS_TO_HIDE:
+            cursor = self._create_invisible_cursor()
+            if not cursor:
+                continue
+            if user32.SetSystemCursor(cursor, cursor_id):
+                changed_any = True
+            else:
+                user32.DestroyCursor(cursor)
+
+        self._cursor_hidden = changed_any
+
+    def _restore_system_cursors_once(self) -> None:
+        if not self._cursor_hidden:
+            return
+        user32.SystemParametersInfoW(SPI_SETCURSORS, 0, None, 0)
+        self._cursor_hidden = False
 
 
 __all__ = ["WasdController"]

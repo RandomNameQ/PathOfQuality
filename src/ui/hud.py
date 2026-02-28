@@ -43,6 +43,8 @@ from src.ui.tabs.quickcraft_tab import QuickCraftTab
 from src.ui.tabs.currency_tab import CurrencyTab
 from src.ui.tabs.mega_qol_tab import MegaQolTab
 from src.ui.tabs.wasd_tab import WasdTab
+from src.ui.tabs.useful_tab import UsefulTab
+from src.ui.tabs.about_tab import AboutTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
 from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
 from src.ui.dialogs.currency_editor import CurrencyEditorDialog
@@ -125,6 +127,8 @@ class BuffHUD:
         # Group containers
         self._tab_overview_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
         self._tab_settings_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+        self._tab_useful_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
+        self._tab_about_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
         self._tab_library_group_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
         self._tab_tools_group_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
 
@@ -160,6 +164,8 @@ class BuffHUD:
             ).pack(anchor="w", padx=12, pady=(8, 4))
         except Exception:
             pass
+        self._useful_tab = UsefulTab(self._tab_useful_frame)
+        self._about_tab = AboutTab(self._tab_about_frame)
         self._settings_tab = SettingsTab(
             self._tab_settings_frame,
             keep_on_top,
@@ -250,6 +256,8 @@ class BuffHUD:
         self._root_notebook.add(
             self._tab_settings_frame, text=t("tab.settings", "Settings")
         )
+        self._root_notebook.add(self._tab_useful_frame, text=t("tab.useful", "Useful"))
+        self._root_notebook.add(self._tab_about_frame, text=t("tab.about", "About"))
 
         # Group descriptions
         try:
@@ -292,6 +300,8 @@ class BuffHUD:
         self._monitoring_tab.set_scan_command(self._on_toggle_scan)
         self._monitoring_tab.set_positioning_command(self._on_toggle_positioning)
         self._monitoring_tab.set_copy_area_command(self._on_toggle_copy_area_enabled)
+        self._monitoring_tab.set_language_change_command(self._on_lang_changed)
+        self._monitoring_tab.set_active_language(get_lang())
         # Exit button removed from overview
         self._monitoring_tab.update_copy_area_status()
 
@@ -301,7 +311,6 @@ class BuffHUD:
         self._settings_tab.set_dock_visible_command(self._on_dock_visible_changed)
         self._settings_tab.set_reset_dock_command(self._on_reset_dock_position)
         # Double-ctrl emulation moved to Mega QoL tab
-        self._settings_tab.set_language_command(self._on_lang_changed)
         # Mega QoL changes are wired via its own change/test handlers
 
         # Bind search events
@@ -330,6 +339,8 @@ class BuffHUD:
                 self._root,
                 self._tab_overview_frame,
                 self._tab_settings_frame,
+                self._tab_useful_frame,
+                self._tab_about_frame,
                 self._tab_library_group_frame,
                 self._tab_tools_group_frame,
                 self._tab_monitor_frame,
@@ -410,9 +421,19 @@ class BuffHUD:
         visible = bool(self._settings_tab.get_dock_visible_var().get())
         self.set_dock_visible(visible)
 
-    def _on_lang_changed(self, event=None) -> None:
+    def _on_lang_changed(self, lang: Optional[str] = None) -> None:
         """Handle language change."""
-        set_lang(self._settings_tab.get_lang_var().get())
+        target_lang = str(lang or self._settings_tab.get_lang_var().get() or get_lang())
+        set_lang(target_lang)
+        try:
+            self._settings_tab.get_lang_var().set(get_lang())
+        except Exception:
+            pass
+        try:
+            self._monitoring_tab.set_active_language(get_lang())
+        except Exception:
+            pass
+        self._events.append("LANG_CHANGED")
         self._refresh_texts()
         self._reload_library()
 
@@ -819,6 +840,10 @@ class BuffHUD:
             self._root_notebook.tab(
                 self._tab_settings_frame, text=t("tab.settings", "Settings")
             )
+            self._root_notebook.tab(
+                self._tab_useful_frame, text=t("tab.useful", "Useful")
+            )
+            self._root_notebook.tab(self._tab_about_frame, text=t("tab.about", "About"))
 
             self._library_nb.tab(self._tab_buffs_frame, text=t("tab.buffs", "Buffs"))
             self._library_nb.tab(
@@ -842,6 +867,10 @@ class BuffHUD:
 
         self._monitoring_tab.refresh_texts()
         self._settings_tab.refresh_texts()
+        if hasattr(self, "_useful_tab"):
+            self._useful_tab.refresh_texts()
+        if hasattr(self, "_about_tab"):
+            self._about_tab.refresh_texts()
         self._buffs_tab.refresh_texts()
         self._debuffs_tab.refresh_texts()
         self._currency_tab.refresh_texts()

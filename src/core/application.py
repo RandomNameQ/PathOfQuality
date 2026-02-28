@@ -20,7 +20,7 @@ from src.ui.currency_overlay import CurrencyOverlay
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
 from src.utils.settings import load_settings, save_settings, resource_path
-from src.i18n.locale import t
+from src.i18n.locale import t, get_lang
 from src.currency.library import load_currencies
 from src.quickcraft.library import (
     load_positions as load_quickcraft_positions,
@@ -273,8 +273,6 @@ class Application:
         return self._is_allowed_process_active()
 
     def _is_wasd_target_active(self) -> bool:
-        if not self._focus_required:
-            return True
         if sys.platform.startswith("win"):
             try:
                 foreground_hwnd = ctypes.windll.user32.GetForegroundWindow()
@@ -700,6 +698,10 @@ class Application:
                     self.settings["require_game_focus"] = self._focus_required
                     save_settings(self.settings_path, self.settings)
                     refresh_copy = True
+
+                elif event == "LANG_CHANGED":
+                    self.settings["language"] = get_lang()
+                    save_settings(self.settings_path, self.settings)
 
                 elif event == "DOCK_MOVED":
                     self._update_dock_position_settings()

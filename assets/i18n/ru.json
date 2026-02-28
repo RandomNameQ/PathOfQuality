@@ -30,40 +30,50 @@
   "dialog.choose_language": "Выбор языка",
   "error.name_required": "Требуется имя",
   "error.image_required": "Требуется картинка",
-  "info.select_item": "Выберите элемент для редактирования"
-  ,"info.select_item_delete": "Выберите элемент для удаления"
-  ,"button.clear": "Очистить",
+  "info.select_item": "Выберите элемент для редактирования",
+  "info.select_item_delete": "Выберите элемент для удаления",
+  "button.clear": "Очистить",
   "button.take_area": "Снять область",
   "actions.activate": "Активировать",
-  "actions.position": "Позиционировать"
-  ,"monitoring.scan": "Сканировать"
-  ,"monitoring.scanning_on": "Идёт сканирование"
-  ,"monitoring.scanning_off": "Сканирование выключено"
-  ,"monitoring.copy_area": "Включить область копирования"
-  ,"monitoring.copy_area_enable": "Включить область копирования"
-  ,"monitoring.copy_area_disable": "Выключить область копирования"
-  ,"copy_area.add": "Добавить область"
-  ,"copy_area.edit": "Редактировать"
-  ,"copy_area.delete": "Удалить"
-  ,"copy_area.search": "Поиск"
-  ,"copy_area.name": "Имя"
-  ,"copy_area.links": "Связанные элементы"
-  ,"copy_area.position": "Позиция"
-  ,"copy_area.size": "Размер"
-  ,"copy_area.transparency": "Прозрачность"
-  ,"copy_area.image": "Картинка"
-  ,"copy_area.preview": "Предпросмотр"
-  ,"copy_area.targets": "Связанные баффы / дебаффы"
-  ,"copy_area.select_area": "Выбрать область"
-  ,"copy_area.capture": "Область копирования"
-  ,"copy_area.topmost": "Поверх всех"
-  ,"copy_area.confirm_delete": "Вы уверены, что хотите удалить элемент?"
-  ,"library.delete": "Удалить"
-  ,"library.confirm_delete_buff": "Удалить выбранный бафф?"
-  ,"library.confirm_delete_debuff": "Удалить выбранный дебафф?"
-  ,"tab.wasd": "WASD"
-  ,"desc.wasd": "Удерживайте {movement_keys} для движения (эмуляция движения мыши + удержание ЛКМ). Нажмите {toggle_hotkey}, чтобы переключить WASD OFF/ON."
-  ,"wasd.enable": "Включить WASD-перемещение"
-  ,"wasd.open_config": "Открыть папку конфига"
-  ,"status.game_focus_required": "Активируйте окно Path of Exile, чтобы продолжить работу."
+  "actions.position": "Позиционировать",
+  "monitoring.scan": "Сканировать",
+  "monitoring.scanning_on": "Идёт сканирование",
+  "monitoring.scanning_off": "Сканирование выключено",
+  "monitoring.copy_area": "Включить область копирования",
+  "monitoring.copy_area_enable": "Включить область копирования",
+  "monitoring.copy_area_disable": "Выключить область копирования",
+  "copy_area.add": "Добавить область",
+  "copy_area.edit": "Редактировать",
+  "copy_area.delete": "Удалить",
+  "copy_area.search": "Поиск",
+  "copy_area.name": "Имя",
+  "copy_area.links": "Связанные элементы",
+  "copy_area.position": "Позиция",
+  "copy_area.size": "Размер",
+  "copy_area.transparency": "Прозрачность",
+  "copy_area.image": "Картинка",
+  "copy_area.preview": "Предпросмотр",
+  "copy_area.targets": "Связанные баффы / дебаффы",
+  "copy_area.select_area": "Выбрать область",
+  "copy_area.capture": "Область копирования",
+  "copy_area.topmost": "Поверх всех",
+  "copy_area.confirm_delete": "Вы уверены, что хотите удалить элемент?",
+  "library.delete": "Удалить",
+  "library.confirm_delete_buff": "Удалить выбранный бафф?",
+  "library.confirm_delete_debuff": "Удалить выбранный дебафф?",
+  "tab.wasd": "WASD",
+  "desc.wasd": "Удерживайте {movement_keys} для движения (эмуляция движения мыши + удержание ЛКМ). Нажмите {toggle_hotkey}, чтобы переключить WASD OFF/ON.",
+  "wasd.enable": "Включить WASD-перемещение",
+  "wasd.open_config": "Открыть папку конфига",
+  "status.game_focus_required": "Активируйте окно Path of Exile, чтобы продолжить работу.",
+  "tab.useful": "Полезное",
+  "tab.about": "О проекте",
+  "useful.chrome_ext": "Полезное расширение для торговли",
+  "useful.yt_showcase": "Шоукейс расширения",
+  "useful.party_site": "Удобный сайт для поиска пати для пое1 и пое2",
+  "about.greeting": "Привет.\nЯ изгнанник, который добрался до решения некоторых проблем.\nБуду рад, если вам это помогает.",
+  "about.telegram": "Для связи используйте телеграм ",
+  "about.support": "Для поддержки текущих и будущих проектов можете донатить на:",
+  "about.card": "Карта",
+  "about.crypto": "Криптовалюта"
 }

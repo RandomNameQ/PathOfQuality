@@ -30,40 +30,50 @@
   "dialog.choose_language": "Choose Language",
   "error.name_required": "Name is required",
   "error.image_required": "Image is required",
-  "info.select_item": "Select an item to edit"
-  ,"info.select_item_delete": "Select an item to delete"
-  ,"button.clear": "Clear",
+  "info.select_item": "Select an item to edit",
+  "info.select_item_delete": "Select an item to delete",
+  "button.clear": "Clear",
   "button.take_area": "Take area",
   "actions.activate": "Activate",
-  "actions.position": "Position"
-  ,"monitoring.scan": "Scan"
-  ,"monitoring.scanning_on": "Scanning"
-  ,"monitoring.scanning_off": "Not scanning"
-  ,"monitoring.copy_area": "Enable copy area"
-  ,"monitoring.copy_area_enable": "Enable copy area"
-  ,"monitoring.copy_area_disable": "Disable copy area"
-  ,"copy_area.add": "Add copy area"
-  ,"copy_area.edit": "Edit"
-  ,"copy_area.delete": "Delete"
-  ,"copy_area.search": "Search"
-  ,"copy_area.name": "Name"
-  ,"copy_area.links": "Linked items"
-  ,"copy_area.position": "Position"
-  ,"copy_area.size": "Size"
-  ,"copy_area.transparency": "Transparency"
-  ,"copy_area.image": "Image"
-  ,"copy_area.preview": "Preview"
-  ,"copy_area.targets": "Linked buffs / debuffs"
-  ,"copy_area.select_area": "Select area"
-  ,"copy_area.capture": "Capture area"
-  ,"copy_area.topmost": "Topmost"
-  ,"copy_area.confirm_delete": "Are you sure you want to delete it?"
-  ,"library.delete": "Delete"
-  ,"library.confirm_delete_buff": "Delete selected buff?"
-  ,"library.confirm_delete_debuff": "Delete selected debuff?"
-  ,"tab.wasd": "WASD"
-  ,"desc.wasd": "Hold {movement_keys} to move (emulates mouse move + Mouse1 hold). Press {toggle_hotkey} to toggle WASD OFF/ON."
-  ,"wasd.enable": "Enable WASD movement"
-  ,"wasd.open_config": "Open config folder"
-  ,"status.game_focus_required": "Focus the Path of Exile window to resume."
+  "actions.position": "Position",
+  "monitoring.scan": "Scan",
+  "monitoring.scanning_on": "Scanning",
+  "monitoring.scanning_off": "Not scanning",
+  "monitoring.copy_area": "Enable copy area",
+  "monitoring.copy_area_enable": "Enable copy area",
+  "monitoring.copy_area_disable": "Disable copy area",
+  "copy_area.add": "Add copy area",
+  "copy_area.edit": "Edit",
+  "copy_area.delete": "Delete",
+  "copy_area.search": "Search",
+  "copy_area.name": "Name",
+  "copy_area.links": "Linked items",
+  "copy_area.position": "Position",
+  "copy_area.size": "Size",
+  "copy_area.transparency": "Transparency",
+  "copy_area.image": "Image",
+  "copy_area.preview": "Preview",
+  "copy_area.targets": "Linked buffs / debuffs",
+  "copy_area.select_area": "Select area",
+  "copy_area.capture": "Capture area",
+  "copy_area.topmost": "Topmost",
+  "copy_area.confirm_delete": "Are you sure you want to delete it?",
+  "library.delete": "Delete",
+  "library.confirm_delete_buff": "Delete selected buff?",
+  "library.confirm_delete_debuff": "Delete selected debuff?",
+  "tab.wasd": "WASD",
+  "desc.wasd": "Hold {movement_keys} to move (emulates mouse move + Mouse1 hold). Press {toggle_hotkey} to toggle WASD OFF/ON.",
+  "wasd.enable": "Enable WASD movement",
+  "wasd.open_config": "Open config folder",
+  "status.game_focus_required": "Focus the Path of Exile window to resume.",
+  "tab.useful": "Useful",
+  "tab.about": "About",
+  "useful.chrome_ext": "Useful trading extension",
+  "useful.yt_showcase": "Extension showcase",
+  "useful.party_site": "Convenient party finder site for PoE 1 and PoE 2",
+  "about.greeting": "Hello.\nI am an exile who got around to solving some problems.\nI will be glad if this helps you.",
+  "about.telegram": "For contact use Telegram ",
+  "about.support": "To support current and future projects you can donate to:",
+  "about.card": "Card",
+  "about.crypto": "Cryptocurrency"
 }
