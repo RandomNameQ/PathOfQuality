@@ -17,8 +17,8 @@
     "alpha": 1.0,
     "grab_anywhere": true,
     "dock_position": {
-      "left": 768,
-      "top": 1020
+      "left": 504,
+      "top": 1008
     }
   },
   "language": "ru",
@@ -34,6 +34,9 @@
     "tool_wasd_toggle": [
       "GRAVE"
     ],
+    "overlay_open": [
+      "F8"
+    ],
     "wasd": {
       "up": "W",
       "left": "A",
@@ -46,6 +49,23 @@
     "wheel_down_enabled": true,
     "wheel_down_sequence": "W,1",
     "wheel_down_delay_ms": 50
+  },
+  "overlay": {
+    "menu_items": [
+      {
+        "id": "user:1",
+        "name": "asd",
+        "images": [
+          {
+            "path": "C:/Users/user/Downloads/TON UQBYbeE_Y27_11-MSFqO4Udr-YAihHuAEznyCQ5EHhevR71R.jpg",
+            "zoom": 0.8732691000000004,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          }
+        ]
+      }
+    ],
+    "active_item_id": "program:map"
   },
   "mirror_mode": "auto",
   "wasd_enabled": true

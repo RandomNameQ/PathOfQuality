@@ -2,6 +2,7 @@
 Simplified main HUD window using modular tab components.
 """
 
+import os
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -43,11 +44,13 @@ from src.ui.tabs.quickcraft_tab import QuickCraftTab
 from src.ui.tabs.currency_tab import CurrencyTab
 from src.ui.tabs.mega_qol_tab import MegaQolTab
 from src.ui.tabs.wasd_tab import WasdTab
+from src.ui.tabs.overlay_tab import OverlayTab
 from src.ui.tabs.useful_tab import UsefulTab
 from src.ui.tabs.about_tab import AboutTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
 from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
 from src.ui.dialogs.currency_editor import CurrencyEditorDialog
+from src.ui.dialogs.hotkey_capture import HotkeyCaptureDialog
 from src.ui.roi_selector import select_roi
 
 
@@ -73,6 +76,7 @@ class BuffHUD:
         wasd_right_offset: int = 0,
         wasd_movement_hint: str = "W/A/S/D",
         wasd_toggle_hint: str = "~",
+        overlay_hotkey: str = "F8",
     ) -> None:
         """
         Initialize BuffHUD.
@@ -86,6 +90,8 @@ class BuffHUD:
         self._root = tk.Tk()
         self._root.title(f"Buff HUD v{APP_VERSION}")
         self._root.resizable(True, True)
+        self._app_icon = None
+        self._apply_app_icon()
 
         try:
             self._root.attributes("-topmost", keep_on_top)
@@ -150,6 +156,7 @@ class BuffHUD:
         self._tab_copy_frame = tk.Frame(self._library_nb, bg=BG_COLOR)
         self._tab_mega_qol_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_wasd_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
+        self._tab_overlay_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
 
         # Initialize tab components
         self._monitoring_tab = MonitoringTab(self._tab_monitor_frame)
@@ -171,6 +178,7 @@ class BuffHUD:
             keep_on_top,
             focus_required,
             triple_ctrl_click_enabled,
+            overlay_hotkey,
         )
         self._buffs_tab = LibraryTab(
             self._tab_buffs_frame,
@@ -229,6 +237,10 @@ class BuffHUD:
         )
         self._wasd_tab.set_change_handler(self._on_wasd_changed)
         self._wasd_tab.set_open_config_handler(self._on_wasd_open_config)
+        self._overlay_tab = OverlayTab(
+            self._tab_overlay_frame,
+            overlay_hotkey=overlay_hotkey,
+        )
 
         # Add tabs to notebook
         # Add grouped tabs to notebooks
@@ -252,6 +264,9 @@ class BuffHUD:
         )
         self._root_notebook.add(
             self._tab_tools_group_frame, text=t("tab.tools_group", "Tools")
+        )
+        self._root_notebook.add(
+            self._tab_overlay_frame, text=t("tab.overlay", "Overlay")
         )
         self._root_notebook.add(
             self._tab_settings_frame, text=t("tab.settings", "Settings")
@@ -306,6 +321,16 @@ class BuffHUD:
         self._monitoring_tab.update_copy_area_status()
 
         self._settings_tab.set_select_command(self._on_select_roi)
+        self._settings_tab.set_open_overlay_command(self._on_open_overlay)
+        self._settings_tab.set_set_overlay_hotkey_command(self._on_set_overlay_hotkey)
+        self._settings_tab.set_clear_overlay_hotkey_command(
+            self._on_clear_overlay_hotkey
+        )
+        self._overlay_tab.set_open_overlay_command(self._on_open_overlay)
+        self._overlay_tab.set_set_overlay_hotkey_command(self._on_set_overlay_hotkey)
+        self._overlay_tab.set_clear_overlay_hotkey_command(
+            self._on_clear_overlay_hotkey
+        )
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
         self._settings_tab.set_dock_visible_command(self._on_dock_visible_changed)
@@ -388,6 +413,20 @@ class BuffHUD:
         self._click_y = event.y_root
         self._win_x = self._root.winfo_x()
         self._win_y = self._root.winfo_y()
+
+    def _apply_app_icon(self) -> None:
+        try:
+            project_root = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..")
+            )
+            icon_path = os.path.join(project_root, "poq_icon.png")
+            if not os.path.exists(icon_path):
+                return
+
+            self._app_icon = tk.PhotoImage(file=icon_path)
+            self._root.iconphoto(True, self._app_icon)
+        except Exception:
+            pass
 
     def _on_motion(self, event) -> None:
         """Handle window dragging."""
@@ -522,6 +561,22 @@ class BuffHUD:
 
     def _on_wasd_open_config(self) -> None:
         self._events.append("WASD_OPEN_CONFIG")
+
+    def _on_open_overlay(self) -> None:
+        self._events.append("TAB_OVERLAY_OPEN")
+
+    def _on_set_overlay_hotkey(self) -> None:
+        token = HotkeyCaptureDialog(self._root).show()
+        if token is None:
+            return
+        self._settings_tab.set_overlay_hotkey(token)
+        self._overlay_tab.set_overlay_hotkey(token)
+        self._events.append("TAB_OVERLAY_HOTKEY_CHANGED")
+
+    def _on_clear_overlay_hotkey(self) -> None:
+        self._settings_tab.set_overlay_hotkey("")
+        self._overlay_tab.set_overlay_hotkey("")
+        self._events.append("TAB_OVERLAY_HOTKEY_CHANGED")
 
     def _on_toggle_active(
         self, entry_id: str, entry_type: str, var: tk.BooleanVar
@@ -838,6 +893,9 @@ class BuffHUD:
                 self._tab_tools_group_frame, text=t("tab.tools_group", "Tools")
             )
             self._root_notebook.tab(
+                self._tab_overlay_frame, text=t("tab.overlay", "Overlay")
+            )
+            self._root_notebook.tab(
                 self._tab_settings_frame, text=t("tab.settings", "Settings")
             )
             self._root_notebook.tab(
@@ -883,6 +941,10 @@ class BuffHUD:
             pass
         try:
             self._wasd_tab.refresh_texts()
+        except Exception:
+            pass
+        try:
+            self._overlay_tab.refresh_texts()
         except Exception:
             pass
 
@@ -1117,6 +1179,15 @@ class BuffHUD:
     def get_overlay_enabled(self) -> bool:
         """Check if overlay is enabled."""
         return bool(self._settings_tab.get_overlay_var().get())
+
+    def get_overlay_hotkey(self) -> str:
+        """Get current overlay open hotkey token."""
+        return self._overlay_tab.get_overlay_hotkey()
+
+    def set_overlay_hotkey(self, token: str) -> None:
+        """Update overlay hotkey token shown in settings."""
+        self._settings_tab.set_overlay_hotkey(token)
+        self._overlay_tab.set_overlay_hotkey(token)
 
     def get_positioning_enabled(self) -> bool:
         """Check if positioning mode is enabled."""

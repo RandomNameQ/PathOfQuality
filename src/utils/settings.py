@@ -31,6 +31,7 @@ def get_default_settings() -> Dict[str, Any]:
         },
         "hotkeys": {
             "tool_wasd_toggle": ["GRAVE"],
+            "overlay_open": ["F8"],
             "wasd": {
                 "up": "W",
                 "left": "A",
@@ -43,6 +44,10 @@ def get_default_settings() -> Dict[str, Any]:
             "wheel_down_enabled": False,
             "wheel_down_sequence": "1,2,3,4",
             "wheel_down_delay_ms": 50,
+        },
+        "overlay": {
+            "menu_items": [],
+            "active_item_id": "program:map",
         },
     }
 

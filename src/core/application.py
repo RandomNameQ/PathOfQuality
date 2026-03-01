@@ -16,6 +16,7 @@ from src.detector.library_matcher import LibraryMatcher
 from src.ui.hud import BuffHUD
 from src.ui.icon_mirrors import IconMirrorsOverlay
 from src.ui.overlay import OverlayHighlighter
+from src.ui.tab_overlay_window import TabOverlayWindow
 from src.ui.currency_overlay import CurrencyOverlay
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
@@ -163,6 +164,7 @@ class Application:
         self.overlay: OverlayHighlighter = None
         self.mirrors: IconMirrorsOverlay = None
         self.currency_overlay: CurrencyOverlay = None
+        self.tab_overlay: Optional[TabOverlayWindow] = None
         self.tray: TrayIcon = None
 
         # State
@@ -218,9 +220,16 @@ class Application:
             self._wasd_movement_keys
         )
         self._wasd_toggle_hint = self._format_hotkey_tokens(self._wasd_toggle_hotkey)
+        self._overlay_open_hotkey = self._get_single_hotkey_token(
+            self.settings.get("hotkeys", {}).get("overlay_open", ["F8"]),
+            fallback="F8",
+        )
         hotkeys_cfg = self.settings.setdefault("hotkeys", {})
         hotkeys_cfg["wasd"] = dict(self._wasd_movement_keys)
         hotkeys_cfg["tool_wasd_toggle"] = list(self._wasd_toggle_hotkey)
+        hotkeys_cfg["overlay_open"] = (
+            [self._overlay_open_hotkey] if self._overlay_open_hotkey else []
+        )
         self._wasd_controller = (
             WasdController(
                 is_target_active=self._is_wasd_target_active,
@@ -396,6 +405,42 @@ class Application:
         right = movement.get("right", "D")
         return f"{up}/{left}/{down}/{right}"
 
+    def _get_single_hotkey_token(self, raw_value: object, fallback: str = "") -> str:
+        if isinstance(raw_value, str):
+            items = [raw_value]
+        elif isinstance(raw_value, list):
+            items = [str(item) for item in raw_value]
+        else:
+            items = []
+
+        for item in items:
+            normalized = self._normalize_hotkey_token(item)
+            if normalized:
+                return normalized
+
+        return self._normalize_hotkey_token(fallback)
+
+    def _sync_overlay_hotkey(self) -> None:
+        token = self._normalize_hotkey_token(self.hud.get_overlay_hotkey())
+        self._overlay_open_hotkey = token
+        self.hud.set_overlay_hotkey(token)
+        hotkeys_cfg = self.settings.setdefault("hotkeys", {})
+        hotkeys_cfg["overlay_open"] = [token] if token else []
+        save_settings(self.settings_path, self.settings)
+
+    def _toggle_tab_overlay(self) -> None:
+        if self.tab_overlay is None:
+            return
+        self.tab_overlay.toggle()
+
+    def _handle_overlay_hotkey(self, token: str) -> bool:
+        if not self._overlay_open_hotkey:
+            return False
+        if token != self._overlay_open_hotkey:
+            return False
+        self._toggle_tab_overlay()
+        return True
+
     def _open_settings_location(self) -> None:
         folder = os.path.dirname(os.path.abspath(self.settings_path))
         if not folder:
@@ -536,12 +581,21 @@ class Application:
             wasd_right_offset=self._wasd_right,
             wasd_movement_hint=self._wasd_movement_hint,
             wasd_toggle_hint=self._wasd_toggle_hint,
+            overlay_hotkey=self._overlay_open_hotkey,
         )
 
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
 
         # Initialize overlays
         self.overlay = OverlayHighlighter(self.hud.get_root())
+        self.tab_overlay = TabOverlayWindow(
+            self.hud.get_root(),
+            settings=self.settings,
+            save_settings_callback=lambda: save_settings(
+                self.settings_path,
+                self.settings,
+            ),
+        )
         self.mirrors = IconMirrorsOverlay(self.hud.get_root())
         self.mirrors.set_copy_enabled(self.hud.get_copy_area_enabled())
         self.currency_overlay = CurrencyOverlay(self.hud.get_root())
@@ -763,6 +817,14 @@ class Application:
 
                 elif event == "WASD_OPEN_CONFIG":
                     self._open_settings_location()
+                    skip_frame_processing = True
+
+                elif event == "TAB_OVERLAY_OPEN":
+                    self._toggle_tab_overlay()
+                    skip_frame_processing = True
+
+                elif event == "TAB_OVERLAY_HOTKEY_CHANGED":
+                    self._sync_overlay_hotkey()
                     skip_frame_processing = True
 
                 elif event == "CURRENCY_POSITIONING_ON":
@@ -1147,6 +1209,8 @@ class Application:
         polled = self._hotkeys.poll()
         if polled:
             for token in polled:
+                if self._handle_overlay_hotkey(token):
+                    continue
                 self._handle_quickcraft_hotkey(token)
         else:
             # If hook is installed but no events, also run fallback to support keys Tk may swallow
@@ -1195,6 +1259,8 @@ class Application:
         tokens = set(self._quickcraft_hotkey_map.keys())
         if self._quickcraft_global_hotkey:
             tokens.add(self._quickcraft_global_hotkey)
+        if self._overlay_open_hotkey:
+            tokens.add(self._overlay_open_hotkey)
         for token in list(tokens):
             vk = self._token_to_vk(token)
             if vk is None:
@@ -1206,7 +1272,8 @@ class Application:
                 last = self._key_last_emit.get(token, 0.0)
                 if now - last > 0.2:
                     self._key_last_emit[token] = now
-                    self._handle_quickcraft_hotkey(token)
+                    if not self._handle_overlay_hotkey(token):
+                        self._handle_quickcraft_hotkey(token)
             self._key_down_state[token] = down
 
     def _move_cursor(self, x: int, y: int) -> None:
@@ -1663,6 +1730,12 @@ class Application:
         try:
             self.overlay.hide()
             self.overlay.close()
+        except Exception:
+            pass
+
+        try:
+            if self.tab_overlay is not None:
+                self.tab_overlay.close()
         except Exception:
             pass
 
