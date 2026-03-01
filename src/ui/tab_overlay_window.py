@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import io
 import os
+import hashlib
+import queue
+import threading
 import tkinter as tk
+from urllib.parse import urlparse
+import urllib.request
+import webbrowser
 from tkinter import filedialog, simpledialog
 from typing import Any, Callable, Optional
 
@@ -24,6 +32,15 @@ class TabOverlayWindow:
         self._master = master
         self._settings = settings if isinstance(settings, dict) else {}
         self._save_settings_callback = save_settings_callback
+        self._project_root = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..")
+        )
+        self._layout_cache_dir = os.path.join(
+            self._project_root,
+            "cache",
+            "layout_images",
+        )
+        self._ensure_layout_cache_dir()
         self._window = tk.Toplevel(master)
         self._window.withdraw()
         self._window.title("Tab Overlay")
@@ -32,7 +49,7 @@ class TabOverlayWindow:
         self._window.bind("<Escape>", lambda _event: self.hide())
         try:
             self._window.attributes("-topmost", True)
-            self._window.attributes("-alpha", 0.95)
+            self._window.attributes("-alpha", 1.0)
             self._window.overrideredirect(True)
         except Exception:
             pass
@@ -43,6 +60,22 @@ class TabOverlayWindow:
         self._user_counter = 1
         self._menu_width = 220
         self._image_canvas_height = 480
+        self._map_sort_key = "mapName"
+        self._map_sort_desc = False
+        self._map_search_query = ""
+        self._map_rows = []
+        self._map_col_name_width = 140
+        self._map_col_img_layout_width = 100
+        self._map_col_layout_width = 80
+        self._map_col_density_width = 90
+        self._map_col_tags_width = 290
+        self._map_header_height = 36
+        self._map_row_height = 36
+        self._layout_preview_window = None
+        self._layout_preview_body = None
+        self._layout_preview_photo = None
+        self._layout_preview_close_binding = None
+        self._layout_preview_request_id = 0
         self._drag_state = {
             "item_id": "",
             "start_y": 0,
@@ -55,6 +88,7 @@ class TabOverlayWindow:
         }
         self._window_drag_region_height = 24
         self._image_states = []
+        self._load_map_rows()
 
         self._build_layout()
         self._seed_menu()
@@ -68,6 +102,25 @@ class TabOverlayWindow:
             highlightbackground=theme.BORDER_PRIMARY,
         )
         root.pack(fill="both", expand=True, padx=20, pady=20)
+
+        self._btn_close_overlay = tk.Button(
+            self._window,
+            text="X",
+            bg=theme.ACCENT_RED,
+            fg="#ffffff",
+            activebackground="#b30000",
+            activeforeground="#ffffff",
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=6,
+            font=("Segoe UI", 11, "bold"),
+            highlightthickness=1,
+            highlightbackground="#ffffff",
+            command=self.hide,
+        )
+        self._btn_close_overlay.place(relx=1.0, x=-8, y=8, anchor="ne")
+        self._btn_close_overlay.lift()
 
         self._menu_frame = tk.Frame(
             root,
@@ -246,6 +299,480 @@ class TabOverlayWindow:
 
         return max_id + 1
 
+    def _coerce_int(self, value: Any, fallback: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    def _ensure_layout_cache_dir(self) -> None:
+        try:
+            os.makedirs(self._layout_cache_dir, exist_ok=True)
+        except Exception:
+            pass
+
+    def _layout_cache_path(self, image_url: str) -> str:
+        url_path = urlparse(image_url).path
+        extension = os.path.splitext(url_path)[1].lower()
+        if extension not in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}:
+            extension = ".img"
+
+        digest = hashlib.sha1(image_url.encode("utf-8")).hexdigest()
+        return os.path.join(self._layout_cache_dir, f"{digest}{extension}")
+
+    def _read_layout_cache_bytes(self, image_url: str) -> Optional[bytes]:
+        cache_path = self._layout_cache_path(image_url)
+        if not os.path.exists(cache_path):
+            return None
+
+        try:
+            with open(cache_path, "rb") as file_obj:
+                payload = file_obj.read()
+        except Exception:
+            return None
+
+        return payload if payload else None
+
+    def _write_layout_cache_bytes(self, image_url: str, payload: bytes) -> None:
+        if not payload:
+            return
+
+        self._ensure_layout_cache_dir()
+        cache_path = self._layout_cache_path(image_url)
+        try:
+            with open(cache_path, "wb") as file_obj:
+                file_obj.write(payload)
+        except Exception:
+            pass
+
+    def _load_map_rows(self) -> None:
+        map_data_path = os.path.join(self._project_root, "map-data.json")
+
+        try:
+            with open(map_data_path, "r", encoding="utf-8") as file_obj:
+                payload = json.load(file_obj)
+        except Exception:
+            self._map_rows = []
+            return
+
+        if not isinstance(payload, list):
+            self._map_rows = []
+            return
+
+        rows = []
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+
+            map_name = str(row.get("mapName", "")).strip()
+            if not map_name:
+                continue
+
+            raw_tags = row.get("tags", [])
+            if not isinstance(raw_tags, list):
+                raw_tags = [raw_tags]
+
+            rows.append(
+                {
+                    "mapName": map_name,
+                    "mapUrl": str(row.get("mapUrl", "")).strip(),
+                    "layout": self._coerce_int(row.get("layout", 0), 0),
+                    "density": self._coerce_int(row.get("density", 0), 0),
+                    "layoutUrl": str(row.get("layoutUrl", "")).strip(),
+                    "tags": ", ".join(
+                        str(tag).strip() for tag in raw_tags if str(tag).strip()
+                    ),
+                }
+            )
+
+        self._map_rows = rows
+
+    def _get_sorted_filtered_map_rows(self) -> list:
+        query = self._map_search_query.strip().lower()
+        filtered_rows = []
+
+        for row in self._map_rows:
+            if query and query not in str(row.get("mapName", "")).lower():
+                continue
+            filtered_rows.append(row)
+
+        if self._map_sort_key in ("mapName", "tags"):
+            filtered_rows.sort(
+                key=lambda row: str(row.get(self._map_sort_key, "")).lower(),
+                reverse=self._map_sort_desc,
+            )
+            return filtered_rows
+
+        filtered_rows.sort(
+            key=lambda row: self._coerce_int(row.get(self._map_sort_key, 0), 0),
+            reverse=self._map_sort_desc,
+        )
+        return filtered_rows
+
+    def _sort_marker(self, sort_key: str) -> str:
+        if self._map_sort_key != sort_key:
+            return ""
+        return " v" if self._map_sort_desc else " ^"
+
+    def _toggle_map_sort(self, sort_key: str) -> None:
+        if self._map_sort_key == sort_key:
+            self._map_sort_desc = not self._map_sort_desc
+        else:
+            self._map_sort_key = sort_key
+            self._map_sort_desc = False
+        self._render_content()
+
+    def _open_external_map_link(self, map_url: str) -> None:
+        if not map_url:
+            return
+        try:
+            webbrowser.open_new_tab(map_url)
+        except Exception:
+            pass
+
+    def _truncate_text(self, value: Any, max_length: int) -> str:
+        text = str(value or "").strip()
+        if len(text) <= max_length:
+            return text
+        return f"{text[: max_length - 3].rstrip()}..."
+
+    def _layout_preview_set_geometry(
+        self, content_width: int, content_height: int
+    ) -> None:
+        if self._layout_preview_window is None:
+            return
+
+        self._window.update_idletasks()
+
+        popup_width = max(120, content_width + 8)
+        popup_height = max(80, content_height + 8)
+        popup_x = (
+            self._window.winfo_rootx() + (self._window.winfo_width() - popup_width) // 2
+        )
+        popup_y = (
+            self._window.winfo_rooty()
+            + (self._window.winfo_height() - popup_height) // 2
+        )
+
+        screen_w = self._window.winfo_screenwidth()
+        screen_h = self._window.winfo_screenheight()
+        popup_x = max(0, min(popup_x, max(0, screen_w - popup_width)))
+        popup_y = max(0, min(popup_y, max(0, screen_h - popup_height)))
+
+        self._layout_preview_window.geometry(
+            f"{popup_width}x{popup_height}+{popup_x}+{popup_y}"
+        )
+
+    def _layout_preview_show_message(self, message: str, width: int = 460) -> None:
+        if self._layout_preview_body is None:
+            return
+
+        for child in self._layout_preview_body.winfo_children():
+            child.destroy()
+
+        label = tk.Label(
+            self._layout_preview_body,
+            text=message,
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_BODY,
+            justify="center",
+            anchor="center",
+            wraplength=max(240, width - 40),
+        )
+        label.pack(fill="both", expand=True, padx=12, pady=12)
+        label.bind("<Button-1>", self._close_layout_preview)
+        self._layout_preview_set_geometry(width, 120)
+
+    def _layout_preview_show_image(self, request_id: int, image_bytes: bytes) -> bool:
+        if request_id != self._layout_preview_request_id:
+            return False
+        if self._layout_preview_window is None or self._layout_preview_body is None:
+            return False
+        if not self._layout_preview_window.winfo_exists():
+            return False
+
+        try:
+            source_image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        except Exception as error:
+            self._layout_preview_show_message(f"Failed to render map image\n{error}")
+            return False
+
+        self._window.update_idletasks()
+        max_width = max(240, int(self._window.winfo_width() * 0.9))
+        max_height = max(240, int(self._window.winfo_height() * 0.9))
+        scale = min(
+            max_width / source_image.width,
+            max_height / source_image.height,
+            1.0,
+        )
+        target_width = max(1, int(source_image.width * scale))
+        target_height = max(1, int(source_image.height * scale))
+
+        preview_image = source_image.resize(
+            (target_width, target_height), Image.LANCZOS
+        )
+        self._layout_preview_photo = ImageTk.PhotoImage(preview_image)
+
+        for child in self._layout_preview_body.winfo_children():
+            child.destroy()
+
+        image_label = tk.Label(
+            self._layout_preview_body,
+            image=self._layout_preview_photo,
+            bg=theme.BG_PRIMARY,
+        )
+        image_label.pack(fill="both", expand=True)
+        image_label.bind("<Button-1>", self._close_layout_preview)
+        self._layout_preview_set_geometry(target_width, target_height)
+        return True
+
+    def _layout_preview_show_error(self, request_id: int, error_text: str) -> None:
+        if request_id != self._layout_preview_request_id:
+            return
+        self._layout_preview_show_message(f"Failed to load map image\n{error_text}")
+
+    def _close_layout_preview(self, _event: Optional[tk.Event] = None) -> None:
+        self._layout_preview_request_id += 1
+
+        if self._layout_preview_close_binding is not None:
+            try:
+                self._window.unbind("<Button-1>", self._layout_preview_close_binding)
+            except Exception:
+                pass
+            self._layout_preview_close_binding = None
+
+        if self._layout_preview_window is not None:
+            try:
+                self._layout_preview_window.destroy()
+            except Exception:
+                pass
+        self._layout_preview_window = None
+        self._layout_preview_body = None
+        self._layout_preview_photo = None
+
+    def _show_layout_preview_overlay(self, image_url: str) -> None:
+        if not image_url:
+            return
+
+        self._close_layout_preview()
+
+        popup = tk.Toplevel(self._window)
+        popup.transient(self._window)
+        popup.overrideredirect(False)
+        popup.title("Layout preview")
+        popup.configure(bg=theme.BORDER_PRIMARY)
+        popup.protocol("WM_DELETE_WINDOW", self._close_layout_preview)
+        try:
+            popup.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        frame = tk.Frame(popup, bg=theme.BG_PRIMARY, padx=2, pady=2)
+        frame.pack(fill="both", expand=True)
+
+        popup.bind("<Button-1>", self._close_layout_preview)
+        frame.bind("<Button-1>", self._close_layout_preview)
+        popup.bind("<Escape>", self._close_layout_preview)
+
+        self._layout_preview_window = popup
+        self._layout_preview_body = frame
+        self._layout_preview_photo = None
+
+        self._layout_preview_show_message("Loading map image...")
+        popup.update_idletasks()
+        try:
+            popup.lift()
+            popup.focus_force()
+        except Exception:
+            pass
+
+        request_id = self._layout_preview_request_id
+
+        cached_payload = self._read_layout_cache_bytes(image_url)
+        if cached_payload is not None:
+            if self._layout_preview_show_image(request_id, cached_payload):
+                return
+
+        result_queue: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=1)
+
+        def load_image_bytes() -> None:
+            try:
+                request = urllib.request.Request(
+                    image_url,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0 Safari/537.36"
+                        )
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    payload = response.read()
+            except Exception as error:
+                result_queue.put(("error", str(error)))
+                return
+
+            result_queue.put(("downloaded", payload))
+
+        def poll_download_result() -> None:
+            if request_id != self._layout_preview_request_id:
+                return
+            if self._layout_preview_window is None:
+                return
+            if not self._layout_preview_window.winfo_exists():
+                return
+
+            try:
+                result_kind, result_value = result_queue.get_nowait()
+            except queue.Empty:
+                try:
+                    self._window.after(80, poll_download_result)
+                except Exception:
+                    pass
+                return
+
+            if result_kind == "downloaded":
+                rendered = self._layout_preview_show_image(request_id, result_value)
+                if rendered:
+                    self._write_layout_cache_bytes(image_url, result_value)
+                return
+            self._layout_preview_show_error(request_id, str(result_value))
+
+        threading.Thread(target=load_image_bytes, daemon=True).start()
+        try:
+            self._window.after(80, poll_download_result)
+        except Exception:
+            self._layout_preview_show_error(
+                request_id,
+                "UI loop is not active for preview update",
+            )
+
+    def _refresh_map_table_rows(self, rows_container: tk.Frame) -> None:
+        for child in rows_container.winfo_children():
+            child.destroy()
+
+        rows = self._get_sorted_filtered_map_rows()
+        if not rows:
+            empty = tk.Label(
+                rows_container,
+                text="No maps found",
+                bg=theme.BG_PRIMARY,
+                fg=theme.FG_SECONDARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+            )
+            empty.pack(fill="x", padx=10, pady=(8, 0))
+            return
+
+        link_font = ("Segoe UI", 9, "underline")
+
+        for row_index, row in enumerate(rows):
+            row_bg = theme.BG_SECONDARY if row_index % 2 == 0 else theme.HOVER_COLOR
+            row_frame = tk.Frame(rows_container, bg=row_bg)
+            row_frame.configure(height=self._map_row_height)
+            row_frame.pack(fill="x")
+            row_frame.grid_propagate(False)
+
+            row_frame.grid_columnconfigure(
+                0, weight=0, minsize=self._map_col_name_width
+            )
+            row_frame.grid_columnconfigure(
+                1, weight=0, minsize=self._map_col_img_layout_width
+            )
+            row_frame.grid_columnconfigure(
+                2, weight=0, minsize=self._map_col_layout_width
+            )
+            row_frame.grid_columnconfigure(
+                3, weight=0, minsize=self._map_col_density_width
+            )
+            row_frame.grid_columnconfigure(
+                4, weight=0, minsize=self._map_col_tags_width
+            )
+
+            map_name = str(row.get("mapName", ""))
+            map_url = str(row.get("mapUrl", ""))
+            layout_url = str(row.get("layoutUrl", ""))
+            tags_value = str(row.get("tags", ""))
+
+            name_label = tk.Label(
+                row_frame,
+                text=self._truncate_text(map_name, 34),
+                bg=row_bg,
+                fg=theme.RARITY_MAGIC if map_url else theme.FG_PRIMARY,
+                font=link_font if map_url else theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+                cursor="hand2" if map_url else "",
+            )
+            name_label.grid(row=0, column=0, sticky="nsew", padx=(10, 8), pady=6)
+            if map_url:
+                name_label.bind(
+                    "<Button-1>",
+                    lambda _event, current_url=map_url: self._open_external_map_link(
+                        current_url
+                    ),
+                )
+
+            layout_button = tk.Button(
+                row_frame,
+                text="Show map" if layout_url else "-",
+                bg=theme.BG_PRIMARY,
+                fg=theme.FG_PRIMARY,
+                activebackground=theme.HOVER_COLOR,
+                activeforeground=theme.FG_PRIMARY,
+                relief="flat",
+                bd=0,
+                font=theme.FONT_HEADER,
+                anchor="center",
+                state="normal" if layout_url else "disabled",
+                command=lambda current_layout_url=layout_url: (
+                    self._show_layout_preview_overlay(current_layout_url)
+                ),
+            )
+            layout_button.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
+
+            layout_value_label = tk.Label(
+                row_frame,
+                text=str(row.get("layout", 0)),
+                bg=row_bg,
+                fg=theme.FG_PRIMARY,
+                font=theme.FONT_BODY,
+                anchor="center",
+            )
+            layout_value_label.grid(row=0, column=2, sticky="nsew", padx=6, pady=6)
+
+            density_label = tk.Label(
+                row_frame,
+                text=str(row.get("density", 0)),
+                bg=row_bg,
+                fg=theme.FG_PRIMARY,
+                font=theme.FONT_BODY,
+                anchor="center",
+            )
+            density_label.grid(row=0, column=3, sticky="nsew", padx=6, pady=6)
+
+            tags_label = tk.Label(
+                row_frame,
+                text=self._truncate_text(tags_value, 72),
+                bg=row_bg,
+                fg=theme.FG_SECONDARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+            )
+            tags_label.grid(row=0, column=4, sticky="nsew", padx=(6, 10), pady=6)
+
+    def _on_map_search_change(
+        self,
+        _event: tk.Event,
+        search_var: tk.StringVar,
+        rows_container: tk.Frame,
+    ) -> None:
+        self._map_search_query = search_var.get()
+        self._refresh_map_table_rows(rows_container)
+
     def _save_overlay_menu_state(self) -> None:
         overlay_cfg = self._settings.setdefault("overlay", {})
         if not isinstance(overlay_cfg, dict):
@@ -368,6 +895,10 @@ class TabOverlayWindow:
         self._render_user_item(item)
 
     def _render_program_item(self, item) -> None:
+        if item.get("program_key") == "map":
+            self._render_map_program_item(item)
+            return
+
         panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
         panel.pack(fill="both", expand=True, padx=40, pady=40)
 
@@ -424,6 +955,164 @@ class TabOverlayWindow:
             justify="left",
         )
         feedback.pack(anchor="w", pady=(10, 0))
+
+    def _render_map_program_item(self, item) -> None:
+        panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
+        panel.pack(fill="both", expand=True, padx=24, pady=24)
+
+        title = tk.Label(
+            panel,
+            text=item.get("name", "MAP"),
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_TITLE,
+            anchor="w",
+        )
+        title.pack(anchor="w", pady=(0, 12))
+
+        search_row = tk.Frame(panel, bg=theme.BG_PRIMARY)
+        search_row.pack(fill="x", pady=(0, 10))
+
+        search_label = tk.Label(
+            search_row,
+            text="Search by name:",
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_SECONDARY,
+            font=theme.FONT_BODY,
+            anchor="w",
+        )
+        search_label.pack(side="left", padx=(0, 8))
+
+        search_var = tk.StringVar(value=self._map_search_query)
+        search_input = tk.Entry(
+            search_row,
+            textvariable=search_var,
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            insertbackground=theme.FG_PRIMARY,
+            relief="flat",
+            bd=0,
+            font=theme.FONT_BODY,
+        )
+        search_input.pack(side="left", fill="x", expand=True)
+
+        header = tk.Frame(
+            panel,
+            bg=theme.BG_SECONDARY,
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=theme.BORDER_PRIMARY,
+        )
+        header.configure(height=self._map_header_height)
+        header.pack(fill="x")
+        header.grid_propagate(False)
+        header.grid_columnconfigure(0, weight=0, minsize=self._map_col_name_width)
+        header.grid_columnconfigure(1, weight=0, minsize=self._map_col_img_layout_width)
+        header.grid_columnconfigure(2, weight=0, minsize=self._map_col_layout_width)
+        header.grid_columnconfigure(3, weight=0, minsize=self._map_col_density_width)
+        header.grid_columnconfigure(4, weight=0, minsize=self._map_col_tags_width)
+
+        name_header = tk.Button(
+            header,
+            text=f"Map name (link){self._sort_marker('mapName')}",
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.HOVER_COLOR,
+            activeforeground=theme.FG_PRIMARY,
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=8,
+            font=theme.FONT_HEADER,
+            anchor="w",
+            command=lambda: self._toggle_map_sort("mapName"),
+        )
+        name_header.grid(row=0, column=0, sticky="ew")
+
+        img_layout_header = tk.Label(
+            header,
+            text="Img layout",
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            padx=8,
+            pady=8,
+            font=theme.FONT_HEADER,
+            anchor="center",
+        )
+        img_layout_header.grid(row=0, column=1, sticky="ew")
+
+        layout_header = tk.Button(
+            header,
+            text=f"Layout{self._sort_marker('layout')}",
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.HOVER_COLOR,
+            activeforeground=theme.FG_PRIMARY,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=8,
+            font=theme.FONT_HEADER,
+            anchor="center",
+            command=lambda: self._toggle_map_sort("layout"),
+        )
+        layout_header.grid(row=0, column=2, sticky="ew")
+
+        density_header = tk.Button(
+            header,
+            text=f"Density{self._sort_marker('density')}",
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.HOVER_COLOR,
+            activeforeground=theme.FG_PRIMARY,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=8,
+            font=theme.FONT_HEADER,
+            anchor="center",
+            command=lambda: self._toggle_map_sort("density"),
+        )
+        density_header.grid(row=0, column=3, sticky="ew")
+
+        tags_header = tk.Button(
+            header,
+            text=f"Tags{self._sort_marker('tags')}",
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.HOVER_COLOR,
+            activeforeground=theme.FG_PRIMARY,
+            relief="flat",
+            bd=0,
+            padx=8,
+            pady=8,
+            font=theme.FONT_HEADER,
+            anchor="w",
+            command=lambda: self._toggle_map_sort("tags"),
+        )
+        tags_header.grid(row=0, column=4, sticky="ew")
+
+        rows_container = tk.Frame(
+            panel,
+            bg=theme.BG_PRIMARY,
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=theme.BORDER_PRIMARY,
+        )
+        rows_container.pack(fill="both", expand=True)
+
+        search_input.bind(
+            "<KeyRelease>",
+            lambda event, current_var=search_var, current_rows=rows_container: (
+                self._on_map_search_change(
+                    event,
+                    current_var,
+                    current_rows,
+                )
+            ),
+        )
+
+        self._refresh_map_table_rows(rows_container)
 
     def _render_user_item(self, item) -> None:
         panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
@@ -873,6 +1562,7 @@ class TabOverlayWindow:
             pass
 
     def hide(self) -> None:
+        self._close_layout_preview()
         self._window.withdraw()
 
     def toggle(self) -> None:
@@ -882,6 +1572,7 @@ class TabOverlayWindow:
         self.hide()
 
     def close(self) -> None:
+        self._close_layout_preview()
         try:
             self._window.destroy()
         except Exception:
