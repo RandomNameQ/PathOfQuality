@@ -302,16 +302,10 @@ class Application:
 
         Effective focus is true when:
         - focus requirement is disabled, or
-        - an allowed game process is focused, or
-        - our own application (HUD/dock) is focused.
+        - an allowed game process is focused.
         """
         if not self._focus_required:
             return True
-        try:
-            if self.hud is not None and self.hud.is_application_active():
-                return True
-        except Exception:
-            pass
         return self._is_allowed_process_active()
 
     def _is_wasd_target_active(self) -> bool:
