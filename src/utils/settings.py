@@ -31,6 +31,10 @@ def get_default_settings() -> Dict[str, Any]:
             "center_offset_x": 0,
             "center_offset_y": 0,
             "move_offset_pixels": 100,
+            "enable_skill_cursor": False,
+            "distance_skill": 0,
+            "skill_cursor_delay_s": 0.0,
+            "input_delay_s": 0.0,
         },
         "hotkeys": {
             "tool_wasd_toggle": ["GRAVE"],

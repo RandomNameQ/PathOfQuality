@@ -11,7 +11,7 @@ import ctypes
 import threading
 import time
 from ctypes import wintypes
-from typing import Callable, Dict, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 
 # Hook/message constants
@@ -23,12 +23,38 @@ WM_SYSKEYUP = 0x0105
 WM_QUIT = 0x0012
 PM_NOREMOVE = 0x0000
 PM_REMOVE = 0x0001
+LLKHF_INJECTED = 0x00000010
 
 # Keyboard VK codes
 VK_SHIFT = 0x10
 VK_CONTROL = 0x11
 VK_MENU = 0x12
+VK_LSHIFT = 0xA0
+VK_RSHIFT = 0xA1
+VK_LCONTROL = 0xA2
+VK_RCONTROL = 0xA3
+VK_LBUTTON = 0x01
+VK_RBUTTON = 0x02
+VK_MBUTTON = 0x04
+VK_XBUTTON1 = 0x05
+VK_XBUTTON2 = 0x06
 VK_OEM_3 = 0xC0
+SM_CXSCREEN = 0
+SM_CYSCREEN = 1
+
+_SKILL_CURSOR_IGNORED_VKS = {
+    VK_LBUTTON,
+    VK_RBUTTON,
+    VK_MBUTTON,
+    VK_XBUTTON1,
+    VK_XBUTTON2,
+    VK_SHIFT,
+    VK_CONTROL,
+    VK_LSHIFT,
+    VK_RSHIFT,
+    VK_LCONTROL,
+    VK_RCONTROL,
+}
 
 _TOKEN_TO_VK = {
     "SHIFT": VK_SHIFT,
@@ -53,6 +79,7 @@ DEFAULT_TOGGLE_HOTKEY = ["GRAVE"]
 INPUT_MOUSE = 0
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
+KEYEVENTF_KEYUP = 0x0002
 
 # System cursor constants
 SPI_SETCURSORS = 0x0057
@@ -173,6 +200,11 @@ user32.SystemParametersInfoW.argtypes = [
 ]
 user32.SystemParametersInfoW.restype = wintypes.BOOL
 
+user32.GetAsyncKeyState.argtypes = [wintypes.INT]
+user32.GetAsyncKeyState.restype = wintypes.SHORT
+user32.keybd_event.argtypes = [wintypes.BYTE, wintypes.BYTE, wintypes.DWORD, ULONG_PTR]
+user32.keybd_event.restype = None
+
 SendInput = user32.SendInput
 SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
 SendInput.restype = wintypes.UINT
@@ -183,6 +215,10 @@ class WasdController:
         self,
         is_target_active: Optional[Callable[[], bool]] = None,
         offset_pixels: int = 100,
+        enable_skill_cursor: bool = False,
+        distance_skill_percent: int = 0,
+        skill_cursor_delay_s: float = 0.0,
+        input_delay_s: float = 0.0,
         tick_hz: float = 60.0,
         on_toggle: Optional[Callable[[], None]] = None,
         movement_keys: Optional[Dict[str, str]] = None,
@@ -194,6 +230,13 @@ class WasdController:
         self._tick_interval = 1.0 / max(1.0, float(tick_hz))
         self._center_offset_x = 0
         self._center_offset_y = 0
+        self._enable_skill_cursor = bool(enable_skill_cursor)
+        self._distance_skill_percent = max(0, int(distance_skill_percent))
+        self._skill_cursor_delay_s = max(0.0, float(skill_cursor_delay_s))
+        self._skill_input_delay_s = max(0.0, float(input_delay_s))
+        self._skill_release_deadline = 0.0
+        self._pending_skill_inputs: List[Tuple[float, int, int]] = []
+        self._suppressed_skill_keyups: Set[int] = set()
 
         self._enabled = True
         self._pressed_vks: Set[int] = set()
@@ -354,6 +397,9 @@ class WasdController:
             with self._pressed_lock:
                 self._pressed_vks.clear()
                 self._held_vks.clear()
+                self._skill_release_deadline = 0.0
+                self._pending_skill_inputs.clear()
+                self._suppressed_skill_keyups.clear()
 
     def set_offsets(self, top: int, bot: int, left: int, right: int) -> None:
         self._center_offset_x = int(right) - int(left)
@@ -366,22 +412,58 @@ class WasdController:
     def set_move_offset_pixels(self, offset_pixels: int) -> None:
         self._offset_pixels = max(0, int(offset_pixels))
 
+    def set_skill_cursor_config(
+        self,
+        enabled: bool,
+        distance_skill_percent: int,
+        release_delay_s: float = 0.0,
+        input_delay_s: float = 0.0,
+    ) -> None:
+        self._enable_skill_cursor = bool(enabled)
+        self._distance_skill_percent = max(0, int(distance_skill_percent))
+        self._skill_cursor_delay_s = max(0.0, float(release_delay_s))
+        self._skill_input_delay_s = max(0.0, float(input_delay_s))
+        if not self._enable_skill_cursor:
+            with self._pressed_lock:
+                self._skill_release_deadline = 0.0
+                self._pending_skill_inputs.clear()
+                self._suppressed_skill_keyups.clear()
+
     def set_enabled(self, enabled: bool) -> None:
         self._enabled = bool(enabled)
         if not self._enabled:
             self._exit_moving_active()
+            with self._pressed_lock:
+                self._skill_release_deadline = 0.0
+                self._pending_skill_inputs.clear()
+                self._suppressed_skill_keyups.clear()
 
     def _keyboard_callback(self, nCode: int, wParam: int, lParam: int) -> int:
         if nCode == 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
             kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
             vk = int(kb.vkCode)
+            scan_code = int(kb.scanCode)
+            flags = int(kb.flags)
 
             is_keydown = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+            is_injected = bool(flags & LLKHF_INJECTED)
+            intercept_skill_keydown = False
+            suppress_keyup = False
+            trigger_toggle = False
             with self._pressed_lock:
+                was_held_before = vk in self._held_vks
                 if is_keydown:
                     self._held_vks.add(vk)
                 else:
                     self._held_vks.discard(vk)
+
+                if (
+                    not is_keydown
+                    and not is_injected
+                    and vk in self._suppressed_skill_keyups
+                ):
+                    self._suppressed_skill_keyups.discard(vk)
+                    suppress_keyup = True
 
                 if vk == self._toggle_main_vk:
                     if is_keydown:
@@ -389,9 +471,7 @@ class WasdController:
                             self._held_vks
                         ):
                             self._toggle_main_down = True
-                            if self._on_toggle:
-                                self._on_toggle()
-                            return 1
+                            trigger_toggle = True
                     else:
                         self._toggle_main_down = False
 
@@ -402,6 +482,39 @@ class WasdController:
                         self._pressed_vks.discard(vk)
                     if self._enabled and self._safe_is_target_active():
                         return 1
+
+                if (
+                    is_keydown
+                    and not was_held_before
+                    and not is_injected
+                    and self._enabled
+                    and self._enable_skill_cursor
+                    and self._distance_skill_percent > 0
+                    and bool(self._pressed_vks)
+                    and vk not in self._movement_vks
+                    and vk not in _SKILL_CURSOR_IGNORED_VKS
+                    and vk != self._toggle_main_vk
+                    and vk not in self._toggle_mod_vks
+                ):
+                    self._skill_release_deadline = (
+                        time.perf_counter() + self._skill_cursor_delay_s
+                    )
+                    intercept_skill_keydown = True
+
+            if suppress_keyup:
+                return 1
+
+            if trigger_toggle:
+                if self._on_toggle:
+                    self._on_toggle()
+                return 1
+
+            if intercept_skill_keydown and self._safe_is_target_active():
+                with self._pressed_lock:
+                    self._suppressed_skill_keyups.add(vk)
+                self._move_cursor_to_current_target(include_skill=True)
+                self._schedule_skill_input(vk, scan_code)
+                return 1
 
         hook_handle = self._keyboard_hook or 0
         return user32.CallNextHookEx(hook_handle, nCode, wParam, lParam)
@@ -440,6 +553,12 @@ class WasdController:
     def _worker_loop(self) -> None:
         try:
             while not self._stop_event.is_set():
+                if not self._enabled:
+                    self._exit_moving_active()
+                    time.sleep(self._tick_interval)
+                    continue
+
+                self._flush_pending_skill_inputs()
                 dx, dy = self._compute_offset()
                 has_input = (dx != 0) or (dy != 0)
                 target_active = self._safe_is_target_active()
@@ -451,8 +570,12 @@ class WasdController:
 
                     center = self._get_foreground_window_center()
                     if center is not None:
+                        skill_jump = self._compute_skill_cursor_jump()
                         x = int(center[0] + dx)
                         y = int(center[1] + dy)
+                        if skill_jump is not None:
+                            x += int(skill_jump[0])
+                            y += int(skill_jump[1])
                         user32.SetCursorPos(x, y)
                 else:
                     self._exit_moving_active()
@@ -464,7 +587,11 @@ class WasdController:
     def _compute_offset(self) -> Tuple[int, int]:
         with self._pressed_lock:
             vks = set(self._pressed_vks)
+        horizontal, vertical = self._compute_direction_from_vks(vks)
 
+        return horizontal * self._offset_pixels, vertical * self._offset_pixels
+
+    def _compute_direction_from_vks(self, vks: Set[int]) -> Tuple[int, int]:
         vertical = 0
         horizontal = 0
 
@@ -477,7 +604,140 @@ class WasdController:
         if self._movement_bindings.get("right") in vks:
             horizontal += 1
 
-        return horizontal * self._offset_pixels, vertical * self._offset_pixels
+        return horizontal, vertical
+
+    def _is_skill_cursor_active_locked(self, now: float) -> bool:
+        if self._skill_release_deadline <= 0.0:
+            return False
+        if now < self._skill_release_deadline:
+            return True
+        self._skill_release_deadline = 0.0
+        return False
+
+    def _has_skill_cursor_trigger_key_down(
+        self,
+        movement_vks: Set[int],
+        toggle_main_vk: int,
+        toggle_mod_vks: Set[int],
+    ) -> bool:
+        for vk in range(256):
+            if not (int(user32.GetAsyncKeyState(vk)) & 0x8000):
+                continue
+            if vk in _SKILL_CURSOR_IGNORED_VKS:
+                continue
+            if vk in movement_vks:
+                continue
+            if vk == toggle_main_vk:
+                continue
+            if vk in toggle_mod_vks:
+                continue
+            return True
+        return False
+
+    def _compute_skill_cursor_jump(self) -> Optional[Tuple[int, int]]:
+        if not self._enable_skill_cursor or self._distance_skill_percent <= 0:
+            return None
+
+        now = time.perf_counter()
+        with self._pressed_lock:
+            horizontal, vertical = self._compute_direction_from_vks(self._pressed_vks)
+            movement_vks = set(self._movement_vks)
+            toggle_main_vk = int(self._toggle_main_vk)
+            toggle_mod_vks = set(self._toggle_mod_vks)
+
+        if horizontal == 0 and vertical == 0:
+            return None
+
+        trigger_key_down = self._has_skill_cursor_trigger_key_down(
+            movement_vks,
+            toggle_main_vk,
+            toggle_mod_vks,
+        )
+
+        with self._pressed_lock:
+            if trigger_key_down:
+                self._skill_release_deadline = now + self._skill_cursor_delay_s
+            elif not self._is_skill_cursor_active_locked(now):
+                return None
+
+        return self._compute_skill_jump_from_direction(horizontal, vertical)
+
+    def _compute_skill_jump_from_direction(
+        self, horizontal: int, vertical: int
+    ) -> Optional[Tuple[int, int]]:
+        if horizontal == 0 and vertical == 0:
+            return None
+        screen_w = max(1, int(user32.GetSystemMetrics(SM_CXSCREEN)))
+        screen_h = max(1, int(user32.GetSystemMetrics(SM_CYSCREEN)))
+        jump_x = int((screen_w * self._distance_skill_percent) / 100.0)
+        jump_y = int((screen_h * self._distance_skill_percent) / 100.0)
+        return horizontal * jump_x, vertical * jump_y
+
+    def _move_cursor_to_current_target(self, include_skill: bool = False) -> bool:
+        dx, dy = self._compute_offset()
+        if dx == 0 and dy == 0:
+            return False
+
+        center = self._get_foreground_window_center()
+        if center is None:
+            return False
+
+        x = int(center[0] + dx)
+        y = int(center[1] + dy)
+        if include_skill:
+            with self._pressed_lock:
+                horizontal, vertical = self._compute_direction_from_vks(
+                    self._pressed_vks
+                )
+            skill_jump = self._compute_skill_jump_from_direction(horizontal, vertical)
+            if skill_jump is not None:
+                x += int(skill_jump[0])
+                y += int(skill_jump[1])
+
+        user32.SetCursorPos(x, y)
+        return True
+
+    def _schedule_skill_input(self, vk: int, scan_code: int) -> None:
+        delay_s = max(0.0, float(self._skill_input_delay_s))
+        if delay_s <= 0.0:
+            self._emit_key_tap(vk, scan_code)
+            return
+
+        due_time = time.perf_counter() + delay_s
+        with self._pressed_lock:
+            self._pending_skill_inputs.append((due_time, int(vk), int(scan_code)))
+
+    def _flush_pending_skill_inputs(self) -> None:
+        now = time.perf_counter()
+        ready: List[Tuple[int, int]] = []
+        with self._pressed_lock:
+            if not self._pending_skill_inputs:
+                return
+
+            pending: List[Tuple[float, int, int]] = []
+            for due_time, vk, scan_code in self._pending_skill_inputs:
+                if due_time <= now:
+                    ready.append((vk, scan_code))
+                else:
+                    pending.append((due_time, vk, scan_code))
+            self._pending_skill_inputs = pending
+
+        for vk, scan_code in ready:
+            self._emit_key_tap(vk, scan_code)
+
+    def _emit_key_tap(self, vk: int, scan_code: int) -> None:
+        user32.keybd_event(
+            wintypes.BYTE(vk & 0xFF),
+            wintypes.BYTE(scan_code & 0xFF),
+            wintypes.DWORD(0),
+            ULONG_PTR(0),
+        )
+        user32.keybd_event(
+            wintypes.BYTE(vk & 0xFF),
+            wintypes.BYTE(scan_code & 0xFF),
+            wintypes.DWORD(KEYEVENTF_KEYUP),
+            ULONG_PTR(0),
+        )
 
     def _safe_is_target_active(self) -> bool:
         try:

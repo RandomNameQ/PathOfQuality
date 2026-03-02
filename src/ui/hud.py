@@ -62,7 +62,7 @@ class BuffHUD:
         templates: List[Tuple[str, str]],
         keep_on_top: bool = True,
         alpha: float = 1.0,
-        grab_anywhere: bool = True,
+        grab_anywhere: bool = False,
         focus_required: bool = True,
         dock_position: Optional[Tuple[int, int]] = None,
         triple_ctrl_click_enabled: bool = False,
@@ -73,6 +73,10 @@ class BuffHUD:
         wasd_center_offset_x: int = 0,
         wasd_center_offset_y: int = 0,
         wasd_move_offset_pixels: int = 100,
+        wasd_enable_skill_cursor: bool = False,
+        wasd_distance_skill: int = 0,
+        wasd_skill_cursor_delay_s: float = 0.0,
+        wasd_input_delay_s: float = 0.0,
         wasd_movement_hint: str = "W/A/S/D",
         wasd_toggle_hint: str = "~",
         overlay_hotkey: str = "F8",
@@ -85,7 +89,7 @@ class BuffHUD:
             templates: List of (name, path) template tuples
             keep_on_top: Whether window should stay on top
             alpha: Window transparency (0.0 to 1.0)
-            grab_anywhere: Whether to enable drag-from-anywhere
+            grab_anywhere: Deprecated. Native title-bar dragging is used.
         """
         self._root = tk.Tk()
         self._root.title(f"Buff HUD v{APP_VERSION}")
@@ -230,6 +234,10 @@ class BuffHUD:
             center_offset_x=wasd_center_offset_x,
             center_offset_y=wasd_center_offset_y,
             move_offset_pixels=wasd_move_offset_pixels,
+            enable_skill_cursor=wasd_enable_skill_cursor,
+            distance_skill=wasd_distance_skill,
+            skill_cursor_delay_s=wasd_skill_cursor_delay_s,
+            input_delay_s=wasd_input_delay_s,
             movement_hint=wasd_movement_hint,
             toggle_hint=wasd_toggle_hint,
         )
@@ -355,24 +363,6 @@ class BuffHUD:
         # Load library
         self._reload_library()
 
-        # Enable grab-anywhere if requested
-        if grab_anywhere:
-            for widget in (
-                self._root,
-                self._tab_overview_frame,
-                self._tab_settings_frame,
-                self._tab_useful_frame,
-                self._tab_about_frame,
-                self._tab_library_group_frame,
-                self._tab_tools_group_frame,
-                self._tab_monitor_frame,
-                self._tab_buffs_frame,
-                self._tab_debuffs_frame,
-                self._tab_copy_frame,
-            ):
-                widget.bind("<ButtonPress-1>", self._start_move)
-                widget.bind("<B1-Motion>", self._on_motion)
-
         # Floating control dock
         self._control_dock = ControlDock(
             master=self._root,
@@ -404,13 +394,6 @@ class BuffHUD:
         """Handle exit request."""
         self._exit_requested = True
 
-    def _start_move(self, event) -> None:
-        """Start window dragging."""
-        self._click_x = event.x_root
-        self._click_y = event.y_root
-        self._win_x = self._root.winfo_x()
-        self._win_y = self._root.winfo_y()
-
     def _apply_app_icon(self) -> None:
         try:
             project_root = os.path.abspath(
@@ -424,14 +407,6 @@ class BuffHUD:
             self._root.iconphoto(True, self._app_icon)
         except Exception:
             pass
-
-    def _on_motion(self, event) -> None:
-        """Handle window dragging."""
-        dx = event.x_root - self._click_x
-        dy = event.y_root - self._click_y
-        new_x = self._win_x + dx
-        new_y = self._win_y + dy
-        self._root.geometry(f"+{new_x}+{new_y}")
 
     def _on_select_roi(self) -> None:
         """Handle ROI selection request."""
@@ -1167,6 +1142,10 @@ class BuffHUD:
         """Update quick craft positioning checkbox state."""
         self._quickcraft_tab.set_positioning(enabled)
 
+    def set_wasd_enabled(self, enabled: bool) -> None:
+        """Update WASD enabled checkbox state."""
+        self._wasd_tab.set_enabled(enabled)
+
     # No runtime active UI marker required
 
     def set_click_emulation_state(self, enabled: bool) -> None:
@@ -1255,6 +1234,10 @@ class BuffHUD:
             "center_offset_x": int(self._wasd_tab.get_center_offset_x()),
             "center_offset_y": int(self._wasd_tab.get_center_offset_y()),
             "move_offset_pixels": int(self._wasd_tab.get_move_offset_pixels()),
+            "enable_skill_cursor": bool(self._wasd_tab.get_enable_skill_cursor()),
+            "distance_skill": int(self._wasd_tab.get_distance_skill()),
+            "skill_cursor_delay_s": float(self._wasd_tab.get_skill_cursor_delay_s()),
+            "input_delay_s": float(self._wasd_tab.get_input_delay_s()),
         }
 
     def is_dock_locked(self) -> bool:

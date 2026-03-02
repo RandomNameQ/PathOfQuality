@@ -3,6 +3,7 @@ Main application logic and event loop.
 """
 
 import os
+import threading
 import sys
 import json
 import subprocess
@@ -202,6 +203,9 @@ class Application:
         )
         self._focus_state_last: Optional[bool] = None
         self._last_allowed_hwnd = None
+
+        self._wasd_toggle_lock = threading.Lock()
+        self._wasd_toggle_requests = 0
         self._triple_ctrl_click_enabled = bool(
             self.settings.get("triple_ctrl_click_enabled", False)
         )
@@ -224,6 +228,18 @@ class Application:
             0,
             int(self._wasd_cfg.get("move_offset_pixels", 100)),
         )
+        self._wasd_enable_skill_cursor = bool(
+            self._wasd_cfg.get("enable_skill_cursor", False)
+        )
+        self._wasd_distance_skill = max(0, int(self._wasd_cfg.get("distance_skill", 0)))
+        self._wasd_skill_cursor_delay_s = max(
+            0.0,
+            float(self._wasd_cfg.get("skill_cursor_delay_s", 0.0)),
+        )
+        self._wasd_input_delay_s = max(
+            0.0,
+            float(self._wasd_cfg.get("input_delay_s", 0.0)),
+        )
         self._wasd_movement_keys, self._wasd_toggle_hotkey = (
             self._get_wasd_hotkey_config(self.settings.get("hotkeys", {}))
         )
@@ -245,6 +261,10 @@ class Application:
             WasdController(
                 is_target_active=self._is_wasd_target_active,
                 offset_pixels=self._wasd_move_offset_pixels,
+                enable_skill_cursor=self._wasd_enable_skill_cursor,
+                distance_skill_percent=self._wasd_distance_skill,
+                skill_cursor_delay_s=self._wasd_skill_cursor_delay_s,
+                input_delay_s=self._wasd_input_delay_s,
                 on_toggle=self._handle_wasd_toggle,
                 movement_keys=self._wasd_movement_keys,
                 toggle_hotkey=self._wasd_toggle_hotkey,
@@ -309,32 +329,24 @@ class Application:
         return self._is_allowed_process_active()
 
     def _handle_wasd_toggle(self) -> None:
-        root = getattr(self, "root", None)
-        if root is not None:
-            try:
-                root.after(0, self._do_wasd_toggle)
-                return
-            except Exception:
-                pass
+        with self._wasd_toggle_lock:
+            self._wasd_toggle_requests += 1
 
+    def _consume_wasd_toggle_requests(self) -> int:
+        with self._wasd_toggle_lock:
+            count = int(self._wasd_toggle_requests)
+            self._wasd_toggle_requests = 0
+        return count
+
+    def _do_wasd_toggle(self) -> None:
         self._wasd_enabled = not self._wasd_enabled
+        self.hud.set_wasd_enabled(self._wasd_enabled)
         self._wasd_cfg["enabled"] = self._wasd_enabled
         self.settings["wasd"] = self._wasd_cfg
         save_settings(self.settings_path, self.settings)
         if self._wasd_controller is not None:
             self._wasd_controller.set_enabled(self._wasd_enabled)
-
-    def _do_wasd_toggle(self) -> None:
-        self._wasd_enabled = not self._wasd_enabled
-        self.hud._wasd_tab._enabled_var.set(self._wasd_enabled)
-        self._wasd_cfg["enabled"] = self._wasd_enabled
-        self.settings["wasd"] = self._wasd_cfg
-        save_settings(self.settings_path, self.settings)
-        self._apply_wasd_config(self._wasd_cfg)
-        self._show_notification(
-            "WASD ON" if self._wasd_enabled else "WASD OFF",
-            "#4CAF50" if self._wasd_enabled else "#F44336",
-        )
+            self._start_wasd_controller()
 
     def _normalize_hotkey_token(self, token: object) -> str:
         token_text = str(token or "").strip().replace("-", "_")
@@ -515,6 +527,13 @@ class Application:
             0,
             int(cfg.get("move_offset_pixels", 100)),
         )
+        self._wasd_enable_skill_cursor = bool(cfg.get("enable_skill_cursor", False))
+        self._wasd_distance_skill = max(0, int(cfg.get("distance_skill", 0)))
+        self._wasd_skill_cursor_delay_s = max(
+            0.0,
+            float(cfg.get("skill_cursor_delay_s", 0.0)),
+        )
+        self._wasd_input_delay_s = max(0.0, float(cfg.get("input_delay_s", 0.0)))
 
         if self._wasd_controller:
             self._wasd_controller.set_enabled(self._wasd_enabled)
@@ -523,11 +542,13 @@ class Application:
                 self._wasd_center_offset_y,
             )
             self._wasd_controller.set_move_offset_pixels(self._wasd_move_offset_pixels)
-
-        if self._wasd_enabled:
+            self._wasd_controller.set_skill_cursor_config(
+                self._wasd_enable_skill_cursor,
+                self._wasd_distance_skill,
+                self._wasd_skill_cursor_delay_s,
+                self._wasd_input_delay_s,
+            )
             self._start_wasd_controller()
-        else:
-            self._stop_wasd_controller()
 
     def _start_wasd_controller(self) -> None:
         if self._wasd_controller is None:
@@ -603,6 +624,10 @@ class Application:
             wasd_center_offset_x=self._wasd_center_offset_x,
             wasd_center_offset_y=self._wasd_center_offset_y,
             wasd_move_offset_pixels=self._wasd_move_offset_pixels,
+            wasd_enable_skill_cursor=self._wasd_enable_skill_cursor,
+            wasd_distance_skill=self._wasd_distance_skill,
+            wasd_skill_cursor_delay_s=self._wasd_skill_cursor_delay_s,
+            wasd_input_delay_s=self._wasd_input_delay_s,
             wasd_movement_hint=self._wasd_movement_hint,
             wasd_toggle_hint=self._wasd_toggle_hint,
             overlay_hotkey=self._overlay_open_hotkey,
@@ -712,6 +737,13 @@ class Application:
 
         try:
             while True:
+                toggle_requests = self._consume_wasd_toggle_requests()
+                if toggle_requests % 2 == 1:
+                    try:
+                        self._do_wasd_toggle()
+                    except Exception as exc:
+                        print(f"[WASD] Toggle failed: {exc}")
+
                 event = self.hud.read(timeout=scan_interval_ms)
                 game_in_focus = self._is_allowed_process_active()
                 effective_focus = self._has_effective_focus()

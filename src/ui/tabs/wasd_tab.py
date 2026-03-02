@@ -20,6 +20,10 @@ class WasdTab:
     _center_offset_x_var: tk.IntVar
     _center_offset_y_var: tk.IntVar
     _move_offset_pixels_var: tk.IntVar
+    _enable_skill_cursor_var: tk.BooleanVar
+    _distance_skill_var: tk.IntVar
+    _skill_cursor_delay_s_var: tk.DoubleVar
+    _input_delay_s_var: tk.DoubleVar
     _movement_hint: str
     _toggle_hint: str
     _wasd_group: ttk.LabelFrame
@@ -33,6 +37,10 @@ class WasdTab:
         center_offset_x: int = 0,
         center_offset_y: int = 0,
         move_offset_pixels: int = 100,
+        enable_skill_cursor: bool = False,
+        distance_skill: int = 0,
+        skill_cursor_delay_s: float = 0.0,
+        input_delay_s: float = 0.0,
         movement_hint: str = "W/A/S/D",
         toggle_hint: str = "~",
     ) -> None:
@@ -44,6 +52,12 @@ class WasdTab:
         self._center_offset_x_var = tk.IntVar(value=int(center_offset_x))
         self._center_offset_y_var = tk.IntVar(value=int(center_offset_y))
         self._move_offset_pixels_var = tk.IntVar(value=max(0, int(move_offset_pixels)))
+        self._enable_skill_cursor_var = tk.BooleanVar(value=bool(enable_skill_cursor))
+        self._distance_skill_var = tk.IntVar(value=max(0, int(distance_skill)))
+        self._skill_cursor_delay_s_var = tk.DoubleVar(
+            value=max(0.0, float(skill_cursor_delay_s))
+        )
+        self._input_delay_s_var = tk.DoubleVar(value=max(0.0, float(input_delay_s)))
         self._movement_hint = str(movement_hint)
         self._toggle_hint = str(toggle_hint)
 
@@ -124,6 +138,74 @@ class WasdTab:
         spn_move_offset.bind("<FocusOut>", lambda _e: self._notify_change())
         spn_move_offset.bind("<Return>", lambda _e: self._notify_change())
 
+        skill_row = ttk.Frame(self._wasd_group, padding=(0, 4))
+        skill_row.pack(fill="x")
+
+        ttk.Checkbutton(
+            skill_row,
+            text=t("wasd.enable_skill_cursor", "Enable skill cursor"),
+            variable=self._enable_skill_cursor_var,
+            command=self._notify_change,
+            style="ToggleGray.TCheckbutton",
+        ).pack(side="left", padx=(0, 12))
+
+        ttk.Label(
+            skill_row,
+            text=t("wasd.distance_skill", "Distance skill (%)"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_distance_skill = ttk.Spinbox(
+            skill_row,
+            from_=0,
+            to=100,
+            increment=1,
+            textvariable=self._distance_skill_var,
+            width=8,
+        )
+        spn_distance_skill.pack(side="left")
+        spn_distance_skill.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_distance_skill.bind("<Return>", lambda _e: self._notify_change())
+
+        delay_row = ttk.Frame(self._wasd_group, padding=(0, 4))
+        delay_row.pack(fill="x")
+
+        ttk.Label(
+            delay_row,
+            text=t("wasd.skill_cursor_delay_s", "Skill cursor return delay (s)"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_skill_delay = ttk.Spinbox(
+            delay_row,
+            from_=0.0,
+            to=10.0,
+            increment=0.05,
+            textvariable=self._skill_cursor_delay_s_var,
+            width=8,
+        )
+        spn_skill_delay.pack(side="left")
+        spn_skill_delay.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_skill_delay.bind("<Return>", lambda _e: self._notify_change())
+
+        input_delay_row = ttk.Frame(self._wasd_group, padding=(0, 4))
+        input_delay_row.pack(fill="x")
+
+        ttk.Label(
+            input_delay_row,
+            text=t("wasd.input_delay_s", "Input delay (s)"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_input_delay = ttk.Spinbox(
+            input_delay_row,
+            from_=0.0,
+            to=10.0,
+            increment=0.01,
+            textvariable=self._input_delay_s_var,
+            width=8,
+        )
+        spn_input_delay.pack(side="left")
+        spn_input_delay.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_input_delay.bind("<Return>", lambda _e: self._notify_change())
+
         self._help_lbl = ttk.Label(
             self._wasd_group,
             text=self._build_help_text(),
@@ -180,6 +262,9 @@ class WasdTab:
     def get_enabled(self) -> bool:
         return self.is_enabled()
 
+    def set_enabled(self, enabled: bool) -> None:
+        self._enabled_var.set(bool(enabled))
+
     def get_center_offset_x(self) -> int:
         try:
             return int(self._center_offset_x_var.get())
@@ -197,6 +282,27 @@ class WasdTab:
             return max(0, int(self._move_offset_pixels_var.get()))
         except Exception:
             return 100
+
+    def get_enable_skill_cursor(self) -> bool:
+        return bool(self._enable_skill_cursor_var.get())
+
+    def get_distance_skill(self) -> int:
+        try:
+            return max(0, int(self._distance_skill_var.get()))
+        except Exception:
+            return 0
+
+    def get_skill_cursor_delay_s(self) -> float:
+        try:
+            return max(0.0, float(self._skill_cursor_delay_s_var.get()))
+        except Exception:
+            return 0.0
+
+    def get_input_delay_s(self) -> float:
+        try:
+            return max(0.0, float(self._input_delay_s_var.get()))
+        except Exception:
+            return 0.0
 
     def refresh_texts(self) -> None:
         try:

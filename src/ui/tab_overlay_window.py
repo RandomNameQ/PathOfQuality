@@ -102,6 +102,20 @@ class TabOverlayWindow:
         )
         root.pack(fill="both", expand=True, padx=20, pady=20)
 
+        self._window_drag_handle = tk.Frame(
+            self._window,
+            bg=theme.BG_SECONDARY,
+            height=self._window_drag_region_height,
+            bd=0,
+            highlightthickness=0,
+        )
+        self._window_drag_handle.place(
+            x=0,
+            y=0,
+            relwidth=1.0,
+            height=self._window_drag_region_height,
+        )
+
         self._btn_close_overlay = tk.Button(
             self._window,
             text="X",
@@ -183,9 +197,9 @@ class TabOverlayWindow:
         self._content_inner.bind("<Configure>", self._on_content_inner_configure)
         self._content_canvas.bind("<Configure>", self._on_content_canvas_configure)
 
-        self._window.bind("<ButtonPress-1>", self._start_window_drag, add="+")
-        self._window.bind("<B1-Motion>", self._on_window_drag, add="+")
-        self._window.bind("<ButtonRelease-1>", self._finish_window_drag, add="+")
+        self._window_drag_handle.bind("<ButtonPress-1>", self._start_window_drag)
+        self._window_drag_handle.bind("<B1-Motion>", self._on_window_drag)
+        self._window_drag_handle.bind("<ButtonRelease-1>", self._finish_window_drag)
 
     def _seed_menu(self) -> None:
         self._menu_items = [
@@ -1871,12 +1885,6 @@ class TabOverlayWindow:
             self._select_item(self._active_item_id)
 
     def _start_window_drag(self, event: tk.Event) -> None:
-        window_top = self._window.winfo_rooty()
-        local_y = event.y_root - window_top
-        if local_y > self._window_drag_region_height:
-            self._window_drag_state["active"] = False
-            return
-
         self._window_drag_state["active"] = True
         self._window_drag_state["offset_x"] = event.x_root - self._window.winfo_x()
         self._window_drag_state["offset_y"] = event.y_root - self._window.winfo_y()
