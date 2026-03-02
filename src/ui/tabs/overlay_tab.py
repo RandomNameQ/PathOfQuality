@@ -14,10 +14,18 @@ from src.ui.styles import BG_COLOR, FG_COLOR
 class OverlayTab:
     """Controls for opening and configuring tab overlay."""
 
-    def __init__(self, parent: tk.Frame, overlay_hotkey: str = "F8") -> None:
+    def __init__(
+        self,
+        parent: tk.Frame,
+        overlay_hotkey: str = "F8",
+        use_map_layout_overlay: bool = True,
+    ) -> None:
         self.frame = parent
         self._overlay_hotkey_var = tk.StringVar(value="")
         self._overlay_hotkey_display_var = tk.StringVar(value="")
+        self._use_map_layout_overlay_var = tk.BooleanVar(
+            value=bool(use_map_layout_overlay)
+        )
         self._create_widgets()
         self.set_overlay_hotkey(overlay_hotkey)
 
@@ -34,6 +42,23 @@ class OverlayTab:
             style="Prompt.TLabel",
         )
         self._desc_label.pack(anchor="w", pady=(0, 10))
+
+        self._chk_use_map_layout_overlay = tk.Checkbutton(
+            main_container,
+            text=t("overlay.use_map_layout_overlay", "Use map layout overlay"),
+            variable=self._use_map_layout_overlay_var,
+            onvalue=True,
+            offvalue=False,
+            bg=BG_COLOR,
+            fg=FG_COLOR,
+            activebackground=BG_COLOR,
+            activeforeground=FG_COLOR,
+            selectcolor=theme.BG_SECONDARY,
+            highlightthickness=0,
+            bd=0,
+            font=theme.FONT_BODY,
+        )
+        self._chk_use_map_layout_overlay.pack(anchor="w", pady=(0, 12))
 
         self._btn_open_overlay = ttk.Button(
             main_container,
@@ -81,6 +106,9 @@ class OverlayTab:
     def set_open_overlay_command(self, command) -> None:
         self._btn_open_overlay.configure(command=command)
 
+    def set_map_layout_overlay_command(self, command) -> None:
+        self._chk_use_map_layout_overlay.configure(command=command)
+
     def set_set_overlay_hotkey_command(self, command) -> None:
         self._btn_set_overlay_hotkey.configure(command=command)
 
@@ -97,12 +125,21 @@ class OverlayTab:
             format_hotkey_display(normalized) if normalized else "-"
         )
 
+    def get_map_layout_overlay_enabled(self) -> bool:
+        return bool(self._use_map_layout_overlay_var.get())
+
+    def set_map_layout_overlay_enabled(self, enabled: bool) -> None:
+        self._use_map_layout_overlay_var.set(bool(enabled))
+
     def refresh_texts(self) -> None:
         self._desc_label.configure(
             text=t(
                 "overlay.desc",
                 "Open floating overlay window and configure opening hotkey.",
             )
+        )
+        self._chk_use_map_layout_overlay.configure(
+            text=t("overlay.use_map_layout_overlay", "Use map layout overlay")
         )
         self._btn_open_overlay.configure(
             text=t("settings.open_overlay", "Open Overlay")

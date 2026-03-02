@@ -76,6 +76,11 @@ class TabOverlayWindow:
         self._layout_preview_photo = None
         self._layout_preview_close_binding = None
         self._layout_preview_request_id = 0
+        self._clipboard_map_window = None
+        self._clipboard_map_body = None
+        self._clipboard_map_link_label = None
+        self._clipboard_map_photo = None
+        self._clipboard_map_request_id = 0
         self._drag_state = {
             "item_id": "",
             "start_y": 0,
@@ -283,6 +288,27 @@ class TabOverlayWindow:
         active_id = str(overlay_cfg.get("active_item_id", "")).strip()
         return saved_items, active_id
 
+    def _is_map_layout_overlay_enabled(self) -> bool:
+        overlay_cfg = self._settings.get("overlay", {})
+        if not isinstance(overlay_cfg, dict):
+            return True
+        return bool(overlay_cfg.get("use_map_layout_overlay", True))
+
+    def is_map_layout_overlay_enabled(self) -> bool:
+        return self._is_map_layout_overlay_enabled()
+
+    def _set_map_layout_overlay_enabled(self, enabled: bool) -> None:
+        overlay_cfg = self._settings.setdefault("overlay", {})
+        if not isinstance(overlay_cfg, dict):
+            return
+
+        overlay_cfg["use_map_layout_overlay"] = bool(enabled)
+        if self._save_settings_callback is not None:
+            try:
+                self._save_settings_callback()
+            except Exception:
+                pass
+
     def _compute_next_user_counter(self) -> int:
         max_id = 0
         for item in self._menu_items:
@@ -429,6 +455,308 @@ class TabOverlayWindow:
             webbrowser.open_new_tab(map_url)
         except Exception:
             pass
+
+    def _find_map_row_by_name(self, map_name: str) -> Optional[dict]:
+        needle = str(map_name or "").strip().lower()
+        if not needle:
+            return None
+
+        for row in self._map_rows:
+            candidate = str(row.get("mapName", "")).strip().lower()
+            if candidate == needle:
+                return row
+        return None
+
+    def _clipboard_map_set_geometry(
+        self, content_width: int, content_height: int
+    ) -> None:
+        if self._clipboard_map_window is None:
+            return
+
+        screen_w = self._window.winfo_screenwidth()
+        screen_h = self._window.winfo_screenheight()
+        popup_width = max(360, int(screen_w * 0.5))
+        popup_height = max(240, int(screen_h * 0.5))
+        popup_x = max(0, (screen_w - popup_width) // 2)
+        popup_y = max(0, (screen_h - popup_height) // 2)
+        self._clipboard_map_window.geometry(
+            f"{popup_width}x{popup_height}+{popup_x}+{popup_y}"
+        )
+
+    def _clipboard_map_show_message(self, message: str, width: int = 520) -> None:
+        if self._clipboard_map_body is None:
+            return
+
+        for child in self._clipboard_map_body.winfo_children():
+            child.destroy()
+
+        label = tk.Label(
+            self._clipboard_map_body,
+            text=message,
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_BODY,
+            justify="center",
+            anchor="center",
+            wraplength=max(260, width - 40),
+        )
+        label.pack(fill="both", expand=True, padx=12, pady=12)
+        label.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+        self._clipboard_map_set_geometry(width, 180)
+
+    def _clipboard_map_show_image(self, request_id: int, image_bytes: bytes) -> bool:
+        if request_id != self._clipboard_map_request_id:
+            return False
+        if self._clipboard_map_window is None or self._clipboard_map_body is None:
+            return False
+        if not self._clipboard_map_window.winfo_exists():
+            return False
+
+        try:
+            source_image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        except Exception as error:
+            self._clipboard_map_show_message(f"Failed to render map image\n{error}")
+            return False
+
+        screen_w = self._window.winfo_screenwidth()
+        screen_h = self._window.winfo_screenheight()
+        max_width = max(300, int(screen_w * 0.5) - 32)
+        max_height = max(220, int(screen_h * 0.5) - 96)
+        scale = min(
+            max_width / source_image.width, max_height / source_image.height, 1.0
+        )
+        target_width = max(1, int(source_image.width * scale))
+        target_height = max(1, int(source_image.height * scale))
+        preview_image = source_image.resize(
+            (target_width, target_height), Image.LANCZOS
+        )
+        self._clipboard_map_photo = ImageTk.PhotoImage(preview_image)
+
+        for child in self._clipboard_map_body.winfo_children():
+            child.destroy()
+
+        image_label = tk.Label(
+            self._clipboard_map_body,
+            image=self._clipboard_map_photo,
+            bg=theme.BG_PRIMARY,
+        )
+        image_label.pack(fill="both", expand=True, padx=8, pady=8)
+        image_label.bind(
+            "<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+"
+        )
+        self._clipboard_map_set_geometry(target_width, target_height)
+        return True
+
+    def _clipboard_map_show_error(self, request_id: int, error_text: str) -> None:
+        if request_id != self._clipboard_map_request_id:
+            return
+        self._clipboard_map_show_message(f"Failed to load map image\n{error_text}")
+
+    def _on_clipboard_map_click_close(self, _event: Optional[tk.Event] = None) -> str:
+        try:
+            self._window.after(1, self._close_clipboard_map_overlay)
+        except Exception:
+            self._close_clipboard_map_overlay()
+        return "break"
+
+    def _on_clipboard_map_focus_out(self, _event: Optional[tk.Event] = None) -> None:
+        def close_if_unfocused() -> None:
+            popup = self._clipboard_map_window
+            if popup is None or not popup.winfo_exists():
+                return
+
+            try:
+                focused_widget = popup.focus_displayof()
+            except Exception:
+                focused_widget = None
+
+            if focused_widget is None:
+                self._close_clipboard_map_overlay()
+                return
+
+            try:
+                if str(focused_widget).startswith(str(popup)):
+                    return
+            except Exception:
+                pass
+
+            self._close_clipboard_map_overlay()
+
+        try:
+            self._window.after(80, close_if_unfocused)
+        except Exception:
+            close_if_unfocused()
+
+    def _on_clipboard_map_link_click(
+        self, _event: Optional[tk.Event], map_url: str
+    ) -> str:
+        self._open_external_map_link(map_url)
+        return self._on_clipboard_map_click_close(_event)
+
+    def _close_clipboard_map_overlay(self, _event: Optional[tk.Event] = None) -> None:
+        self._clipboard_map_request_id += 1
+        if self._clipboard_map_window is not None:
+            try:
+                self._clipboard_map_window.grab_release()
+            except Exception:
+                pass
+            try:
+                self._clipboard_map_window.destroy()
+            except Exception:
+                pass
+        self._clipboard_map_window = None
+        self._clipboard_map_body = None
+        self._clipboard_map_link_label = None
+        self._clipboard_map_photo = None
+
+    def show_map_overlay_for_map_name(self, map_name: str) -> bool:
+        if not self._is_map_layout_overlay_enabled():
+            return False
+
+        row = self._find_map_row_by_name(map_name)
+        if row is None:
+            return False
+
+        image_url = str(row.get("layoutUrl", "")).strip()
+        map_url = str(row.get("mapUrl", "")).strip()
+        visible_name = str(row.get("mapName", "")).strip() or map_name
+        if not image_url:
+            return False
+
+        self._close_clipboard_map_overlay()
+
+        popup = tk.Toplevel(self._master)
+        popup.title(visible_name)
+        popup.configure(bg=theme.BORDER_PRIMARY)
+        popup.protocol("WM_DELETE_WINDOW", self._close_clipboard_map_overlay)
+        popup.bind("<Escape>", self._close_clipboard_map_overlay)
+        popup.bind("<FocusOut>", self._on_clipboard_map_focus_out, add="+")
+        popup.bind("<Unmap>", self._close_clipboard_map_overlay, add="+")
+        popup.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+        try:
+            popup.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        wrapper = tk.Frame(popup, bg=theme.BG_PRIMARY, padx=2, pady=2)
+        wrapper.pack(fill="both", expand=True)
+        wrapper.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+
+        top_bar = tk.Frame(wrapper, bg=theme.BG_SECONDARY, padx=10, pady=8)
+        top_bar.pack(fill="x")
+        top_bar.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+
+        title = tk.Label(
+            top_bar,
+            text=visible_name,
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_HEADER,
+            anchor="w",
+        )
+        title.pack(side="left", anchor="w")
+        title.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+
+        if map_url:
+            link_font = ("Segoe UI", 9, "underline")
+            link_label = tk.Label(
+                top_bar,
+                text=map_url,
+                bg=theme.BG_SECONDARY,
+                fg=theme.RARITY_MAGIC,
+                font=link_font,
+                cursor="hand2",
+                anchor="e",
+                justify="right",
+            )
+            link_label.pack(side="right", anchor="e")
+            link_label.bind(
+                "<ButtonRelease-1>",
+                lambda _event, current_url=map_url: self._on_clipboard_map_link_click(
+                    _event, current_url
+                ),
+            )
+            self._clipboard_map_link_label = link_label
+
+        body = tk.Frame(wrapper, bg=theme.BG_PRIMARY)
+        body.pack(fill="both", expand=True)
+        body.bind("<ButtonRelease-1>", self._on_clipboard_map_click_close, add="+")
+
+        self._clipboard_map_window = popup
+        self._clipboard_map_body = body
+        self._clipboard_map_photo = None
+        request_id = self._clipboard_map_request_id
+
+        self._clipboard_map_show_message("Loading map image...")
+        popup.update_idletasks()
+        self._clipboard_map_set_geometry(640, 420)
+        try:
+            popup.lift()
+            popup.focus_force()
+            popup.grab_set()
+        except Exception:
+            pass
+
+        cached_payload = self._read_layout_cache_bytes(image_url)
+        if cached_payload is not None:
+            if self._clipboard_map_show_image(request_id, cached_payload):
+                return True
+
+        result_queue: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=1)
+
+        def load_image_bytes() -> None:
+            try:
+                request = urllib.request.Request(
+                    image_url,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0 Safari/537.36"
+                        )
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    payload = response.read()
+            except Exception as error:
+                result_queue.put(("error", str(error)))
+                return
+
+            result_queue.put(("downloaded", payload))
+
+        def poll_download_result() -> None:
+            if request_id != self._clipboard_map_request_id:
+                return
+            if self._clipboard_map_window is None:
+                return
+            if not self._clipboard_map_window.winfo_exists():
+                return
+
+            try:
+                result_kind, result_value = result_queue.get_nowait()
+            except queue.Empty:
+                try:
+                    self._window.after(80, poll_download_result)
+                except Exception:
+                    pass
+                return
+
+            if result_kind == "downloaded":
+                rendered = self._clipboard_map_show_image(request_id, result_value)
+                if rendered:
+                    self._write_layout_cache_bytes(image_url, result_value)
+                return
+            self._clipboard_map_show_error(request_id, str(result_value))
+
+        threading.Thread(target=load_image_bytes, daemon=True).start()
+        try:
+            self._window.after(80, poll_download_result)
+        except Exception:
+            self._clipboard_map_show_error(
+                request_id,
+                "UI loop is not active for preview update",
+            )
+        return True
 
     def _truncate_text(self, value: Any, max_length: int) -> str:
         text = str(value or "").strip()
@@ -969,6 +1297,32 @@ class TabOverlayWindow:
             anchor="w",
         )
         title.pack(anchor="w", pady=(0, 12))
+
+        toggle_row = tk.Frame(panel, bg=theme.BG_PRIMARY)
+        toggle_row.pack(fill="x", pady=(0, 8))
+
+        map_overlay_enabled_var = tk.BooleanVar(
+            value=self._is_map_layout_overlay_enabled()
+        )
+        map_overlay_toggle = tk.Checkbutton(
+            toggle_row,
+            text="Use map layout overlay",
+            variable=map_overlay_enabled_var,
+            onvalue=True,
+            offvalue=False,
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.BG_PRIMARY,
+            activeforeground=theme.FG_PRIMARY,
+            selectcolor=theme.BG_SECONDARY,
+            highlightthickness=0,
+            bd=0,
+            font=theme.FONT_BODY,
+            command=lambda current_var=map_overlay_enabled_var: (
+                self._set_map_layout_overlay_enabled(bool(current_var.get()))
+            ),
+        )
+        map_overlay_toggle.pack(side="left", anchor="w")
 
         search_row = tk.Frame(panel, bg=theme.BG_PRIMARY)
         search_row.pack(fill="x", pady=(0, 10))
@@ -1563,6 +1917,7 @@ class TabOverlayWindow:
 
     def hide(self) -> None:
         self._close_layout_preview()
+        self._close_clipboard_map_overlay()
         self._window.withdraw()
 
     def toggle(self) -> None:
@@ -1573,6 +1928,7 @@ class TabOverlayWindow:
 
     def close(self) -> None:
         self._close_layout_preview()
+        self._close_clipboard_map_overlay()
         try:
             self._window.destroy()
         except Exception:

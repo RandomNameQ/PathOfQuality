@@ -7,7 +7,6 @@ from tkinter import ttk
 from src.i18n.locale import t, get_lang
 from src.ui.styles import BG_COLOR, FG_COLOR
 from src.ui import theme
-from src.quickcraft.hotkeys import format_hotkey_display, normalize_hotkey_name
 
 
 class SettingsTab:
@@ -19,7 +18,6 @@ class SettingsTab:
         keep_on_top: bool = False,
         focus_required: bool = True,
         triple_ctrl_click_enabled: bool = False,
-        overlay_hotkey: str = "F8",
     ) -> None:
         """
         Initialize settings tab.
@@ -36,9 +34,6 @@ class SettingsTab:
         self._dock_visible_var = tk.BooleanVar(value=True)
         self._triple_ctrl_click_var = tk.BooleanVar(value=triple_ctrl_click_enabled)
         self._lang_var = tk.StringVar(value=get_lang())
-        self._overlay_hotkey_var = tk.StringVar(value="")
-        self._overlay_hotkey_display_var = tk.StringVar(value="")
-        self.set_overlay_hotkey(overlay_hotkey)
 
         self._create_widgets()
 
@@ -55,49 +50,6 @@ class SettingsTab:
             style="Modern.TButton",
         )
         self._btn_select.pack(anchor="w", pady=(0, 12))
-
-        self._btn_open_overlay = ttk.Button(
-            main_container,
-            text=t("settings.open_overlay", "Open Overlay"),
-            style="Modern.TButton",
-        )
-        self._btn_open_overlay.pack(anchor="w", pady=(0, 12))
-
-        overlay_hotkey_row = tk.Frame(main_container, bg=BG_COLOR)
-        overlay_hotkey_row.pack(anchor="w", fill="x", pady=(0, 12))
-
-        self._lbl_overlay_hotkey = tk.Label(
-            overlay_hotkey_row,
-            text=t("settings.overlay_hotkey", "Overlay hotkey:"),
-            bg=BG_COLOR,
-            fg=FG_COLOR,
-            font=theme.FONT_BODY,
-        )
-        self._lbl_overlay_hotkey.pack(side="left")
-
-        self._lbl_overlay_hotkey_value = tk.Label(
-            overlay_hotkey_row,
-            textvariable=self._overlay_hotkey_display_var,
-            bg=BG_COLOR,
-            fg=theme.ACCENT_GOLD,
-            font=theme.FONT_HEADER,
-            padx=8,
-        )
-        self._lbl_overlay_hotkey_value.pack(side="left")
-
-        self._btn_set_overlay_hotkey = ttk.Button(
-            overlay_hotkey_row,
-            text=t("settings.set_hotkey", "Set hotkey"),
-            style="Action.TButton",
-        )
-        self._btn_set_overlay_hotkey.pack(side="left", padx=(8, 0))
-
-        self._btn_clear_overlay_hotkey = ttk.Button(
-            overlay_hotkey_row,
-            text=t("settings.clear_hotkey", "Clear hotkey"),
-            style="Action.TButton",
-        )
-        self._btn_clear_overlay_hotkey.pack(side="left", padx=(8, 0))
 
         # Show overlay checkbox
         self._chk_overlay = ttk.Checkbutton(
@@ -190,18 +142,6 @@ class SettingsTab:
         """Set topmost checkbox command callback."""
         self._chk_topmost.configure(command=command)
 
-    def set_open_overlay_command(self, command) -> None:
-        """Set open overlay button command callback."""
-        self._btn_open_overlay.configure(command=command)
-
-    def set_set_overlay_hotkey_command(self, command) -> None:
-        """Set command for selecting overlay hotkey."""
-        self._btn_set_overlay_hotkey.configure(command=command)
-
-    def set_clear_overlay_hotkey_command(self, command) -> None:
-        """Set command for clearing overlay hotkey."""
-        self._btn_clear_overlay_hotkey.configure(command=command)
-
     def set_focus_required_command(self, command) -> None:
         """Set focus-required checkbox command callback."""
         self._chk_focus_required.configure(command=command)
@@ -225,17 +165,6 @@ class SettingsTab:
     def get_overlay_var(self) -> tk.BooleanVar:
         """Get overlay checkbox variable."""
         return self._overlay_var
-
-    def get_overlay_hotkey(self) -> str:
-        """Get overlay open hotkey token."""
-        return str(self._overlay_hotkey_var.get()).strip()
-
-    def set_overlay_hotkey(self, token: str) -> None:
-        """Set overlay open hotkey token and visual text."""
-        normalized = normalize_hotkey_name(str(token or ""))
-        self._overlay_hotkey_var.set(normalized)
-        display = format_hotkey_display(normalized) if normalized else "-"
-        self._overlay_hotkey_display_var.set(display)
 
     def get_topmost_var(self) -> tk.BooleanVar:
         """Get topmost checkbox variable."""
@@ -261,18 +190,6 @@ class SettingsTab:
         """Refresh all translatable texts."""
         try:
             self._btn_select.configure(text=t("settings.select_zone", "Select Area"))
-            self._btn_open_overlay.configure(
-                text=t("settings.open_overlay", "Open Overlay")
-            )
-            self._lbl_overlay_hotkey.configure(
-                text=t("settings.overlay_hotkey", "Overlay hotkey:")
-            )
-            self._btn_set_overlay_hotkey.configure(
-                text=t("settings.set_hotkey", "Set hotkey")
-            )
-            self._btn_clear_overlay_hotkey.configure(
-                text=t("settings.clear_hotkey", "Clear hotkey")
-            )
             self._chk_overlay.configure(
                 text=t("settings.show_analysis", "Show Analysis Area")
             )

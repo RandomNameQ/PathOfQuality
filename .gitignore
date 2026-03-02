@@ -1,5 +1,6 @@
 dist/
 build/
+cache/
 
 # Python bytecode / caches
 __pycache__/

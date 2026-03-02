@@ -37,6 +37,7 @@ if sys.platform.startswith("win"):
     from ctypes import wintypes
     import win32api
     import win32con
+    import win32clipboard
     from src.quickcraft.hotkeys import HotkeyListener, normalize_hotkey_name
     from src.qol.mouse_listener import MouseListener
     from src.qol.wasd_controller import WasdController
@@ -243,6 +244,7 @@ class Application:
         self._ctrl_press_count: int = 0
         self._last_ctrl_press_time: float = 0.0
         self._ctrl_prev_held: bool = False
+        self._last_ctrl_hotkey_time: float = 0.0
         self._register_quickcraft_hotkeys()
         # Fallback polling state for when LL hooks are unavailable
         self._key_down_state: Dict[str, bool] = {}
@@ -582,6 +584,9 @@ class Application:
             wasd_movement_hint=self._wasd_movement_hint,
             wasd_toggle_hint=self._wasd_toggle_hint,
             overlay_hotkey=self._overlay_open_hotkey,
+            use_map_layout_overlay=bool(
+                self.settings.get("overlay", {}).get("use_map_layout_overlay", True)
+            ),
         )
 
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
@@ -825,6 +830,15 @@ class Application:
 
                 elif event == "TAB_OVERLAY_HOTKEY_CHANGED":
                     self._sync_overlay_hotkey()
+                    skip_frame_processing = True
+
+                elif event == "MAP_LAYOUT_OVERLAY_CHANGED":
+                    overlay_cfg = self.settings.setdefault("overlay", {})
+                    if isinstance(overlay_cfg, dict):
+                        overlay_cfg["use_map_layout_overlay"] = bool(
+                            self.hud.get_map_layout_overlay_enabled()
+                        )
+                        save_settings(self.settings_path, self.settings)
                     skip_frame_processing = True
 
                 elif event == "CURRENCY_POSITIONING_ON":
@@ -1201,6 +1215,117 @@ class Application:
         except Exception as exc:
             print(f"[QuickCraft] Global show failed: {exc}")
 
+    def _read_clipboard_text(self) -> str:
+        if not sys.platform.startswith("win"):
+            return ""
+
+        try:
+            win32clipboard.OpenClipboard()
+            raw_text = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+            return str(raw_text or "")
+        except Exception:
+            return ""
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+
+    def _extract_map_name_from_clipboard(self, clipboard_text: str) -> str:
+        text = str(clipboard_text or "")
+        if not text:
+            return ""
+
+        normalized = text.replace("\r\n", "\n")
+        if "Item Class: Maps" not in normalized:
+            return ""
+
+        lines = [line.strip() for line in normalized.split("\n")]
+        rarity = ""
+        for line in lines:
+            if line.startswith("Rarity:"):
+                rarity = line.split(":", 1)[1].strip().lower()
+                break
+
+        unidentified = any(line == "Unidentified" for line in lines)
+        map_line = ""
+        for line in lines:
+            if not line or "Map" not in line:
+                continue
+            if line.startswith("Item Class:"):
+                continue
+            if ":" in line:
+                continue
+            if line.startswith("--------"):
+                continue
+            map_line = line
+            break
+
+        if not map_line:
+            return ""
+
+        if unidentified:
+            return map_line
+
+        if rarity == "magic":
+            parts = map_line.split()
+            if len(parts) > 1:
+                return " ".join(parts[1:])
+            return map_line
+
+        if rarity == "normal":
+            return map_line
+
+        if rarity in {"rare", "unique"}:
+            return map_line
+
+        return map_line
+
+    def _is_map_layout_overlay_enabled(self) -> bool:
+        overlay_cfg = self.settings.get("overlay", {})
+        if not isinstance(overlay_cfg, dict):
+            return True
+        return bool(overlay_cfg.get("use_map_layout_overlay", True))
+
+    def _handle_clipboard_map_hotkey(
+        self, token: str, now: Optional[float] = None
+    ) -> None:
+        if token != "C":
+            return
+        if not self._has_effective_focus():
+            return
+        if not self._is_map_layout_overlay_enabled():
+            return
+        if now is None:
+            now = time.time()
+
+        try:
+            ctrl_down = (win32api.GetAsyncKeyState(win32con.VK_CONTROL) & 0x8000) != 0
+        except Exception:
+            ctrl_down = False
+        ctrl_recent = (now - self._last_ctrl_hotkey_time) <= 0.35
+        if not (ctrl_down or ctrl_recent):
+            return
+
+        map_name = ""
+        for attempt in range(3):
+            if attempt > 0:
+                time.sleep(0.04 * attempt)
+            clipboard_text = self._read_clipboard_text()
+            map_name = self._extract_map_name_from_clipboard(clipboard_text)
+            if map_name:
+                break
+        if not map_name:
+            return
+        if self.tab_overlay is None:
+            return
+
+        shown = self.tab_overlay.show_map_overlay_for_map_name(map_name)
+        if shown:
+            print(f"[Map Clipboard] Overlay shown for: {map_name}")
+        else:
+            print(f"[Map Clipboard] Map not found in map-data.json: {map_name}")
+
     def _process_hotkeys(self) -> None:
         if self._hotkeys is None:
             # Fallback polling when hooks aren't available
@@ -1208,7 +1333,11 @@ class Application:
             return
         polled = self._hotkeys.poll()
         if polled:
+            now = time.time()
             for token in polled:
+                if token in {"CTRL", "CONTROL"}:
+                    self._last_ctrl_hotkey_time = now
+                self._handle_clipboard_map_hotkey(token, now)
                 if self._handle_overlay_hotkey(token):
                     continue
                 self._handle_quickcraft_hotkey(token)
@@ -1257,6 +1386,7 @@ class Application:
         now = time.time()
         # poll only keys that are mapped
         tokens = set(self._quickcraft_hotkey_map.keys())
+        tokens.update({"C", "CTRL"})
         if self._quickcraft_global_hotkey:
             tokens.add(self._quickcraft_global_hotkey)
         if self._overlay_open_hotkey:
@@ -1272,6 +1402,11 @@ class Application:
                 last = self._key_last_emit.get(token, 0.0)
                 if now - last > 0.2:
                     self._key_last_emit[token] = now
+                    if token in {"CTRL", "CONTROL"}:
+                        self._last_ctrl_hotkey_time = now
+                        self._key_down_state[token] = down
+                        continue
+                    self._handle_clipboard_map_hotkey(token, now)
                     if not self._handle_overlay_hotkey(token):
                         self._handle_quickcraft_hotkey(token)
             self._key_down_state[token] = down

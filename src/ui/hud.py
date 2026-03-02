@@ -77,6 +77,7 @@ class BuffHUD:
         wasd_movement_hint: str = "W/A/S/D",
         wasd_toggle_hint: str = "~",
         overlay_hotkey: str = "F8",
+        use_map_layout_overlay: bool = True,
     ) -> None:
         """
         Initialize BuffHUD.
@@ -178,7 +179,6 @@ class BuffHUD:
             keep_on_top,
             focus_required,
             triple_ctrl_click_enabled,
-            overlay_hotkey,
         )
         self._buffs_tab = LibraryTab(
             self._tab_buffs_frame,
@@ -240,6 +240,7 @@ class BuffHUD:
         self._overlay_tab = OverlayTab(
             self._tab_overlay_frame,
             overlay_hotkey=overlay_hotkey,
+            use_map_layout_overlay=use_map_layout_overlay,
         )
 
         # Add tabs to notebook
@@ -321,15 +322,13 @@ class BuffHUD:
         self._monitoring_tab.update_copy_area_status()
 
         self._settings_tab.set_select_command(self._on_select_roi)
-        self._settings_tab.set_open_overlay_command(self._on_open_overlay)
-        self._settings_tab.set_set_overlay_hotkey_command(self._on_set_overlay_hotkey)
-        self._settings_tab.set_clear_overlay_hotkey_command(
-            self._on_clear_overlay_hotkey
-        )
         self._overlay_tab.set_open_overlay_command(self._on_open_overlay)
         self._overlay_tab.set_set_overlay_hotkey_command(self._on_set_overlay_hotkey)
         self._overlay_tab.set_clear_overlay_hotkey_command(
             self._on_clear_overlay_hotkey
+        )
+        self._overlay_tab.set_map_layout_overlay_command(
+            self._on_map_layout_overlay_changed
         )
         self._settings_tab.set_topmost_command(self._on_topmost_changed)
         self._settings_tab.set_focus_required_command(self._on_focus_required_changed)
@@ -569,14 +568,15 @@ class BuffHUD:
         token = HotkeyCaptureDialog(self._root).show()
         if token is None:
             return
-        self._settings_tab.set_overlay_hotkey(token)
         self._overlay_tab.set_overlay_hotkey(token)
         self._events.append("TAB_OVERLAY_HOTKEY_CHANGED")
 
     def _on_clear_overlay_hotkey(self) -> None:
-        self._settings_tab.set_overlay_hotkey("")
         self._overlay_tab.set_overlay_hotkey("")
         self._events.append("TAB_OVERLAY_HOTKEY_CHANGED")
+
+    def _on_map_layout_overlay_changed(self) -> None:
+        self._events.append("MAP_LAYOUT_OVERLAY_CHANGED")
 
     def _on_toggle_active(
         self, entry_id: str, entry_type: str, var: tk.BooleanVar
@@ -1184,9 +1184,11 @@ class BuffHUD:
         """Get current overlay open hotkey token."""
         return self._overlay_tab.get_overlay_hotkey()
 
+    def get_map_layout_overlay_enabled(self) -> bool:
+        return self._overlay_tab.get_map_layout_overlay_enabled()
+
     def set_overlay_hotkey(self, token: str) -> None:
         """Update overlay hotkey token shown in settings."""
-        self._settings_tab.set_overlay_hotkey(token)
         self._overlay_tab.set_overlay_hotkey(token)
 
     def get_positioning_enabled(self) -> bool:
