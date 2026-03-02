@@ -2,6 +2,26 @@ dist/
 build/
 cache/
 
+# Local build virtual environment
+.build-venv/
+
+# PyInstaller outputs
+*.spec
+
+# IDE / OS junk
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Python virtualenvs
+.venv/
+venv/
+env/
+
 # Python bytecode / caches
 __pycache__/
 *.py[cod]

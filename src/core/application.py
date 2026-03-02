@@ -214,6 +214,16 @@ class Application:
         self._wasd_bot = int(self._wasd_cfg.get("bot_offset", 0))
         self._wasd_left = int(self._wasd_cfg.get("left_offset", 0))
         self._wasd_right = int(self._wasd_cfg.get("right_offset", 0))
+        self._wasd_center_offset_x = int(
+            self._wasd_cfg.get("center_offset_x", self._wasd_right - self._wasd_left)
+        )
+        self._wasd_center_offset_y = int(
+            self._wasd_cfg.get("center_offset_y", self._wasd_bot - self._wasd_top)
+        )
+        self._wasd_move_offset_pixels = max(
+            0,
+            int(self._wasd_cfg.get("move_offset_pixels", 100)),
+        )
         self._wasd_movement_keys, self._wasd_toggle_hotkey = (
             self._get_wasd_hotkey_config(self.settings.get("hotkeys", {}))
         )
@@ -234,6 +244,7 @@ class Application:
         self._wasd_controller = (
             WasdController(
                 is_target_active=self._is_wasd_target_active,
+                offset_pixels=self._wasd_move_offset_pixels,
                 on_toggle=self._handle_wasd_toggle,
                 movement_keys=self._wasd_movement_keys,
                 toggle_hotkey=self._wasd_toggle_hotkey,
@@ -494,12 +505,24 @@ class Application:
         self._wasd_bot = int(cfg.get("bot_offset", 0))
         self._wasd_left = int(cfg.get("left_offset", 0))
         self._wasd_right = int(cfg.get("right_offset", 0))
+        self._wasd_center_offset_x = int(
+            cfg.get("center_offset_x", self._wasd_right - self._wasd_left)
+        )
+        self._wasd_center_offset_y = int(
+            cfg.get("center_offset_y", self._wasd_bot - self._wasd_top)
+        )
+        self._wasd_move_offset_pixels = max(
+            0,
+            int(cfg.get("move_offset_pixels", 100)),
+        )
 
         if self._wasd_controller:
             self._wasd_controller.set_enabled(self._wasd_enabled)
-            self._wasd_controller.set_offsets(
-                self._wasd_top, self._wasd_bot, self._wasd_left, self._wasd_right
+            self._wasd_controller.set_center_offset(
+                self._wasd_center_offset_x,
+                self._wasd_center_offset_y,
             )
+            self._wasd_controller.set_move_offset_pixels(self._wasd_move_offset_pixels)
 
         if self._wasd_enabled:
             self._start_wasd_controller()
@@ -577,10 +600,9 @@ class Application:
             mega_qol_sequence=self._mega_qol_seq_str,
             mega_qol_delay_ms=self._mega_qol_delay_ms,
             wasd_enabled=self._wasd_enabled,
-            wasd_top_offset=self._wasd_top,
-            wasd_bot_offset=self._wasd_bot,
-            wasd_left_offset=self._wasd_left,
-            wasd_right_offset=self._wasd_right,
+            wasd_center_offset_x=self._wasd_center_offset_x,
+            wasd_center_offset_y=self._wasd_center_offset_y,
+            wasd_move_offset_pixels=self._wasd_move_offset_pixels,
             wasd_movement_hint=self._wasd_movement_hint,
             wasd_toggle_hint=self._wasd_toggle_hint,
             overlay_hotkey=self._overlay_open_hotkey,

@@ -192,10 +192,8 @@ class WasdController:
         self._is_target_active = is_target_active or (lambda: True)
         self._offset_pixels = int(offset_pixels)
         self._tick_interval = 1.0 / max(1.0, float(tick_hz))
-        self._top_offset = 0
-        self._bot_offset = 0
-        self._left_offset = 0
-        self._right_offset = 0
+        self._center_offset_x = 0
+        self._center_offset_y = 0
 
         self._enabled = True
         self._pressed_vks: Set[int] = set()
@@ -358,10 +356,15 @@ class WasdController:
                 self._held_vks.clear()
 
     def set_offsets(self, top: int, bot: int, left: int, right: int) -> None:
-        self._top_offset = top
-        self._bot_offset = bot
-        self._left_offset = left
-        self._right_offset = right
+        self._center_offset_x = int(right) - int(left)
+        self._center_offset_y = int(bot) - int(top)
+
+    def set_center_offset(self, offset_x: int, offset_y: int) -> None:
+        self._center_offset_x = int(offset_x)
+        self._center_offset_y = int(offset_y)
+
+    def set_move_offset_pixels(self, offset_pixels: int) -> None:
+        self._offset_pixels = max(0, int(offset_pixels))
 
     def set_enabled(self, enabled: bool) -> None:
         self._enabled = bool(enabled)
@@ -493,8 +496,8 @@ class WasdController:
 
         cx = (int(rect.left) + int(rect.right)) // 2
         cy = (int(rect.top) + int(rect.bottom)) // 2
-        cx += self._right_offset - self._left_offset
-        cy += self._bot_offset - self._top_offset
+        cx += self._center_offset_x
+        cy += self._center_offset_y
         return cx, cy
 
     def _hold_mouse_once(self) -> None:

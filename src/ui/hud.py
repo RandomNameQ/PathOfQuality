@@ -70,10 +70,9 @@ class BuffHUD:
         mega_qol_sequence: str = "1,2,3,4",
         mega_qol_delay_ms: int = 50,
         wasd_enabled: bool = False,
-        wasd_top_offset: int = 0,
-        wasd_bot_offset: int = 0,
-        wasd_left_offset: int = 0,
-        wasd_right_offset: int = 0,
+        wasd_center_offset_x: int = 0,
+        wasd_center_offset_y: int = 0,
+        wasd_move_offset_pixels: int = 100,
         wasd_movement_hint: str = "W/A/S/D",
         wasd_toggle_hint: str = "~",
         overlay_hotkey: str = "F8",
@@ -228,10 +227,9 @@ class BuffHUD:
         self._wasd_tab = WasdTab(
             self._tab_wasd_frame,
             enabled=wasd_enabled,
-            top_offset=wasd_top_offset,
-            bot_offset=wasd_bot_offset,
-            left_offset=wasd_left_offset,
-            right_offset=wasd_right_offset,
+            center_offset_x=wasd_center_offset_x,
+            center_offset_y=wasd_center_offset_y,
+            move_offset_pixels=wasd_move_offset_pixels,
             movement_hint=wasd_movement_hint,
             toggle_hint=wasd_toggle_hint,
         )
@@ -1254,10 +1252,9 @@ class BuffHUD:
     def get_wasd_config(self) -> dict:
         return {
             "enabled": bool(self._wasd_tab.get_enabled()),
-            "top_offset": int(self._wasd_tab.get_top_offset()),
-            "bot_offset": int(self._wasd_tab.get_bot_offset()),
-            "left_offset": int(self._wasd_tab.get_left_offset()),
-            "right_offset": int(self._wasd_tab.get_right_offset()),
+            "center_offset_x": int(self._wasd_tab.get_center_offset_x()),
+            "center_offset_y": int(self._wasd_tab.get_center_offset_y()),
+            "move_offset_pixels": int(self._wasd_tab.get_move_offset_pixels()),
         }
 
     def is_dock_locked(self) -> bool:

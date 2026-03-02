@@ -28,6 +28,9 @@ def get_default_settings() -> Dict[str, Any]:
             "bot_offset": 0,
             "left_offset": 0,
             "right_offset": 0,
+            "center_offset_x": 0,
+            "center_offset_y": 0,
+            "move_offset_pixels": 100,
         },
         "hotkeys": {
             "tool_wasd_toggle": ["GRAVE"],

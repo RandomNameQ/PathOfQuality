@@ -18,6 +18,7 @@ from typing import Any, Callable, Optional
 from PIL import Image, ImageTk
 
 from src.ui import theme
+from src.utils.settings import external_path, resource_path
 
 
 class TabOverlayWindow:
@@ -32,14 +33,7 @@ class TabOverlayWindow:
         self._master = master
         self._settings = settings if isinstance(settings, dict) else {}
         self._save_settings_callback = save_settings_callback
-        self._project_root = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..")
-        )
-        self._layout_cache_dir = os.path.join(
-            self._project_root,
-            "cache",
-            "layout_images",
-        )
+        self._layout_cache_dir = external_path(os.path.join("cache", "layout_images"))
         self._ensure_layout_cache_dir()
         self._window = tk.Toplevel(master)
         self._window.withdraw()
@@ -372,7 +366,9 @@ class TabOverlayWindow:
             pass
 
     def _load_map_rows(self) -> None:
-        map_data_path = os.path.join(self._project_root, "map-data.json")
+        map_data_path = external_path("map-data.json")
+        if not os.path.exists(map_data_path):
+            map_data_path = resource_path("map-data.json")
 
         try:
             with open(map_data_path, "r", encoding="utf-8") as file_obj:

@@ -1,4 +1,4 @@
-"""WASD Movement tab: simple enable/disable toggle."""
+"""WASD Movement tab configuration."""
 
 from __future__ import annotations
 
@@ -17,10 +17,9 @@ class WasdTab:
     _on_change: Callable[[], None] | None
     _on_open_config: Callable[[], None] | None
     _enabled_var: tk.BooleanVar
-    _top_offset: int
-    _bot_offset: int
-    _left_offset: int
-    _right_offset: int
+    _center_offset_x_var: tk.IntVar
+    _center_offset_y_var: tk.IntVar
+    _move_offset_pixels_var: tk.IntVar
     _movement_hint: str
     _toggle_hint: str
     _wasd_group: ttk.LabelFrame
@@ -31,10 +30,9 @@ class WasdTab:
         self,
         parent: tk.Frame,
         enabled: bool = False,
-        top_offset: int = 0,
-        bot_offset: int = 0,
-        left_offset: int = 0,
-        right_offset: int = 0,
+        center_offset_x: int = 0,
+        center_offset_y: int = 0,
+        move_offset_pixels: int = 100,
         movement_hint: str = "W/A/S/D",
         toggle_hint: str = "~",
     ) -> None:
@@ -43,10 +41,9 @@ class WasdTab:
         self._on_open_config = None
 
         self._enabled_var = tk.BooleanVar(value=bool(enabled))
-        self._top_offset = int(top_offset)
-        self._bot_offset = int(bot_offset)
-        self._left_offset = int(left_offset)
-        self._right_offset = int(right_offset)
+        self._center_offset_x_var = tk.IntVar(value=int(center_offset_x))
+        self._center_offset_y_var = tk.IntVar(value=int(center_offset_y))
+        self._move_offset_pixels_var = tk.IntVar(value=max(0, int(move_offset_pixels)))
         self._movement_hint = str(movement_hint)
         self._toggle_hint = str(toggle_hint)
 
@@ -69,6 +66,63 @@ class WasdTab:
             style="ToggleGray.TCheckbutton",
         )
         self._chk_enable.pack(anchor="w")
+
+        offset_row = ttk.Frame(self._wasd_group, padding=(0, 8))
+        offset_row.pack(fill="x")
+
+        ttk.Label(
+            offset_row,
+            text=t("wasd.center_offset_x", "Center offset X"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_center_x = ttk.Spinbox(
+            offset_row,
+            from_=-1000,
+            to=1000,
+            increment=1,
+            textvariable=self._center_offset_x_var,
+            width=8,
+        )
+        spn_center_x.pack(side="left", padx=(0, 16))
+        spn_center_x.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_center_x.bind("<Return>", lambda _e: self._notify_change())
+
+        ttk.Label(
+            offset_row,
+            text=t("wasd.center_offset_y", "Center offset Y"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_center_y = ttk.Spinbox(
+            offset_row,
+            from_=-1000,
+            to=1000,
+            increment=1,
+            textvariable=self._center_offset_y_var,
+            width=8,
+        )
+        spn_center_y.pack(side="left")
+        spn_center_y.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_center_y.bind("<Return>", lambda _e: self._notify_change())
+
+        distance_row = ttk.Frame(self._wasd_group, padding=(0, 4))
+        distance_row.pack(fill="x")
+
+        ttk.Label(
+            distance_row,
+            text=t("wasd.move_offset_pixels", "Move offset (px)"),
+            style="Prompt.TLabel",
+        ).pack(side="left", padx=(0, 8))
+        spn_move_offset = ttk.Spinbox(
+            distance_row,
+            from_=0,
+            to=1000,
+            increment=1,
+            textvariable=self._move_offset_pixels_var,
+            width=8,
+        )
+        spn_move_offset.pack(side="left")
+        spn_move_offset.bind("<FocusOut>", lambda _e: self._notify_change())
+        spn_move_offset.bind("<Return>", lambda _e: self._notify_change())
 
         self._help_lbl = ttk.Label(
             self._wasd_group,
@@ -126,17 +180,23 @@ class WasdTab:
     def get_enabled(self) -> bool:
         return self.is_enabled()
 
-    def get_top_offset(self) -> int:
-        return int(self._top_offset)
+    def get_center_offset_x(self) -> int:
+        try:
+            return int(self._center_offset_x_var.get())
+        except Exception:
+            return 0
 
-    def get_bot_offset(self) -> int:
-        return int(self._bot_offset)
+    def get_center_offset_y(self) -> int:
+        try:
+            return int(self._center_offset_y_var.get())
+        except Exception:
+            return 0
 
-    def get_left_offset(self) -> int:
-        return int(self._left_offset)
-
-    def get_right_offset(self) -> int:
-        return int(self._right_offset)
+    def get_move_offset_pixels(self) -> int:
+        try:
+            return max(0, int(self._move_offset_pixels_var.get()))
+        except Exception:
+            return 100
 
     def refresh_texts(self) -> None:
         try:
