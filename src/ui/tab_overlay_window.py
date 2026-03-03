@@ -26,6 +26,26 @@ class TabOverlayWindow:
     """Stylized top-level overlay window for tab tools."""
 
     _MAP_ROWS_CACHE: Optional[list[dict[str, str | int]]] = None
+    _MENU_HOTKEY_SEQUENCE: tuple[str, ...] = (
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "Q",
+        "W",
+        "E",
+        "R",
+        "A",
+        "S",
+        "D",
+        "F",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+    )
 
     def __init__(
         self,
@@ -57,6 +77,7 @@ class TabOverlayWindow:
 
         self._menu_items = []
         self._menu_buttons = {}
+        self._menu_hotkey_lookup = self._build_menu_hotkey_lookup()
         self._active_item_id = ""
         self._user_counter = 1
         self._menu_width = 220
@@ -166,8 +187,35 @@ class TabOverlayWindow:
         self._content_root = tk.Frame(root, bg=theme.BG_PRIMARY)
         self._content_root.pack(side="left", fill="both", expand=True)
 
-        self._menu_list = tk.Frame(self._menu_frame, bg=theme.BG_PRIMARY)
-        self._menu_list.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+        self._menu_list_container = tk.Frame(self._menu_frame, bg=theme.BG_PRIMARY)
+        self._menu_list_container.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+
+        self._menu_canvas = tk.Canvas(
+            self._menu_list_container,
+            bg=theme.BG_PRIMARY,
+            highlightthickness=0,
+            bd=0,
+        )
+        self._menu_scrollbar = tk.Scrollbar(
+            self._menu_list_container,
+            orient="vertical",
+            command=self._menu_canvas.yview,
+        )
+        self._menu_canvas.configure(yscrollcommand=self._menu_scrollbar.set)
+        self._menu_scrollbar.pack(side="right", fill="y")
+        self._menu_canvas.pack(side="left", fill="both", expand=True)
+
+        self._menu_list = tk.Frame(self._menu_canvas, bg=theme.BG_PRIMARY)
+        self._menu_canvas_window = self._menu_canvas.create_window(
+            (0, 0),
+            window=self._menu_list,
+            anchor="nw",
+        )
+
+        self._menu_list.bind("<Configure>", self._on_menu_list_configure)
+        self._menu_canvas.bind("<Configure>", self._on_menu_canvas_configure)
+        self._menu_canvas.bind("<MouseWheel>", self._on_menu_mouse_wheel, add="+")
+        self._menu_list.bind("<MouseWheel>", self._on_menu_mouse_wheel, add="+")
 
         self._btn_add = tk.Button(
             self._menu_frame,
@@ -1247,6 +1295,40 @@ class TabOverlayWindow:
             width=event.width,
         )
 
+    def _on_menu_list_configure(self, _event: tk.Event) -> None:
+        self._menu_canvas.configure(scrollregion=self._menu_canvas.bbox("all"))
+
+    def _on_menu_canvas_configure(self, event: tk.Event) -> None:
+        self._menu_canvas.itemconfigure(
+            self._menu_canvas_window,
+            width=event.width,
+        )
+
+    def _on_menu_mouse_wheel(self, event: tk.Event) -> str | None:
+        delta = int(getattr(event, "delta", 0) or 0)
+        if delta == 0:
+            return None
+
+        steps = -1 if delta > 0 else 1
+        self._menu_canvas.yview_scroll(steps, "units")
+        return "break"
+
+    def _build_menu_hotkey_lookup(self) -> dict[str, int]:
+        lookup: dict[str, int] = {}
+        for index, hotkey in enumerate(self._MENU_HOTKEY_SEQUENCE, start=1):
+            normalized_hotkey = hotkey.strip().upper()
+            if not normalized_hotkey:
+                continue
+            lookup[normalized_hotkey] = index
+        return lookup
+
+    def _menu_hotkey_label(self, index: int) -> str | None:
+        if index <= 0:
+            return None
+        if index > len(self._MENU_HOTKEY_SEQUENCE):
+            return None
+        return self._MENU_HOTKEY_SEQUENCE[index - 1]
+
     def _is_image_canvas_widget(self, widget: Any) -> bool:
         current = widget
         while current is not None:
@@ -1279,9 +1361,14 @@ class TabOverlayWindow:
 
         for index, item in enumerate(self._menu_items, start=1):
             item_id = item["id"]
+            hotkey_label = self._menu_hotkey_label(index)
+            if hotkey_label is None:
+                button_text = f"{item['name']}"
+            else:
+                button_text = f"[{hotkey_label}] {item['name']}"
             button = tk.Button(
                 self._menu_list,
-                text=f"{index}. {item['name']}",
+                text=button_text,
                 bg=theme.BG_PRIMARY,
                 fg=theme.FG_PRIMARY,
                 activebackground=theme.HOVER_COLOR,
@@ -1319,16 +1406,17 @@ class TabOverlayWindow:
 
     def _extract_menu_hotkey_index(self, event: tk.Event) -> int | None:
         keysym = str(getattr(event, "keysym", "") or "")
-        if keysym.isdigit():
-            value = int(keysym)
-            return value if value > 0 else None
+        if not keysym:
+            return None
 
         if keysym.startswith("KP_"):
-            suffix = keysym.split("_", 1)[1]
-            if suffix.isdigit():
-                value = int(suffix)
-                return value if value > 0 else None
-        return None
+            suffix = keysym.split("_", 1)[1].strip().upper()
+            if suffix in self._menu_hotkey_lookup:
+                return self._menu_hotkey_lookup[suffix]
+            return None
+
+        normalized_keysym = keysym.strip().upper()
+        return self._menu_hotkey_lookup.get(normalized_keysym)
 
     def _on_menu_hotkey_press(self, event: tk.Event) -> None:
         hotkey_index = self._extract_menu_hotkey_index(event)
@@ -1364,13 +1452,7 @@ class TabOverlayWindow:
 
     def _clear_content(self) -> None:
         for state in self._image_states:
-            redraw_job = state.get("high_quality_job")
-            if redraw_job is not None:
-                try:
-                    state["canvas"].after_cancel(redraw_job)
-                except Exception:
-                    pass
-                state["high_quality_job"] = None
+            self._cancel_pending_image_redraw(state)
         for child in self._content_inner.winfo_children():
             if child == self._map_panel and self._map_panel is not None:
                 self._map_panel.pack_forget()
@@ -2131,7 +2213,12 @@ class TabOverlayWindow:
             "render_cache": {},
             "render_key": None,
             "canvas_image_id": None,
+            "preview_job": None,
             "high_quality_job": None,
+            "preview_image": None,
+            "preview_ratio": 1.0,
+            "is_panning": False,
+            "preview_interval_ms": self._get_preview_interval_ms(pil_image),
             "pan_x": 0,
             "pan_y": 0,
             "base_zoom": 1.0,
@@ -2159,6 +2246,10 @@ class TabOverlayWindow:
             lambda event, image_state=state: self._on_pan(event, image_state),
         )
         canvas.bind(
+            "<ButtonRelease-1>",
+            lambda event, image_state=state: self._end_pan(event, image_state),
+        )
+        canvas.bind(
             "<Button-3>",
             lambda event, image_state=state: self._show_image_context_menu(
                 event, image_state
@@ -2167,12 +2258,98 @@ class TabOverlayWindow:
 
         canvas.after(0, lambda image_state=state: self._draw_image(image_state))
 
+    def _cancel_pending_image_redraw(self, state) -> None:
+        for job_key in ("preview_job", "high_quality_job"):
+            redraw_job = state.get(job_key)
+            if redraw_job is None:
+                continue
+            try:
+                state["canvas"].after_cancel(redraw_job)
+            except Exception:
+                pass
+            state[job_key] = None
+
+    def _get_preview_interval_ms(self, image) -> int:
+        pixel_count = int(image.width * image.height)
+        if pixel_count >= 20000000:
+            return 30
+        if pixel_count >= 12000000:
+            return 24
+        if pixel_count >= 8000000:
+            return 20
+        return 14
+
+    def _get_interaction_preview_source(self, state):
+        preview_image = state.get("preview_image")
+        preview_ratio = float(state.get("preview_ratio", 1.0))
+        if preview_image is not None and preview_ratio > 0.0:
+            return preview_image, preview_ratio
+
+        image = state["image"]
+        max_preview_dim = 1920
+        longest_side = max(int(image.width), int(image.height))
+        if longest_side <= max_preview_dim:
+            state["preview_image"] = image
+            state["preview_ratio"] = 1.0
+            return image, 1.0
+
+        preview_ratio = max_preview_dim / float(longest_side)
+        preview_width = max(1, int(image.width * preview_ratio))
+        preview_height = max(1, int(image.height * preview_ratio))
+        try:
+            preview_image = image.resize(
+                (preview_width, preview_height), Image.BILINEAR
+            )
+        except Exception:
+            preview_image = image
+            preview_ratio = 1.0
+        state["preview_image"] = preview_image
+        state["preview_ratio"] = preview_ratio
+        return preview_image, preview_ratio
+
+    def _request_preview_redraw(self, state) -> None:
+        if state.get("preview_job") is not None:
+            return
+        canvas = state["canvas"]
+        if not canvas.winfo_exists():
+            return
+        delay_ms = max(12, int(state.get("preview_interval_ms", 14)))
+        state["preview_job"] = canvas.after(
+            delay_ms,
+            lambda image_state=state: self._run_preview_redraw(image_state),
+        )
+
+    def _run_preview_redraw(self, state) -> None:
+        state["preview_job"] = None
+        self._draw_image(state, resample=Image.BILINEAR, interaction_mode=True)
+
+    def _schedule_high_quality_redraw(self, state, delay_ms: int = 120) -> None:
+        redraw_job = state.get("high_quality_job")
+        if redraw_job is not None:
+            try:
+                state["canvas"].after_cancel(redraw_job)
+            except Exception:
+                pass
+        canvas = state["canvas"]
+        if not canvas.winfo_exists():
+            state["high_quality_job"] = None
+            return
+        state["high_quality_job"] = canvas.after(
+            delay_ms,
+            lambda image_state=state: self._run_high_quality_redraw(image_state),
+        )
+
+    def _run_high_quality_redraw(self, state) -> None:
+        state["high_quality_job"] = None
+        self._draw_image(state, resample=Image.LANCZOS)
+
     def _draw_image(
         self,
         state,
         width: int | None = None,
         height: int | None = None,
         resample: int = Image.LANCZOS,
+        interaction_mode: bool = False,
     ) -> None:
         canvas = state["canvas"]
         if not canvas.winfo_exists():
@@ -2189,51 +2366,130 @@ class TabOverlayWindow:
         state["entry"]["zoom"] = zoom
 
         scale = state["base_zoom"] * zoom
-        target_width = max(1, int(image.width * scale))
-        target_height = max(1, int(image.height * scale))
-
-        cache_key = (target_width, target_height, int(resample))
-        render_cache = state.get("render_cache", {})
-        photo = render_cache.get(cache_key)
-        if photo is None:
-            resized = image.resize((target_width, target_height), resample)
-            photo = ImageTk.PhotoImage(resized)
-            render_cache[cache_key] = photo
-            while len(render_cache) > 6:
-                oldest_key = next(iter(render_cache))
-                render_cache.pop(oldest_key, None)
-            state["render_cache"] = render_cache
-        state["photo"] = photo
-
         offset_x = float(state["entry"].get("offset_x", 0.0))
         offset_y = float(state["entry"].get("offset_y", 0.0))
         center_x = canvas_width / 2 + offset_x
         center_y = canvas_height / 2 + offset_y
 
+        scaled_width = image.width * scale
+        scaled_height = image.height * scale
+        image_left = center_x - scaled_width / 2
+        image_top = center_y - scaled_height / 2
+        image_right = image_left + scaled_width
+        image_bottom = image_top + scaled_height
+
+        visible_left = max(0.0, image_left)
+        visible_top = max(0.0, image_top)
+        visible_right = min(float(canvas_width), image_right)
+        visible_bottom = min(float(canvas_height), image_bottom)
+
         canvas_image_id = state.get("canvas_image_id")
+        if visible_right <= visible_left or visible_bottom <= visible_top:
+            if canvas_image_id is not None:
+                try:
+                    canvas.itemconfigure(canvas_image_id, state="hidden")
+                except Exception:
+                    pass
+            return
+
+        source_left = max(0.0, (visible_left - image_left) / scale)
+        source_top = max(0.0, (visible_top - image_top) / scale)
+        source_right = min(float(image.width), (visible_right - image_left) / scale)
+        source_bottom = min(float(image.height), (visible_bottom - image_top) / scale)
+
+        crop_left = max(0, min(image.width - 1, int(source_left)))
+        crop_top = max(0, min(image.height - 1, int(source_top)))
+        crop_right = max(crop_left + 1, min(image.width, int(source_right + 1)))
+        crop_bottom = max(crop_top + 1, min(image.height, int(source_bottom + 1)))
+
+        source_image = image
+        source_ratio = 1.0
+        source_mode = "full"
+        if interaction_mode:
+            source_image, source_ratio = self._get_interaction_preview_source(state)
+            source_mode = "preview"
+
+        source_crop_left = crop_left
+        source_crop_top = crop_top
+        source_crop_right = crop_right
+        source_crop_bottom = crop_bottom
+        if source_ratio != 1.0:
+            source_crop_left = max(
+                0,
+                min(source_image.width - 1, int(crop_left * source_ratio)),
+            )
+            source_crop_top = max(
+                0,
+                min(source_image.height - 1, int(crop_top * source_ratio)),
+            )
+            source_crop_right = max(
+                source_crop_left + 1,
+                min(source_image.width, int(crop_right * source_ratio + 1)),
+            )
+            source_crop_bottom = max(
+                source_crop_top + 1,
+                min(source_image.height, int(crop_bottom * source_ratio + 1)),
+            )
+
+        draw_x = image_left + crop_left * scale
+        draw_y = image_top + crop_top * scale
+        draw_width = max(1, int((crop_right - crop_left) * scale))
+        draw_height = max(1, int((crop_bottom - crop_top) * scale))
+
+        cache_key = (
+            source_mode,
+            source_crop_left,
+            source_crop_top,
+            source_crop_right,
+            source_crop_bottom,
+            draw_width,
+            draw_height,
+            int(resample),
+        )
+        render_cache = state.get("render_cache", {})
+        photo = render_cache.get(cache_key)
+        if photo is None:
+            cropped = source_image.crop(
+                (
+                    source_crop_left,
+                    source_crop_top,
+                    source_crop_right,
+                    source_crop_bottom,
+                )
+            )
+            resized = cropped.resize((draw_width, draw_height), resample)
+            photo = ImageTk.PhotoImage(resized)
+            render_cache[cache_key] = photo
+            while len(render_cache) > 8:
+                oldest_key = next(iter(render_cache))
+                render_cache.pop(oldest_key, None)
+            state["render_cache"] = render_cache
+        state["photo"] = photo
+
         if canvas_image_id is None:
             canvas_image_id = canvas.create_image(
-                center_x,
-                center_y,
+                draw_x,
+                draw_y,
                 image=photo,
-                anchor="center",
+                anchor="nw",
             )
             state["canvas_image_id"] = canvas_image_id
             state["render_key"] = cache_key
             return
 
         try:
-            canvas.coords(canvas_image_id, center_x, center_y)
+            canvas.itemconfigure(canvas_image_id, state="normal")
+            canvas.coords(canvas_image_id, draw_x, draw_y)
             if state.get("render_key") != cache_key:
                 canvas.itemconfigure(canvas_image_id, image=photo)
                 state["render_key"] = cache_key
         except Exception:
             canvas.delete("all")
             state["canvas_image_id"] = canvas.create_image(
-                center_x,
-                center_y,
+                draw_x,
+                draw_y,
                 image=photo,
-                anchor="center",
+                anchor="nw",
             )
             state["render_key"] = cache_key
 
@@ -2242,26 +2498,15 @@ class TabOverlayWindow:
         current = float(state["entry"].get("zoom", 1.0))
         state["entry"]["zoom"] = max(0.2, min(8.0, current * delta))
 
-        # Fast preview while scrolling, then high-quality settle render.
-        self._draw_image(state, resample=Image.BILINEAR)
-
-        redraw_job = state.get("high_quality_job")
-        if redraw_job is not None:
-            try:
-                state["canvas"].after_cancel(redraw_job)
-            except Exception:
-                pass
-        state["high_quality_job"] = state["canvas"].after(
-            80,
-            lambda image_state=state: self._draw_image(
-                image_state, resample=Image.LANCZOS
-            ),
-        )
+        self._request_preview_redraw(state)
+        self._schedule_high_quality_redraw(state, delay_ms=180)
         return "break"
 
     def _start_pan(self, event: tk.Event, state) -> None:
+        state["is_panning"] = True
         state["pan_x"] = event.x
         state["pan_y"] = event.y
+        self._cancel_pending_image_redraw(state)
 
     def _on_pan(self, event: tk.Event, state) -> None:
         dx = event.x - int(state.get("pan_x", event.x))
@@ -2271,7 +2516,14 @@ class TabOverlayWindow:
 
         state["entry"]["offset_x"] = float(state["entry"].get("offset_x", 0.0)) + dx
         state["entry"]["offset_y"] = float(state["entry"].get("offset_y", 0.0)) + dy
-        self._draw_image(state)
+        self._request_preview_redraw(state)
+
+    def _end_pan(self, event: tk.Event, state) -> None:
+        state["is_panning"] = False
+        state["pan_x"] = event.x
+        state["pan_y"] = event.y
+        self._request_preview_redraw(state)
+        self._schedule_high_quality_redraw(state, delay_ms=160)
 
     def _show_image_context_menu(self, event: tk.Event, state) -> None:
         menu = tk.Menu(self._window, tearoff=0)

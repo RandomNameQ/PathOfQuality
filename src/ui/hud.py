@@ -127,6 +127,8 @@ class BuffHUD:
         self._dock_has_focus: bool = False
         self._last_dock_interaction: float = 0.0
         self._dock_visible: bool = True
+        self._wasd_indicator_window: Optional[tk.Toplevel] = None
+        self._wasd_indicator_label: Optional[tk.Label] = None
 
         # Configure modern styles
         configure_modern_styles(self._root)
@@ -253,6 +255,7 @@ class BuffHUD:
         )
         self._wasd_tab.set_change_handler(self._on_wasd_changed)
         self._wasd_tab.set_open_config_handler(self._on_wasd_open_config)
+        self._set_wasd_indicator_state(bool(wasd_enabled))
         self._overlay_tab = OverlayTab(
             self._tab_overlay_frame,
             overlay_hotkey=overlay_hotkey,
@@ -1167,11 +1170,93 @@ class BuffHUD:
         """Update quick craft positioning checkbox state."""
         self._quickcraft_tab.set_positioning(enabled)
 
+    def _wasd_indicator_geometry(self) -> str:
+        width = 60
+        height = 20
+        margin_left = 20
+        margin_bottom = 20
+        try:
+            screen_height = int(self._root.winfo_screenheight())
+        except Exception:
+            screen_height = height + margin_bottom
+        y = max(0, screen_height - height - margin_bottom)
+        return f"{width}x{height}+{margin_left}+{y}"
+
+    def _ensure_wasd_indicator(self) -> None:
+        indicator = self._wasd_indicator_window
+        if indicator is not None:
+            try:
+                if indicator.winfo_exists():
+                    return
+            except Exception:
+                pass
+
+        indicator = tk.Toplevel(self._root)
+        indicator.overrideredirect(True)
+        indicator.geometry(self._wasd_indicator_geometry())
+        indicator.configure(bg="#1d8f3a")
+        try:
+            indicator.attributes("-topmost", True)
+        except Exception:
+            pass
+        try:
+            indicator.attributes("-toolwindow", True)
+        except Exception:
+            pass
+
+        label = tk.Label(
+            indicator,
+            text="WASD",
+            bg="#1d8f3a",
+            fg="#041008",
+            font=("Segoe UI", 8, "bold"),
+            anchor="center",
+            padx=0,
+            pady=0,
+        )
+        label.pack(fill="both", expand=True)
+        self._wasd_indicator_window = indicator
+        self._wasd_indicator_label = label
+
+    def _set_wasd_indicator_state(self, enabled: bool) -> None:
+        self._ensure_wasd_indicator()
+        indicator = self._wasd_indicator_window
+        label = self._wasd_indicator_label
+        if indicator is None or label is None:
+            return
+
+        is_enabled = bool(enabled)
+        bg = "#1d8f3a" if is_enabled else "#9b1d1d"
+        fg = "#041008" if is_enabled else "#fff0f0"
+
+        try:
+            indicator.configure(bg=bg)
+            indicator.geometry(self._wasd_indicator_geometry())
+            indicator.deiconify()
+            indicator.lift()
+        except Exception:
+            return
+
+        try:
+            label.configure(text="WASD", bg=bg, fg=fg)
+        except Exception:
+            pass
+
+    def _close_wasd_indicator(self) -> None:
+        indicator = self._wasd_indicator_window
+        self._wasd_indicator_window = None
+        self._wasd_indicator_label = None
+        if indicator is None:
+            return
+        try:
+            indicator.destroy()
+        except Exception:
+            pass
+
     def set_wasd_enabled(self, enabled: bool) -> None:
         """Update WASD enabled checkbox state."""
         self._wasd_tab.set_enabled(enabled)
-
-    # No runtime active UI marker required
+        self._set_wasd_indicator_state(enabled)
 
     def set_click_emulation_state(self, enabled: bool) -> None:
         """Update click emulation indicator state."""
@@ -1246,14 +1331,14 @@ class BuffHUD:
         # Value sourced from Mega QoL tab now
         return bool(self._mega_qol_tab.get_double_ctrl_var().get())
 
-    def get_mega_qol_config(self) -> dict:
+    def get_mega_qol_config(self) -> Dict[str, object]:
         return {
             "enabled": bool(self._mega_qol_tab.get_enabled_var().get()),
             "sequence": self._mega_qol_tab.get_sequence(),
             "delay_ms": int(self._mega_qol_tab.get_delay_ms()),
         }
 
-    def get_wasd_config(self) -> dict:
+    def get_wasd_config(self) -> Dict[str, object]:
         return {
             "enabled": bool(self._wasd_tab.get_enabled()),
             "center_offset_x": int(self._wasd_tab.get_center_offset_x()),
@@ -1265,7 +1350,7 @@ class BuffHUD:
             "input_delay_s": float(self._wasd_tab.get_input_delay_s()),
         }
 
-    def get_fast_destroy_config(self) -> dict:
+    def get_fast_destroy_config(self) -> Dict[str, object]:
         return {
             "enabled": bool(self._fast_destroy_tab.get_enabled()),
             "warning_overlay": bool(
@@ -1299,6 +1384,7 @@ class BuffHUD:
             self._control_dock.close()
             self._dock_visible = False
             self._dock_has_focus = False
+        self._close_wasd_indicator()
         try:
             self._root.destroy()
         except Exception:

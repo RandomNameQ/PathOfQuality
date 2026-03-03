@@ -24,7 +24,7 @@
   "language": "en",
   "templates_dir": "assets/templates",
   "wasd": {
-    "enabled": false,
+    "enabled": true,
     "top_offset": 0,
     "bot_offset": 0,
     "left_offset": 0,
@@ -162,7 +162,7 @@
         "images": [
           {
             "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\1722147dbdef58ad7055824037d3303f4433d2fb.webp",
-            "zoom": 1.0,
+            "zoom": 0.9605960100000005,
             "offset_x": 0.0,
             "offset_y": 0.0
           }
@@ -174,14 +174,38 @@
         "images": [
           {
             "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\92e54c10b842a6022e1571ed1dd12c501dc63ecb.webp",
-            "zoom": 1.4641000000000006,
-            "offset_x": -23.0,
-            "offset_y": -88.0
+            "zoom": 0.7663119939853895,
+            "offset_x": -64.0,
+            "offset_y": 12.0
+          }
+        ]
+      },
+      {
+        "id": "user:7",
+        "name": "Shards",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\7452e72a79e01be72411003da6c021730eaf1d2a.jpeg",
+            "zoom": 1.7447609663581118,
+            "offset_x": -160.0,
+            "offset_y": -27.0
+          }
+        ]
+      },
+      {
+        "id": "user:8",
+        "name": "Essence",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\75b5a232b5874b38a35b0fada87493aa53053eca.png",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
           }
         ]
       }
     ],
-    "active_item_id": "user:6"
+    "active_item_id": "user:8"
   },
   "mirror_mode": "auto",
   "wasd_enabled": true
