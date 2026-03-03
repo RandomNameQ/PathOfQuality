@@ -54,6 +54,14 @@ def get_default_settings() -> Dict[str, Any]:
             "wheel_down_sequence": "1,2,3,4",
             "wheel_down_delay_ms": 50,
         },
+        "fast_destroy": {
+            "enabled": False,
+            "warning_overlay": True,
+            "activation_interval_s": 0.3,
+            "chat_open_delay_s": 0.01,
+            "command_input_delay_s": 0.01,
+            "command_submit_delay_s": 0.01,
+        },
         "overlay": {
             "menu_items": [],
             "active_item_id": "program:map",

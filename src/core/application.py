@@ -300,6 +300,47 @@ class Application:
         # Wheel burst suppression: emit once per scroll burst, rearm after 50ms of silence
         self._mega_qol_suppress: bool = False
         self._mega_qol_last_wheel: float = 0.0
+        fd = self.settings.get("fast_destroy", {}) or {}
+        self._fast_destroy_enabled: bool = bool(fd.get("enabled", False))
+        self._fast_destroy_warning_overlay: bool = bool(fd.get("warning_overlay", True))
+        self._fast_destroy_activation_interval_s: float = max(
+            0.01,
+            float(fd.get("activation_interval_s", 0.3)),
+        )
+        self._fast_destroy_chat_open_delay_s: float = max(
+            0.0,
+            float(fd.get("chat_open_delay_s", 0.01)),
+        )
+        self._fast_destroy_command_input_delay_s: float = max(
+            0.0,
+            float(fd.get("command_input_delay_s", 0.01)),
+        )
+        self._fast_destroy_command_submit_delay_s: float = max(
+            0.0,
+            float(fd.get("command_submit_delay_s", 0.01)),
+        )
+        self._fast_destroy_mode_active: bool = False
+        self._fast_destroy_last_alt_press_time: float = 0.0
+        self._fast_destroy_prev_lmb: bool = False
+        self._fast_destroy_overlay_win = None
+        self._fast_destroy_overlay_label = None
+        self.settings.setdefault("fast_destroy", {})
+        self.settings["fast_destroy"].update(
+            {
+                "enabled": self._fast_destroy_enabled,
+                "warning_overlay": self._fast_destroy_warning_overlay,
+                "activation_interval_s": float(
+                    self._fast_destroy_activation_interval_s
+                ),
+                "chat_open_delay_s": float(self._fast_destroy_chat_open_delay_s),
+                "command_input_delay_s": float(
+                    self._fast_destroy_command_input_delay_s
+                ),
+                "command_submit_delay_s": float(
+                    self._fast_destroy_command_submit_delay_s
+                ),
+            }
+        )
         # Focus-loss debounce for runtime overlays
         self._focus_loss_started: float = 0.0
 
@@ -689,6 +730,8 @@ class Application:
             mega_qol_enabled=self._mega_qol_enabled,
             mega_qol_sequence=self._mega_qol_seq_str,
             mega_qol_delay_ms=self._mega_qol_delay_ms,
+            fast_destroy_enabled=self._fast_destroy_enabled,
+            fast_destroy_warning_overlay=self._fast_destroy_warning_overlay,
             wasd_enabled=self._wasd_enabled,
             wasd_center_offset_x=self._wasd_center_offset_x,
             wasd_center_offset_y=self._wasd_center_offset_y,
@@ -941,6 +984,40 @@ class Application:
                     self._wasd_cfg = self.hud.get_wasd_config()
                     self._apply_wasd_config(self._wasd_cfg)
                     self.settings["wasd"] = self._wasd_cfg
+                    save_settings(self.settings_path, self.settings)
+
+                elif event == "FAST_DESTROY_CHANGED":
+                    cfg = self.hud.get_fast_destroy_config()
+                    self._fast_destroy_enabled = bool(cfg.get("enabled", False))
+                    self._fast_destroy_warning_overlay = bool(
+                        cfg.get("warning_overlay", True)
+                    )
+                    self.settings.setdefault("fast_destroy", {})
+                    self.settings["fast_destroy"].update(
+                        {
+                            "enabled": self._fast_destroy_enabled,
+                            "warning_overlay": self._fast_destroy_warning_overlay,
+                            "activation_interval_s": float(
+                                self._fast_destroy_activation_interval_s
+                            ),
+                            "chat_open_delay_s": float(
+                                self._fast_destroy_chat_open_delay_s
+                            ),
+                            "command_input_delay_s": float(
+                                self._fast_destroy_command_input_delay_s
+                            ),
+                            "command_submit_delay_s": float(
+                                self._fast_destroy_command_submit_delay_s
+                            ),
+                        }
+                    )
+                    if (
+                        not self._fast_destroy_enabled
+                        and self._fast_destroy_mode_active
+                    ):
+                        self._set_fast_destroy_mode(False)
+                    elif self._fast_destroy_mode_active:
+                        self._update_fast_destroy_overlay()
                     save_settings(self.settings_path, self.settings)
 
                 elif event == "WASD_OPEN_CONFIG":
@@ -1453,21 +1530,23 @@ class Application:
         if self._hotkeys is None:
             # Fallback polling when hooks aren't available
             self._poll_hotkeys_fallback()
-            return
-        polled = self._hotkeys.poll()
-        if polled:
-            now = time.time()
-            for token in polled:
-                if token in {"CTRL", "CONTROL"}:
-                    self._last_ctrl_hotkey_time = now
-                self._handle_clipboard_map_hotkey(token, now)
-                if self._handle_overlay_hotkey(token):
-                    continue
-                self._handle_quickcraft_hotkey(token)
         else:
-            # If hook is installed but no events, also run fallback to support keys Tk may swallow
-            self._poll_hotkeys_fallback()
-        # Process quick craft click-triggered actions
+            polled = self._hotkeys.poll()
+            if polled:
+                now = time.time()
+                for token in polled:
+                    if token in {"CTRL", "CONTROL"}:
+                        self._last_ctrl_hotkey_time = now
+                    self._handle_fast_destroy_hotkey(token, now)
+                    self._handle_clipboard_map_hotkey(token, now)
+                    if self._handle_overlay_hotkey(token):
+                        continue
+                    self._handle_quickcraft_hotkey(token)
+            else:
+                # If hook is installed but no events, also run fallback to support keys Tk may swallow
+                self._poll_hotkeys_fallback()
+        # Process click-triggered actions
+        self._process_fast_destroy_click_action()
         self._process_quickcraft_click_action()
 
     def _token_to_vk(self, token: str) -> Optional[int]:
@@ -1509,7 +1588,7 @@ class Application:
         now = time.time()
         # poll only keys that are mapped
         tokens = set(self._quickcraft_hotkey_map.keys())
-        tokens.update({"C", "CTRL"})
+        tokens.update({"C", "CTRL", "ALT"})
         if self._quickcraft_global_hotkey:
             tokens.add(self._quickcraft_global_hotkey)
         tokens.update(self._overlay_open_sequence)
@@ -1533,10 +1612,132 @@ class Application:
                         self._last_ctrl_hotkey_time = now
                         self._key_down_state[token] = down
                         continue
+                    self._handle_fast_destroy_hotkey(token, now)
                     self._handle_clipboard_map_hotkey(token, now)
                     if not self._handle_overlay_hotkey(token):
                         self._handle_quickcraft_hotkey(token)
             self._key_down_state[token] = down
+
+    def _handle_fast_destroy_hotkey(
+        self, token: str, now: Optional[float] = None
+    ) -> None:
+        if token != "ALT":
+            return
+        if not self._fast_destroy_enabled:
+            return
+        if now is None:
+            now = time.time()
+
+        if self._fast_destroy_mode_active:
+            self._set_fast_destroy_mode(False)
+            return
+
+        if (
+            now - self._fast_destroy_last_alt_press_time
+        ) <= self._fast_destroy_activation_interval_s:
+            self._set_fast_destroy_mode(True)
+            self._fast_destroy_last_alt_press_time = 0.0
+            return
+
+        self._fast_destroy_last_alt_press_time = now
+
+    def _set_fast_destroy_mode(self, active: bool) -> None:
+        self._fast_destroy_mode_active = bool(active)
+        self._fast_destroy_prev_lmb = False
+        if self._fast_destroy_mode_active:
+            self._update_fast_destroy_overlay()
+        else:
+            self._hide_fast_destroy_overlay()
+
+    def _update_fast_destroy_overlay(self) -> None:
+        if not self._fast_destroy_mode_active or not self._fast_destroy_warning_overlay:
+            self._hide_fast_destroy_overlay()
+            return
+        if not sys.platform.startswith("win") or self.hud is None:
+            return
+
+        try:
+            cur_x, cur_y = win32api.GetCursorPos()
+        except Exception:
+            return
+
+        import tkinter as tk
+
+        if self._fast_destroy_overlay_win is None:
+            try:
+                win = tk.Toplevel(self.hud.get_root())
+                win.overrideredirect(True)
+                win.attributes("-topmost", True)
+                win.configure(bg="#ff0000")
+                lbl = tk.Label(
+                    win,
+                    text="DELETE",
+                    bg="#ff0000",
+                    fg="black",
+                    font=("Arial", 9, "bold"),
+                )
+                lbl.place(relx=0.5, rely=0.5, anchor="center")
+                self._fast_destroy_overlay_win = win
+                self._fast_destroy_overlay_label = lbl
+            except Exception:
+                self._fast_destroy_overlay_win = None
+                self._fast_destroy_overlay_label = None
+                return
+
+        try:
+            x = int(cur_x - 100)
+            y = int(cur_y + 50)
+            self._fast_destroy_overlay_win.geometry(f"200x50+{x}+{y}")
+            self._fast_destroy_overlay_win.lift()
+        except Exception:
+            pass
+
+    def _hide_fast_destroy_overlay(self) -> None:
+        if self._fast_destroy_overlay_win is not None:
+            try:
+                self._fast_destroy_overlay_win.destroy()
+            except Exception:
+                pass
+        self._fast_destroy_overlay_win = None
+        self._fast_destroy_overlay_label = None
+
+    def _process_fast_destroy_click_action(self) -> None:
+        if not sys.platform.startswith("win"):
+            return
+        if not self._fast_destroy_enabled or not self._fast_destroy_mode_active:
+            self._fast_destroy_prev_lmb = False
+            return
+
+        self._update_fast_destroy_overlay()
+
+        if not self._has_effective_focus():
+            self._fast_destroy_prev_lmb = False
+            return
+
+        try:
+            state = win32api.GetAsyncKeyState(win32con.VK_LBUTTON)
+        except Exception:
+            return
+        down = (state & 0x8000) != 0
+        if down and not self._fast_destroy_prev_lmb:
+            self._execute_fast_destroy_command()
+        self._fast_destroy_prev_lmb = down
+
+    def _execute_fast_destroy_command(self) -> None:
+        try:
+            if self._fast_destroy_chat_open_delay_s > 0:
+                time.sleep(self._fast_destroy_chat_open_delay_s)
+            self._key_press(win32con.VK_RETURN)
+
+            if self._fast_destroy_command_input_delay_s > 0:
+                time.sleep(self._fast_destroy_command_input_delay_s)
+            self._paste_text("/destroy")
+
+            if self._fast_destroy_command_submit_delay_s > 0:
+                time.sleep(self._fast_destroy_command_submit_delay_s)
+            self._key_press(win32con.VK_RETURN)
+        except Exception as exc:
+            print(f"[FastDestroy] Execute failed: {exc}")
 
     def _move_cursor(self, x: int, y: int) -> None:
         try:
@@ -1559,6 +1760,9 @@ class Application:
             pass
 
     def _process_quickcraft_click_action(self) -> None:
+        if self._fast_destroy_enabled and self._fast_destroy_mode_active:
+            self._pending_click_currency_id = None
+            return
         # Only when effective focus is true (game or app focused)
         if not self._has_effective_focus():
             self._pending_click_currency_id = None
@@ -1981,6 +2185,11 @@ class Application:
         except Exception:
             pass
 
+        try:
+            self._hide_fast_destroy_overlay()
+        except Exception:
+            pass
+
         if self._hotkeys is not None:
             try:
                 self._hotkeys.stop()
@@ -2045,6 +2254,32 @@ class Application:
             win32api.keybd_event(int(vk), 0, win32con.KEYEVENTF_KEYUP, 0)
         except Exception:
             pass
+
+    def _press_ctrl_v(self) -> None:
+        try:
+            win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
+            time.sleep(0.005)
+            win32api.keybd_event(ord("V"), 0, 0, 0)
+            time.sleep(0.005)
+            win32api.keybd_event(ord("V"), 0, win32con.KEYEVENTF_KEYUP, 0)
+            time.sleep(0.005)
+            win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+        except Exception:
+            pass
+
+    def _paste_text(self, text: str) -> None:
+        try:
+            win32clipboard.OpenClipboard()
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardText(str(text), win32con.CF_UNICODETEXT)
+        except Exception:
+            pass
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+        self._press_ctrl_v()
 
     def _run_mega_qol_sequence(self) -> None:
         tokens = self._parse_sequence_tokens(self._mega_qol_seq_str)

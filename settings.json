@@ -62,23 +62,67 @@
     "wheel_down_sequence": "W,1",
     "wheel_down_delay_ms": 50
   },
+  "fast_destroy": {
+    "enabled": true,
+    "warning_overlay": true,
+    "activation_interval_s": 0.3,
+    "chat_open_delay_s": 0.05,
+    "command_input_delay_s": 0.01,
+    "command_submit_delay_s": 0.01
+  },
   "overlay": {
     "menu_items": [
       {
         "id": "user:1",
-        "name": "Betrayel 3.26",
+        "name": "Betrayel",
         "images": [
           {
-            "path": "C:/Users/user/Downloads/3.26 betrayel light.webp",
-            "zoom": 1.0511824334504658,
-            "offset_x": 19.0,
-            "offset_y": 4.0
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\b67a3980591cd84bd88f0bb9de578ef70e37a51a.webp",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
           },
           {
-            "path": "C:/Users/user/Downloads/3.26 betrayel dark.webp",
-            "zoom": 0.636399294053849,
-            "offset_x": 79.0,
-            "offset_y": -73.0
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\2585494679ace199ebf707dd0a85f3ac6257952d.webp",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          }
+        ]
+      },
+      {
+        "id": "user:3",
+        "name": "Heist",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\dfc7f73a64e8d50f8311188cb7c42fde008a696f.webp",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          },
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\2a94b4549332ea19901bc5504021890f2691c06b.webp",
+            "zoom": 0.7938810000000003,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          },
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\5a9891710849d5cdcc9787f20efd3b75ae483bed.webp",
+            "zoom": 0.7290000000000001,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          }
+        ]
+      },
+      {
+        "id": "user:4",
+        "name": "Harvest",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\2b5b9b519d8ec0fbb93d08d4755fb99a6f584d26.webp",
+            "zoom": 1.1740617900000008,
+            "offset_x": 102.0,
+            "offset_y": -23.0
           }
         ]
       },
@@ -87,15 +131,57 @@
         "name": "Vendor recipe",
         "images": [
           {
-            "path": "C:/Users/user/Downloads/vendor-recipe-cheatsheet.webp",
-            "zoom": 1.0833592876530485,
-            "offset_x": 34.0,
-            "offset_y": -10.0
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\0bab8efd078fd5780353f622590940ad28ec67cf.webp",
+            "zoom": 0.9801000000000002,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          },
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\f56d8f760f2610e22d99be182a96f2190a297a63.jpeg",
+            "zoom": 0.7217100000000002,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          },
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\d1b90d692b0e43eaa1168a57d6d0aaaa7846f589.jpg",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          },
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\afdfb6edba1cb7c2f66765a1ebe9e31a8427e773.jpg",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          }
+        ]
+      },
+      {
+        "id": "user:5",
+        "name": "Chest",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\1722147dbdef58ad7055824037d3303f4433d2fb.webp",
+            "zoom": 1.0,
+            "offset_x": 0.0,
+            "offset_y": 0.0
+          }
+        ]
+      },
+      {
+        "id": "user:6",
+        "name": "Currency",
+        "images": [
+          {
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\92e54c10b842a6022e1571ed1dd12c501dc63ecb.webp",
+            "zoom": 1.4641000000000006,
+            "offset_x": -23.0,
+            "offset_y": -88.0
           }
         ]
       }
     ],
-    "active_item_id": "program:commands"
+    "active_item_id": "user:6"
   },
   "mirror_mode": "auto",
   "wasd_enabled": true

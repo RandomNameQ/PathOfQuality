@@ -6,6 +6,7 @@ import json
 import io
 import os
 import hashlib
+import shutil
 import queue
 import threading
 import tkinter as tk
@@ -36,7 +37,11 @@ class TabOverlayWindow:
         self._settings = settings if isinstance(settings, dict) else {}
         self._save_settings_callback = save_settings_callback
         self._layout_cache_dir = external_path(os.path.join("cache", "layout_images"))
+        self._overlay_assets_dir = external_path(
+            os.path.join("assets", "overlay_images")
+        )
         self._ensure_layout_cache_dir()
+        self._ensure_overlay_assets_dir()
         self._window = tk.Toplevel(master)
         self._window.withdraw()
         self._window.title("Tab Overlay")
@@ -361,6 +366,50 @@ class TabOverlayWindow:
             os.makedirs(self._layout_cache_dir, exist_ok=True)
         except Exception:
             pass
+
+    def _ensure_overlay_assets_dir(self) -> None:
+        try:
+            os.makedirs(self._overlay_assets_dir, exist_ok=True)
+        except Exception:
+            pass
+
+    def _overlay_image_extension(self, source_path: str) -> str:
+        extension = os.path.splitext(str(source_path))[1].lower()
+        if extension not in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}:
+            extension = ".img"
+        return extension
+
+    def _package_overlay_image(self, source_path: str) -> str:
+        normalized_source = os.path.abspath(str(source_path))
+        if not os.path.isfile(normalized_source):
+            return str(source_path)
+
+        self._ensure_overlay_assets_dir()
+        packaged_dir = os.path.abspath(self._overlay_assets_dir)
+        try:
+            if os.path.commonpath([normalized_source, packaged_dir]) == packaged_dir:
+                return normalized_source
+        except Exception:
+            pass
+
+        try:
+            source_stat = os.stat(normalized_source)
+            source_fingerprint = f"{normalized_source}|{int(source_stat.st_mtime_ns)}|{int(source_stat.st_size)}"
+        except Exception:
+            source_fingerprint = normalized_source
+
+        extension = self._overlay_image_extension(normalized_source)
+        digest = hashlib.sha1(source_fingerprint.encode("utf-8")).hexdigest()
+        packaged_path = os.path.join(packaged_dir, f"{digest}{extension}")
+
+        if os.path.exists(packaged_path):
+            return packaged_path
+
+        try:
+            shutil.copyfile(normalized_source, packaged_path)
+            return packaged_path
+        except Exception:
+            return str(source_path)
 
     def _layout_cache_path(self, image_url: str) -> str:
         url_path = urlparse(image_url).path
@@ -1314,6 +1363,14 @@ class TabOverlayWindow:
         return None
 
     def _clear_content(self) -> None:
+        for state in self._image_states:
+            redraw_job = state.get("high_quality_job")
+            if redraw_job is not None:
+                try:
+                    state["canvas"].after_cancel(redraw_job)
+                except Exception:
+                    pass
+                state["high_quality_job"] = None
         for child in self._content_inner.winfo_children():
             if child == self._map_panel and self._map_panel is not None:
                 self._map_panel.pack_forget()
@@ -2037,9 +2094,10 @@ class TabOverlayWindow:
 
         images = item.setdefault("images", [])
         for path in selected_paths:
+            packaged_path = self._package_overlay_image(str(path))
             images.append(
                 {
-                    "path": path,
+                    "path": packaged_path,
                     "zoom": 1.0,
                     "offset_x": 0.0,
                     "offset_y": 0.0,
@@ -2070,6 +2128,10 @@ class TabOverlayWindow:
             "entry": image_entry,
             "image": pil_image,
             "photo": None,
+            "render_cache": {},
+            "render_key": None,
+            "canvas_image_id": None,
+            "high_quality_job": None,
             "pan_x": 0,
             "pan_y": 0,
             "base_zoom": 1.0,
@@ -2106,9 +2168,15 @@ class TabOverlayWindow:
         canvas.after(0, lambda image_state=state: self._draw_image(image_state))
 
     def _draw_image(
-        self, state, width: int | None = None, height: int | None = None
+        self,
+        state,
+        width: int | None = None,
+        height: int | None = None,
+        resample: int = Image.LANCZOS,
     ) -> None:
         canvas = state["canvas"]
+        if not canvas.winfo_exists():
+            return
         canvas_width = int(width or canvas.winfo_width() or 1)
         canvas_height = int(height or canvas.winfo_height() or 1)
         image = state["image"]
@@ -2124,8 +2192,17 @@ class TabOverlayWindow:
         target_width = max(1, int(image.width * scale))
         target_height = max(1, int(image.height * scale))
 
-        resized = image.resize((target_width, target_height), Image.LANCZOS)
-        photo = ImageTk.PhotoImage(resized)
+        cache_key = (target_width, target_height, int(resample))
+        render_cache = state.get("render_cache", {})
+        photo = render_cache.get(cache_key)
+        if photo is None:
+            resized = image.resize((target_width, target_height), resample)
+            photo = ImageTk.PhotoImage(resized)
+            render_cache[cache_key] = photo
+            while len(render_cache) > 6:
+                oldest_key = next(iter(render_cache))
+                render_cache.pop(oldest_key, None)
+            state["render_cache"] = render_cache
         state["photo"] = photo
 
         offset_x = float(state["entry"].get("offset_x", 0.0))
@@ -2133,14 +2210,53 @@ class TabOverlayWindow:
         center_x = canvas_width / 2 + offset_x
         center_y = canvas_height / 2 + offset_y
 
-        canvas.delete("all")
-        canvas.create_image(center_x, center_y, image=photo, anchor="center")
+        canvas_image_id = state.get("canvas_image_id")
+        if canvas_image_id is None:
+            canvas_image_id = canvas.create_image(
+                center_x,
+                center_y,
+                image=photo,
+                anchor="center",
+            )
+            state["canvas_image_id"] = canvas_image_id
+            state["render_key"] = cache_key
+            return
+
+        try:
+            canvas.coords(canvas_image_id, center_x, center_y)
+            if state.get("render_key") != cache_key:
+                canvas.itemconfigure(canvas_image_id, image=photo)
+                state["render_key"] = cache_key
+        except Exception:
+            canvas.delete("all")
+            state["canvas_image_id"] = canvas.create_image(
+                center_x,
+                center_y,
+                image=photo,
+                anchor="center",
+            )
+            state["render_key"] = cache_key
 
     def _on_image_wheel(self, event: tk.Event, state) -> str:
         delta = 1.1 if event.delta > 0 else 0.9
         current = float(state["entry"].get("zoom", 1.0))
         state["entry"]["zoom"] = max(0.2, min(8.0, current * delta))
-        self._draw_image(state)
+
+        # Fast preview while scrolling, then high-quality settle render.
+        self._draw_image(state, resample=Image.BILINEAR)
+
+        redraw_job = state.get("high_quality_job")
+        if redraw_job is not None:
+            try:
+                state["canvas"].after_cancel(redraw_job)
+            except Exception:
+                pass
+        state["high_quality_job"] = state["canvas"].after(
+            80,
+            lambda image_state=state: self._draw_image(
+                image_state, resample=Image.LANCZOS
+            ),
+        )
         return "break"
 
     def _start_pan(self, event: tk.Event, state) -> None:

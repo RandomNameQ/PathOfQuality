@@ -44,6 +44,7 @@ from src.ui.tabs.quickcraft_tab import QuickCraftTab
 from src.ui.tabs.currency_tab import CurrencyTab
 from src.ui.tabs.mega_qol_tab import MegaQolTab
 from src.ui.tabs.wasd_tab import WasdTab
+from src.ui.tabs.fast_destroy_tab import FastDestroyTab
 from src.ui.tabs.overlay_tab import OverlayTab
 from src.ui.tabs.useful_tab import UsefulTab
 from src.ui.tabs.about_tab import AboutTab
@@ -69,6 +70,8 @@ class BuffHUD:
         mega_qol_enabled: bool = False,
         mega_qol_sequence: str = "1,2,3,4",
         mega_qol_delay_ms: int = 50,
+        fast_destroy_enabled: bool = False,
+        fast_destroy_warning_overlay: bool = True,
         wasd_enabled: bool = False,
         wasd_center_offset_x: int = 0,
         wasd_center_offset_y: int = 0,
@@ -159,6 +162,7 @@ class BuffHUD:
         self._tab_quickcraft_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_copy_frame = tk.Frame(self._library_nb, bg=BG_COLOR)
         self._tab_mega_qol_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
+        self._tab_fast_destroy_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_wasd_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_overlay_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
 
@@ -228,6 +232,12 @@ class BuffHUD:
             double_ctrl_click_enabled=triple_ctrl_click_enabled,
         )
         self._mega_qol_tab.set_change_handler(self._on_mega_qol_changed)
+        self._fast_destroy_tab = FastDestroyTab(
+            self._tab_fast_destroy_frame,
+            enabled=fast_destroy_enabled,
+            warning_overlay=fast_destroy_warning_overlay,
+        )
+        self._fast_destroy_tab.set_change_handler(self._on_fast_destroy_changed)
         self._wasd_tab = WasdTab(
             self._tab_wasd_frame,
             enabled=wasd_enabled,
@@ -313,6 +323,10 @@ class BuffHUD:
             self._tab_quickcraft_frame, text=t("tab.quickcraft", "Quick Craft")
         )
         self._tools_nb.add(self._tab_mega_qol_frame, text=t("tab.mega_qol", "Mega QoL"))
+        self._tools_nb.add(
+            self._tab_fast_destroy_frame,
+            text=t("tab.fast_destroy", "Fast destroy"),
+        )
         self._tools_nb.add(self._tab_wasd_frame, text=t("tab.wasd", "WASD"))
 
         # Load templates into monitoring tab
@@ -530,6 +544,9 @@ class BuffHUD:
 
     def _on_wasd_changed(self) -> None:
         self._events.append("WASD_CHANGED")
+
+    def _on_fast_destroy_changed(self) -> None:
+        self._events.append("FAST_DESTROY_CHANGED")
 
     def _on_wasd_open_config(self) -> None:
         self._events.append("WASD_OPEN_CONFIG")
@@ -892,6 +909,10 @@ class BuffHUD:
             self._tools_nb.tab(
                 self._tab_mega_qol_frame, text=t("tab.mega_qol", "Mega QoL")
             )
+            self._tools_nb.tab(
+                self._tab_fast_destroy_frame,
+                text=t("tab.fast_destroy", "Fast destroy"),
+            )
             self._tools_nb.tab(self._tab_wasd_frame, text=t("tab.wasd", "WASD"))
         except Exception:
             pass
@@ -910,6 +931,10 @@ class BuffHUD:
         self._copy_tab.reload(self._copy_tab.get_search_var().get())
         try:
             self._mega_qol_tab.refresh_texts()
+        except Exception:
+            pass
+        try:
+            self._fast_destroy_tab.refresh_texts()
         except Exception:
             pass
         try:
@@ -1238,6 +1263,14 @@ class BuffHUD:
             "distance_skill": int(self._wasd_tab.get_distance_skill()),
             "skill_cursor_delay_s": float(self._wasd_tab.get_skill_cursor_delay_s()),
             "input_delay_s": float(self._wasd_tab.get_input_delay_s()),
+        }
+
+    def get_fast_destroy_config(self) -> dict:
+        return {
+            "enabled": bool(self._fast_destroy_tab.get_enabled()),
+            "warning_overlay": bool(
+                self._fast_destroy_tab.get_warning_overlay_enabled()
+            ),
         }
 
     def is_dock_locked(self) -> bool:
