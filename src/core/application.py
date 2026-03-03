@@ -247,16 +247,22 @@ class Application:
             self._wasd_movement_keys
         )
         self._wasd_toggle_hint = self._format_hotkey_tokens(self._wasd_toggle_hotkey)
-        self._overlay_open_hotkey = self._get_single_hotkey_token(
-            self.settings.get("hotkeys", {}).get("overlay_open", ["F8"]),
-            fallback="F8",
+        self._overlay_open_sequence, self._overlay_open_interval_s = (
+            self._get_overlay_open_trigger_config(self.settings.get("hotkeys", {}))
         )
+        self._overlay_open_hotkey = (
+            self._overlay_open_sequence[0] if self._overlay_open_sequence else ""
+        )
+        self._overlay_sequence_progress = 0
+        self._overlay_sequence_last_time = 0.0
         hotkeys_cfg = self.settings.setdefault("hotkeys", {})
         hotkeys_cfg["wasd"] = dict(self._wasd_movement_keys)
         hotkeys_cfg["tool_wasd_toggle"] = list(self._wasd_toggle_hotkey)
         hotkeys_cfg["overlay_open"] = (
             [self._overlay_open_hotkey] if self._overlay_open_hotkey else []
         )
+        hotkeys_cfg["overlay_open_sequence"] = list(self._overlay_open_sequence)
+        hotkeys_cfg["overlay_open_interval_s"] = float(self._overlay_open_interval_s)
         self._wasd_controller = (
             WasdController(
                 is_target_active=self._is_wasd_target_active,
@@ -441,10 +447,15 @@ class Application:
 
     def _sync_overlay_hotkey(self) -> None:
         token = self._normalize_hotkey_token(self.hud.get_overlay_hotkey())
+        self._overlay_open_sequence = [token] if token else []
         self._overlay_open_hotkey = token
+        self._overlay_sequence_progress = 0
+        self._overlay_sequence_last_time = 0.0
         self.hud.set_overlay_hotkey(token)
         hotkeys_cfg = self.settings.setdefault("hotkeys", {})
         hotkeys_cfg["overlay_open"] = [token] if token else []
+        hotkeys_cfg["overlay_open_sequence"] = list(self._overlay_open_sequence)
+        hotkeys_cfg["overlay_open_interval_s"] = float(self._overlay_open_interval_s)
         save_settings(self.settings_path, self.settings)
 
     def _toggle_tab_overlay(self) -> None:
@@ -452,13 +463,77 @@ class Application:
             return
         self.tab_overlay.toggle()
 
+    def _get_overlay_open_trigger_config(
+        self, hotkeys_cfg: dict
+    ) -> Tuple[List[str], float]:
+        fallback_sequence = ["SHIFT", "SHIFT"]
+        fallback_interval_s = 0.1
+
+        if not isinstance(hotkeys_cfg, dict):
+            return fallback_sequence, fallback_interval_s
+
+        raw_sequence = hotkeys_cfg.get("overlay_open_sequence")
+        sequence: List[str] = []
+        if isinstance(raw_sequence, list):
+            for token in raw_sequence:
+                normalized = self._normalize_hotkey_token(token)
+                if normalized:
+                    sequence.append(normalized)
+        elif isinstance(raw_sequence, str):
+            for part in raw_sequence.replace("+", " ").replace(",", " ").split():
+                normalized = self._normalize_hotkey_token(part)
+                if normalized:
+                    sequence.append(normalized)
+
+        if not sequence:
+            single = self._get_single_hotkey_token(
+                hotkeys_cfg.get("overlay_open", fallback_sequence),
+                fallback=fallback_sequence[0],
+            )
+            if single:
+                sequence = [single]
+            else:
+                sequence = list(fallback_sequence)
+
+        try:
+            interval_s = float(
+                hotkeys_cfg.get("overlay_open_interval_s", fallback_interval_s)
+            )
+        except Exception:
+            interval_s = fallback_interval_s
+        interval_s = max(0.01, interval_s)
+
+        return sequence, interval_s
+
     def _handle_overlay_hotkey(self, token: str) -> bool:
-        if not self._overlay_open_hotkey:
+        sequence = self._overlay_open_sequence
+        if not sequence:
             return False
-        if token != self._overlay_open_hotkey:
+
+        now = time.time()
+        if self._overlay_sequence_progress > 0:
+            if (now - self._overlay_sequence_last_time) > self._overlay_open_interval_s:
+                self._overlay_sequence_progress = 0
+
+        expected = sequence[self._overlay_sequence_progress]
+        if token == expected:
+            self._overlay_sequence_progress += 1
+            self._overlay_sequence_last_time = now
+            if self._overlay_sequence_progress >= len(sequence):
+                self._overlay_sequence_progress = 0
+                self._overlay_sequence_last_time = 0.0
+                self._toggle_tab_overlay()
+                return True
             return False
-        self._toggle_tab_overlay()
-        return True
+
+        if token == sequence[0]:
+            self._overlay_sequence_progress = 1
+            self._overlay_sequence_last_time = now
+            return False
+
+        self._overlay_sequence_progress = 0
+        self._overlay_sequence_last_time = 0.0
+        return False
 
     def _open_settings_location(self) -> None:
         folder = os.path.dirname(os.path.abspath(self.settings_path))
@@ -1437,8 +1512,7 @@ class Application:
         tokens.update({"C", "CTRL"})
         if self._quickcraft_global_hotkey:
             tokens.add(self._quickcraft_global_hotkey)
-        if self._overlay_open_hotkey:
-            tokens.add(self._overlay_open_hotkey)
+        tokens.update(self._overlay_open_sequence)
         for token in list(tokens):
             vk = self._token_to_vk(token)
             if vk is None:
@@ -1448,7 +1522,12 @@ class Application:
             prev = self._key_down_state.get(token, False)
             if down and not prev:
                 last = self._key_last_emit.get(token, 0.0)
-                if now - last > 0.2:
+                min_interval = 0.2
+                if token in self._overlay_open_sequence:
+                    min_interval = max(
+                        0.01, min(0.2, self._overlay_open_interval_s * 0.45)
+                    )
+                if now - last > min_interval:
                     self._key_last_emit[token] = now
                     if token in {"CTRL", "CONTROL"}:
                         self._last_ctrl_hotkey_time = now

@@ -1,10 +1,10 @@
 """Global hotkey listener utilities for quick craft."""
+
 from __future__ import annotations
 
 import ctypes
 import threading
 import queue
-import time
 from ctypes import wintypes
 from typing import List, Optional
 
@@ -12,13 +12,17 @@ from typing import List, Optional
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
+WM_KEYUP = 0x0101
+WM_SYSKEYUP = 0x0105
 WM_QUIT = 0x0012
 
 # Structures
 try:
     ULONG_PTR = wintypes.ULONG_PTR  # type: ignore[attr-defined]
 except AttributeError:  # pragma: no cover - fallback for some Python builds
-    ULONG_PTR = ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
+    ULONG_PTR = (
+        ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
+    )
 
 try:
     LRESULT = wintypes.LRESULT  # type: ignore[attr-defined]
@@ -36,7 +40,9 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
-LowLevelKeyboardProc = ctypes.WINFUNCTYPE(LRESULT, wintypes.INT, wintypes.WPARAM, wintypes.LPARAM)
+LowLevelKeyboardProc = ctypes.WINFUNCTYPE(
+    LRESULT, wintypes.INT, wintypes.WPARAM, wintypes.LPARAM
+)
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
@@ -44,19 +50,19 @@ kernel32 = ctypes.windll.kernel32
 
 def normalize_hotkey_name(name: str) -> str:
     """Normalize hotkey name into canonical uppercase representation."""
-    token = (name or '').strip()
+    token = (name or "").strip()
     if not token:
-        return ''
-    token = token.upper().replace(' ', '_')
+        return ""
+    token = token.upper().replace(" ", "_")
     return token
 
 
 def format_hotkey_display(name: str) -> str:
     """Format normalized hotkey name for UI display."""
-    token = (name or '').strip()
+    token = (name or "").strip()
     if not token:
-        return ''
-    token = token.replace('_', ' ').title()
+        return ""
+    token = token.replace("_", " ").title()
     return token
 
 
@@ -68,50 +74,50 @@ def keysym_to_hotkey(keysym: str) -> Optional[str]:
     # Standardize case like Tk emits
     base = k.upper()
     # Function keys and simple A-Z / 0-9
-    if base.startswith('F') and base[1:].isdigit():
+    if base.startswith("F") and base[1:].isdigit():
         try:
             n = int(base[1:])
             if 1 <= n <= 24:
-                return f'F{n}'
+                return f"F{n}"
         except Exception:
             pass
     if len(base) == 1 and base.isalnum():
         return base
 
     remap = {
-        'ESCAPE': 'ESC',
-        'RETURN': 'ENTER',
-        'SPACE': 'SPACE',
-        'TAB': 'TAB',
-        'BACKSPACE': 'BACKSPACE',
-        'HOME': 'HOME',
-        'END': 'END',
-        'LEFT': 'LEFT',
-        'RIGHT': 'RIGHT',
-        'UP': 'UP',
-        'DOWN': 'DOWN',
-        'DELETE': 'DELETE',
-        'INSERT': 'INSERT',
-        'PRIOR': 'PAGE_UP',  # PageUp
-        'NEXT': 'PAGE_DOWN',  # PageDown
-        'CAPS_LOCK': 'CAPS_LOCK',
-        'CONTROL_L': 'CTRL',
-        'CONTROL_R': 'CTRL',
-        'SHIFT_L': 'SHIFT',
-        'SHIFT_R': 'SHIFT',
-        'ALT_L': 'ALT',
-        'ALT_R': 'ALT',
-        'MINUS': 'MINUS',
-        'EQUAL': 'EQUAL',
-        'COMMA': 'COMMA',
-        'PERIOD': 'PERIOD',
-        'SLASH': 'SLASH',
-        'GRAVE': 'GRAVE',
-        'BRACKETLEFT': 'LBRACKET',
-        'BRACKETRIGHT': 'RBRACKET',
-        'BACKSLASH': 'BACKSLASH',
-        'QUOTERIGHT': 'QUOTE',
-        'APOSTROPHE': 'QUOTE',
+        "ESCAPE": "ESC",
+        "RETURN": "ENTER",
+        "SPACE": "SPACE",
+        "TAB": "TAB",
+        "BACKSPACE": "BACKSPACE",
+        "HOME": "HOME",
+        "END": "END",
+        "LEFT": "LEFT",
+        "RIGHT": "RIGHT",
+        "UP": "UP",
+        "DOWN": "DOWN",
+        "DELETE": "DELETE",
+        "INSERT": "INSERT",
+        "PRIOR": "PAGE_UP",  # PageUp
+        "NEXT": "PAGE_DOWN",  # PageDown
+        "CAPS_LOCK": "CAPS_LOCK",
+        "CONTROL_L": "CTRL",
+        "CONTROL_R": "CTRL",
+        "SHIFT_L": "SHIFT",
+        "SHIFT_R": "SHIFT",
+        "ALT_L": "ALT",
+        "ALT_R": "ALT",
+        "MINUS": "MINUS",
+        "EQUAL": "EQUAL",
+        "COMMA": "COMMA",
+        "PERIOD": "PERIOD",
+        "SLASH": "SLASH",
+        "GRAVE": "GRAVE",
+        "BRACKETLEFT": "LBRACKET",
+        "BRACKETRIGHT": "RBRACKET",
+        "BACKSLASH": "BACKSLASH",
+        "QUOTERIGHT": "QUOTE",
+        "APOSTROPHE": "QUOTE",
     }
     if base in remap:
         return remap[base]
@@ -128,57 +134,60 @@ def vk_to_hotkey(vk_code: int) -> Optional[str]:
         return f"F{vk_code - 0x6F}"
 
     mapping = {
-        0x08: 'BACKSPACE',
-        0x09: 'TAB',
-        0x0D: 'ENTER',
-        0x13: 'PAUSE',
-        0x14: 'CAPS_LOCK',
-        0x1B: 'ESC',
-        0x20: 'SPACE',
-        0x21: 'PAGE_UP',
-        0x22: 'PAGE_DOWN',
-        0x23: 'END',
-        0x24: 'HOME',
-        0x25: 'LEFT',
-        0x26: 'UP',
-        0x27: 'RIGHT',
-        0x28: 'DOWN',
-        0x2D: 'INSERT',
-        0x2E: 'DELETE',
-        0x5B: 'WIN',
-        0x5C: 'WIN',
-        0x60: 'NUMPAD0',
-        0x61: 'NUMPAD1',
-        0x62: 'NUMPAD2',
-        0x63: 'NUMPAD3',
-        0x64: 'NUMPAD4',
-        0x65: 'NUMPAD5',
-        0x66: 'NUMPAD6',
-        0x67: 'NUMPAD7',
-        0x68: 'NUMPAD8',
-        0x69: 'NUMPAD9',
-        0x6A: 'NUMPAD_MULTIPLY',
-        0x6B: 'NUMPAD_ADD',
-        0x6D: 'NUMPAD_SUBTRACT',
-        0x6E: 'NUMPAD_DECIMAL',
-        0x6F: 'NUMPAD_DIVIDE',
-        0xA0: 'SHIFT',
-        0xA1: 'SHIFT',
-        0xA2: 'CTRL',
-        0xA3: 'CTRL',
-        0xA4: 'ALT',
-        0xA5: 'ALT',
-        0xBA: 'SEMICOLON',
-        0xBB: 'EQUAL',
-        0xBC: 'COMMA',
-        0xBD: 'MINUS',
-        0xBE: 'PERIOD',
-        0xBF: 'SLASH',
-        0xC0: 'GRAVE',
-        0xDB: 'LBRACKET',
-        0xDC: 'BACKSLASH',
-        0xDD: 'RBRACKET',
-        0xDE: 'QUOTE',
+        0x08: "BACKSPACE",
+        0x09: "TAB",
+        0x10: "SHIFT",
+        0x11: "CTRL",
+        0x12: "ALT",
+        0x0D: "ENTER",
+        0x13: "PAUSE",
+        0x14: "CAPS_LOCK",
+        0x1B: "ESC",
+        0x20: "SPACE",
+        0x21: "PAGE_UP",
+        0x22: "PAGE_DOWN",
+        0x23: "END",
+        0x24: "HOME",
+        0x25: "LEFT",
+        0x26: "UP",
+        0x27: "RIGHT",
+        0x28: "DOWN",
+        0x2D: "INSERT",
+        0x2E: "DELETE",
+        0x5B: "WIN",
+        0x5C: "WIN",
+        0x60: "NUMPAD0",
+        0x61: "NUMPAD1",
+        0x62: "NUMPAD2",
+        0x63: "NUMPAD3",
+        0x64: "NUMPAD4",
+        0x65: "NUMPAD5",
+        0x66: "NUMPAD6",
+        0x67: "NUMPAD7",
+        0x68: "NUMPAD8",
+        0x69: "NUMPAD9",
+        0x6A: "NUMPAD_MULTIPLY",
+        0x6B: "NUMPAD_ADD",
+        0x6D: "NUMPAD_SUBTRACT",
+        0x6E: "NUMPAD_DECIMAL",
+        0x6F: "NUMPAD_DIVIDE",
+        0xA0: "SHIFT",
+        0xA1: "SHIFT",
+        0xA2: "CTRL",
+        0xA3: "CTRL",
+        0xA4: "ALT",
+        0xA5: "ALT",
+        0xBA: "SEMICOLON",
+        0xBB: "EQUAL",
+        0xBC: "COMMA",
+        0xBD: "MINUS",
+        0xBE: "PERIOD",
+        0xBF: "SLASH",
+        0xC0: "GRAVE",
+        0xDB: "LBRACKET",
+        0xDC: "BACKSLASH",
+        0xDD: "RBRACKET",
+        0xDE: "QUOTE",
     }
     name = mapping.get(vk_code)
     if name:
@@ -203,7 +212,7 @@ class HotkeyListener:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._thread_id: Optional[int] = None
-        self._last_emit: dict[str, float] = {}
+        self._pressed_tokens: set[str] = set()
         self._start()
 
     def _start(self) -> None:
@@ -227,26 +236,35 @@ class HotkeyListener:
         return items
 
     def _emit(self, token: str) -> None:
-        now = time.time()
-        last = self._last_emit.get(token, 0.0)
-        if now - last < 0.15:  # debounce repeats
-            return
-        self._last_emit[token] = now
         self._queue.put(token)
 
     def _keyboard_callback(self, nCode: int, wParam: int, lParam: int) -> int:
-        if nCode == 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
+        if nCode == 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
             kb_struct = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
             hotkey = vk_to_hotkey(kb_struct.vkCode)
             if hotkey:
-                self._emit(normalize_hotkey_name(hotkey))
+                token = normalize_hotkey_name(hotkey)
+                if not token:
+                    return user32.CallNextHookEx(
+                        self._keyboard_hook, nCode, wParam, lParam
+                    )
+
+                is_down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                if is_down:
+                    if token not in self._pressed_tokens:
+                        self._pressed_tokens.add(token)
+                        self._emit(token)
+                else:
+                    self._pressed_tokens.discard(token)
         return user32.CallNextHookEx(self._keyboard_hook, nCode, wParam, lParam)
 
     def _loop(self) -> None:
         self._thread_id = kernel32.GetCurrentThreadId()
         module_handle = kernel32.GetModuleHandleW(None)
 
-        self._keyboard_hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._keyboard_proc, module_handle, 0)
+        self._keyboard_hook = user32.SetWindowsHookExW(
+            WH_KEYBOARD_LL, self._keyboard_proc, module_handle, 0
+        )
 
         msg = wintypes.MSG()
         while not self._stop_event.is_set():
@@ -262,8 +280,8 @@ class HotkeyListener:
 
 
 __all__ = [
-    'HotkeyListener',
-    'normalize_hotkey_name',
-    'format_hotkey_display',
-    'keysym_to_hotkey',
+    "HotkeyListener",
+    "normalize_hotkey_name",
+    "format_hotkey_display",
+    "keysym_to_hotkey",
 ]

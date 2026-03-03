@@ -38,7 +38,9 @@ def get_default_settings() -> Dict[str, Any]:
         },
         "hotkeys": {
             "tool_wasd_toggle": ["GRAVE"],
-            "overlay_open": ["F8"],
+            "overlay_open": ["SHIFT"],
+            "overlay_open_sequence": ["SHIFT", "SHIFT"],
+            "overlay_open_interval_s": 0.1,
             "wasd": {
                 "up": "W",
                 "left": "A",

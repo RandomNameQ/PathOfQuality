@@ -17,7 +17,7 @@ class OverlayTab:
     def __init__(
         self,
         parent: tk.Frame,
-        overlay_hotkey: str = "F8",
+        overlay_hotkey: str = "SHIFT",
         use_map_layout_overlay: bool = True,
     ) -> None:
         self.frame = parent

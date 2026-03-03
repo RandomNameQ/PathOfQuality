@@ -24,6 +24,8 @@ from src.utils.settings import external_path, resource_path
 class TabOverlayWindow:
     """Stylized top-level overlay window for tab tools."""
 
+    _MAP_ROWS_CACHE: Optional[list[dict[str, str | int]]] = None
+
     def __init__(
         self,
         master: tk.Tk,
@@ -65,6 +67,12 @@ class TabOverlayWindow:
         self._map_col_tags_width = 290
         self._map_header_height = 36
         self._map_row_height = 36
+        self._map_panel = None
+        self._map_title_label = None
+        self._map_rows_container = None
+        self._map_search_var = None
+        self._map_overlay_enabled_var = None
+        self._map_header_buttons = {}
         self._layout_preview_window = None
         self._layout_preview_body = None
         self._layout_preview_photo = None
@@ -87,6 +95,7 @@ class TabOverlayWindow:
         }
         self._window_drag_region_height = 24
         self._image_states = []
+        self._has_centered_geometry = False
         self._load_map_rows()
 
         self._build_layout()
@@ -196,6 +205,8 @@ class TabOverlayWindow:
 
         self._content_inner.bind("<Configure>", self._on_content_inner_configure)
         self._content_canvas.bind("<Configure>", self._on_content_canvas_configure)
+        self._window.bind("<KeyPress>", self._on_menu_hotkey_press, add="+")
+        self._window.bind("<MouseWheel>", self._on_overlay_mouse_wheel, add="+")
 
         self._window_drag_handle.bind("<ButtonPress-1>", self._start_window_drag)
         self._window_drag_handle.bind("<B1-Motion>", self._on_window_drag)
@@ -204,11 +215,17 @@ class TabOverlayWindow:
     def _seed_menu(self) -> None:
         self._menu_items = [
             {
+                "id": "program:commands",
+                "type": "program",
+                "name": "Commands",
+                "program_key": "commands",
+            },
+            {
                 "id": "program:map",
                 "type": "program",
                 "name": "MAP",
                 "program_key": "map",
-            }
+            },
         ]
 
         stored_items, stored_active = self._load_overlay_menu_state()
@@ -380,6 +397,10 @@ class TabOverlayWindow:
             pass
 
     def _load_map_rows(self) -> None:
+        if TabOverlayWindow._MAP_ROWS_CACHE is not None:
+            self._map_rows = TabOverlayWindow._MAP_ROWS_CACHE
+            return
+
         map_data_path = external_path("map-data.json")
         if not os.path.exists(map_data_path):
             map_data_path = resource_path("map-data.json")
@@ -422,6 +443,7 @@ class TabOverlayWindow:
             )
 
         self._map_rows = rows
+        TabOverlayWindow._MAP_ROWS_CACHE = rows
 
     def _get_sorted_filtered_map_rows(self) -> list:
         query = self._map_search_query.strip().lower()
@@ -450,13 +472,33 @@ class TabOverlayWindow:
             return ""
         return " v" if self._map_sort_desc else " ^"
 
+    def _refresh_map_sort_headers(self) -> None:
+        header_titles = {
+            "mapName": "Map name (link)",
+            "layout": "Layout",
+            "density": "Density",
+            "tags": "Tags",
+        }
+        for sort_key, title in header_titles.items():
+            button = self._map_header_buttons.get(sort_key)
+            if button is None or not button.winfo_exists():
+                continue
+            button.configure(text=f"{title}{self._sort_marker(sort_key)}")
+
     def _toggle_map_sort(self, sort_key: str) -> None:
         if self._map_sort_key == sort_key:
             self._map_sort_desc = not self._map_sort_desc
         else:
             self._map_sort_key = sort_key
             self._map_sort_desc = False
-        self._render_content()
+
+        rows_container = self._map_rows_container
+        if rows_container is None or not rows_container.winfo_exists():
+            self._render_content()
+            return
+
+        self._refresh_map_sort_headers()
+        self._refresh_map_table_rows(rows_container)
 
     def _open_external_map_link(self, map_url: str) -> None:
         if not map_url:
@@ -1156,16 +1198,41 @@ class TabOverlayWindow:
             width=event.width,
         )
 
+    def _is_image_canvas_widget(self, widget: Any) -> bool:
+        current = widget
+        while current is not None:
+            for state in self._image_states:
+                if current == state.get("canvas"):
+                    return True
+            current = getattr(current, "master", None)
+        return False
+
+    def _on_overlay_mouse_wheel(self, event: tk.Event) -> str | None:
+        if self._is_image_canvas_widget(getattr(event, "widget", None)):
+            return None
+
+        delta = int(getattr(event, "delta", 0) or 0)
+        if delta == 0:
+            return None
+
+        if delta > 0:
+            steps = -1
+        else:
+            steps = 1
+
+        self._content_canvas.yview_scroll(steps, "units")
+        return "break"
+
     def _refresh_menu(self) -> None:
         for child in self._menu_list.winfo_children():
             child.destroy()
         self._menu_buttons.clear()
 
-        for item in self._menu_items:
+        for index, item in enumerate(self._menu_items, start=1):
             item_id = item["id"]
             button = tk.Button(
                 self._menu_list,
-                text=item["name"],
+                text=f"{index}. {item['name']}",
                 bg=theme.BG_PRIMARY,
                 fg=theme.FG_PRIMARY,
                 activebackground=theme.HOVER_COLOR,
@@ -1201,6 +1268,36 @@ class TabOverlayWindow:
 
             self._menu_buttons[item_id] = button
 
+    def _extract_menu_hotkey_index(self, event: tk.Event) -> int | None:
+        keysym = str(getattr(event, "keysym", "") or "")
+        if keysym.isdigit():
+            value = int(keysym)
+            return value if value > 0 else None
+
+        if keysym.startswith("KP_"):
+            suffix = keysym.split("_", 1)[1]
+            if suffix.isdigit():
+                value = int(suffix)
+                return value if value > 0 else None
+        return None
+
+    def _on_menu_hotkey_press(self, event: tk.Event) -> None:
+        hotkey_index = self._extract_menu_hotkey_index(event)
+        if hotkey_index is None:
+            return
+
+        focused_widget = self._window.focus_get()
+        if isinstance(focused_widget, (tk.Entry, tk.Text)):
+            return
+
+        if hotkey_index > len(self._menu_items):
+            return
+
+        item = self._menu_items[hotkey_index - 1]
+        item_id = str(item.get("id", "")).strip()
+        if item_id:
+            self._select_item(item_id)
+
     def _select_item(self, item_id: str) -> None:
         self._active_item_id = item_id
         for current_id, button in self._menu_buttons.items():
@@ -1218,6 +1315,9 @@ class TabOverlayWindow:
 
     def _clear_content(self) -> None:
         for child in self._content_inner.winfo_children():
+            if child == self._map_panel and self._map_panel is not None:
+                self._map_panel.pack_forget()
+                continue
             child.destroy()
         self._image_states = []
         self._content_canvas.yview_moveto(0.0)
@@ -1233,6 +1333,9 @@ class TabOverlayWindow:
         self._render_user_item(item)
 
     def _render_program_item(self, item) -> None:
+        if item.get("program_key") == "commands":
+            self._render_commands_program_item(item)
+            return
         if item.get("program_key") == "map":
             self._render_map_program_item(item)
             return
@@ -1294,13 +1397,336 @@ class TabOverlayWindow:
         )
         feedback.pack(anchor="w", pady=(10, 0))
 
-    def _render_map_program_item(self, item) -> None:
+    def _render_info_block(
+        self,
+        parent: tk.Widget,
+        title: str,
+        subtitle: str = "",
+    ) -> tk.Frame:
+        block = tk.Frame(
+            parent,
+            bg=theme.BG_SECONDARY,
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=theme.BORDER_PRIMARY,
+        )
+        block.pack(fill="x", pady=(0, 10))
+
+        title_label = tk.Label(
+            block,
+            text=title,
+            bg=theme.BG_SECONDARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_HEADER,
+            anchor="w",
+            justify="left",
+            padx=12,
+            pady=8,
+        )
+        title_label.pack(fill="x")
+
+        if subtitle:
+            subtitle_label = tk.Label(
+                block,
+                text=subtitle,
+                bg=theme.BG_SECONDARY,
+                fg=theme.FG_SECONDARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+                wraplength=920,
+                padx=12,
+            )
+            subtitle_label.pack(fill="x", pady=(0, 10))
+
+        return block
+
+    def _render_commands_program_item(self, item) -> None:
         panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
         panel.pack(fill="both", expand=True, padx=24, pady=24)
 
         title = tk.Label(
             panel,
-            text=item.get("name", "MAP"),
+            text=item.get("name", "Commands"),
+            bg=theme.BG_PRIMARY,
+            fg=theme.FG_PRIMARY,
+            font=theme.FONT_TITLE,
+            anchor="w",
+        )
+        title.pack(anchor="w", pady=(0, 12))
+
+        self._render_info_block(
+            panel,
+            "Commands",
+            "Various functions can be executed by entering commands in the chat console. "
+            "The syntax of a command is a forward slash (/) followed by a string. "
+            "Commands that require additional parameters are appended after the command "
+            "string followed by a space.",
+        )
+
+        for command, details in self._chat_commands_data():
+            self._render_info_block(panel, command, details)
+
+        popular_channels_block = self._render_info_block(
+            panel,
+            "Popular channels",
+            "Commonly used chat channels from the PoE community.",
+        )
+        for channel_name, channel_desc in self._chat_popular_channels_data():
+            channel_row = tk.Label(
+                popular_channels_block,
+                text=f"{channel_name} - {channel_desc}",
+                bg=theme.BG_SECONDARY,
+                fg=theme.FG_PRIMARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+                wraplength=920,
+                padx=12,
+            )
+            channel_row.pack(fill="x", pady=(0, 8))
+
+        chatting_block = self._render_info_block(
+            panel,
+            "Chatting",
+            "Domains, tags, and shortcuts used to choose message destination.",
+        )
+        for domain, tag, shortcut, purpose in self._chatting_domains_data():
+            domain_row = tk.Label(
+                chatting_block,
+                text=f"{domain} | Tag: {tag} | Shortcut: {shortcut} | {purpose}",
+                bg=theme.BG_SECONDARY,
+                fg=theme.FG_PRIMARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+                wraplength=920,
+                padx=12,
+            )
+            domain_row.pack(fill="x", pady=(0, 8))
+
+        variables_block = self._render_info_block(
+            panel,
+            "Variables",
+            "Dynamic variables usable with chat commands.",
+        )
+        for variable_name, variable_desc in self._chat_variables_data():
+            variable_row = tk.Label(
+                variables_block,
+                text=f"{variable_name} - {variable_desc}",
+                bg=theme.BG_SECONDARY,
+                fg=theme.FG_PRIMARY,
+                font=theme.FONT_BODY,
+                anchor="w",
+                justify="left",
+                wraplength=920,
+                padx=12,
+            )
+            variable_row.pack(fill="x", pady=(0, 8))
+
+    def _chat_commands_data(self) -> list[tuple[str, str]]:
+        return [
+            ("/help", "Displays a list of most console commands."),
+            (
+                "/bug <description> /debug <description>",
+                "Reports a bug and gives a report reference number.",
+            ),
+            ("/ladder", "Displays top ten characters on the current ladder."),
+            ("/played", "Displays how long the current character has been played."),
+            ("/age", "Displays how long ago the current character was created."),
+            (
+                "/passives",
+                "Shows passive point summary and Deal with the Bandits reward.",
+            ),
+            ("/deaths", "Displays death count for current character."),
+            ("/remaining", "Displays how many monsters remain in current area."),
+            ("/destroy", "Use with caution. Destroys item on cursor."),
+            (
+                "/recoveroldcraftingbenchitem",
+                "Recovers an item placed in old inaccessible crafting benches.",
+            ),
+            ("/itemlevel", "Displays level of item on cursor."),
+            ("/pvp", "Displays PvP win/loss/disconnect statistics."),
+            ("/fixmyhelmet", "Updates existing non-unique helmet to new art."),
+            ("/oos", "Forces resync."),
+            ("/dance", "Performs dance if owned as microtransaction."),
+            ("/status <text>", "Changes your status message for friends."),
+            ("/invite <character>", "Sends party invite to character."),
+            ("/kick <character>", "Kicks character from party."),
+            (
+                "/party_description <description>",
+                "Changes the description of your party.",
+            ),
+            (
+                "/tradewith <character>",
+                "Initiates trade with character in same town hub instance.",
+            ),
+            ("/friend <character>", "Adds character to friends list."),
+            ("/unfriend <character>", "Removes character from friends list."),
+            ("/accept <character>", "Accepts friend request."),
+            ("/leave", "Leaves the party."),
+            (
+                "/ignore <character> /squelch <character>",
+                "Adds character account to ignore list.",
+            ),
+            (
+                "/unignore <character> /unsquelch <character>",
+                "Removes character account from ignore list.",
+            ),
+            ("/clear_ignore_list", "Clears all ignored accounts."),
+            (
+                "/whois <character>",
+                "Displays level, class, league, and online status.",
+            ),
+            (
+                "/afk <message>",
+                "Turns AFK mode on and auto-replies to whispers.",
+            ),
+            ("/afkoff", "Turns off AFK mode."),
+            (
+                "/dnd <message> /donotdisturb <message>",
+                "Toggles Do Not Disturb mode for chat.",
+            ),
+            ("/global <number>", "Joins global chat channel number."),
+            ("/trade <number>", "Joins trade chat channel number."),
+            ("/cls /clear", "Clears chat console text."),
+            ("/hideout", "Sends you to your hideout from town."),
+            (
+                "/hideout <character>",
+                "Sends you to character's hideout from town.",
+            ),
+            ("/guild", "Sends you to guild hideout from town."),
+            ("/menagerie", "Sends you to Menagerie from town."),
+            ("/delve", "Sends you to Azurite Mine from town."),
+            ("/sanctum", "Sends you to The Forbidden Sanctum from town."),
+            ("/kingsmarch", "Sends you to Kingsmarch from town."),
+            ("/heist", "Sends you to The Rogue Harbour from town."),
+            ("/exit", "Exits game to character selection screen."),
+            ("/reset_xp", "Resets experience-per-hour estimation tool."),
+            (
+                "/recheck_achievements",
+                "Forces recheck of certain achievements.",
+            ),
+            (
+                "/autoreply <message>",
+                "Replies with message when someone whispers you.",
+            ),
+            ("/nochat /togglenochat", "Toggles chat suppression."),
+            (
+                "/save_hideout",
+                "Saves current hideout layout to a file.",
+            ),
+            (
+                "/spectate <character>",
+                "Spectates a mutual friend or guildmate in PvP area.",
+            ),
+            (
+                "/itemfilter <filter name>",
+                "Sets and refreshes specified item filter.",
+            ),
+            ("/kills", "Displays total kills for current character."),
+            (
+                "/atlaspassives",
+                "Displays atlas passive point summary for the league.",
+            ),
+            (
+                "/reloaditemfilter",
+                "Refreshes currently loaded item filter.",
+            ),
+            (
+                "/convertracereward",
+                "Use with caution. Destroys alternate art unique on cursor and grants item skin.",
+            ),
+        ]
+
+    def _chat_popular_channels_data(self) -> list[tuple[str, str]]:
+        return [
+            (
+                "Global 820",
+                "Sharing common or uncommon quests, challenges, and group opportunities.",
+            ),
+            (
+                "Trade 820",
+                "Paid services, rare challenges, and expensive map services.",
+            ),
+            ("Global 100", "Discord Global channel."),
+            ("Global 101", "Guild Recruitment channel."),
+            ("Global 150", "Mapping channel."),
+            ("Global 773", "SSF channel."),
+            ("Global 911", "Righteous Fire players channel."),
+            ("Trade 800", "Currency-only trading channel."),
+            ("Global 6666", "Spectre trading / minion build players."),
+            (
+                "Trade 5055",
+                "Non-trade community channel often used by experienced players.",
+            ),
+            ("Global 5055", "Reddit Global channel."),
+            ("Trade 1", "Ruthless league trading channel."),
+        ]
+
+    def _chatting_domains_data(self) -> list[tuple[str, str, str, str]]:
+        return [
+            (
+                "Local",
+                "-",
+                "<chat key>",
+                "Chat with nearby players in town hub or zone instance.",
+            ),
+            (
+                "Global",
+                "#",
+                "Shift + <chat key>",
+                "Chat with many players in the same league.",
+            ),
+            (
+                "Party",
+                "%",
+                "Ctrl + Shift + <chat key>",
+                "Chat with all party members.",
+            ),
+            (
+                "Whisper",
+                "@<character>",
+                "Ctrl + <chat key>",
+                "Chat with a specific character; shortcut replies to last whisper.",
+            ),
+            (
+                "Trade",
+                "$",
+                "-",
+                "Chat for item trading.",
+            ),
+            (
+                "Guild",
+                "&",
+                "-",
+                "Guild chat channel.",
+            ),
+            (
+                "Twitch",
+                "^",
+                "-",
+                "Twitch chat via client (feature removed).",
+            ),
+        ]
+
+    def _chat_variables_data(self) -> list[tuple[str, str]]:
+        return [
+            (
+                "@last",
+                "Targets last player who contacted you. Examples: '@last Thanks!', '/invite @last', '/tradewith @last', '/hideout @last'.",
+            ),
+        ]
+
+    def _ensure_map_program_panel(self) -> None:
+        if self._map_panel is not None and self._map_panel.winfo_exists():
+            return
+
+        panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
+
+        title = tk.Label(
+            panel,
+            text="MAP",
             bg=theme.BG_PRIMARY,
             fg=theme.FG_PRIMARY,
             font=theme.FONT_TITLE,
@@ -1378,7 +1804,7 @@ class TabOverlayWindow:
 
         name_header = tk.Button(
             header,
-            text=f"Map name (link){self._sort_marker('mapName')}",
+            text="Map name (link)",
             bg=theme.BG_SECONDARY,
             fg=theme.FG_PRIMARY,
             activebackground=theme.HOVER_COLOR,
@@ -1407,7 +1833,7 @@ class TabOverlayWindow:
 
         layout_header = tk.Button(
             header,
-            text=f"Layout{self._sort_marker('layout')}",
+            text="Layout",
             bg=theme.BG_SECONDARY,
             fg=theme.FG_PRIMARY,
             activebackground=theme.HOVER_COLOR,
@@ -1424,7 +1850,7 @@ class TabOverlayWindow:
 
         density_header = tk.Button(
             header,
-            text=f"Density{self._sort_marker('density')}",
+            text="Density",
             bg=theme.BG_SECONDARY,
             fg=theme.FG_PRIMARY,
             activebackground=theme.HOVER_COLOR,
@@ -1441,7 +1867,7 @@ class TabOverlayWindow:
 
         tags_header = tk.Button(
             header,
-            text=f"Tags{self._sort_marker('tags')}",
+            text="Tags",
             bg=theme.BG_SECONDARY,
             fg=theme.FG_PRIMARY,
             activebackground=theme.HOVER_COLOR,
@@ -1476,7 +1902,47 @@ class TabOverlayWindow:
             ),
         )
 
-        self._refresh_map_table_rows(rows_container)
+        self._map_panel = panel
+        self._map_title_label = title
+        self._map_rows_container = rows_container
+        self._map_search_var = search_var
+        self._map_overlay_enabled_var = map_overlay_enabled_var
+        self._map_header_buttons = {
+            "mapName": name_header,
+            "layout": layout_header,
+            "density": density_header,
+            "tags": tags_header,
+        }
+
+    def _render_map_program_item(self, item) -> None:
+        self._ensure_map_program_panel()
+        if self._map_panel is None:
+            return
+
+        if self._map_title_label is not None and self._map_title_label.winfo_exists():
+            self._map_title_label.configure(text=item.get("name", "MAP"))
+
+        overlay_enabled = self._is_map_layout_overlay_enabled()
+        if (
+            self._map_overlay_enabled_var is not None
+            and self._map_overlay_enabled_var.get() != overlay_enabled
+        ):
+            self._map_overlay_enabled_var.set(overlay_enabled)
+
+        if (
+            self._map_search_var is not None
+            and self._map_search_var.get() != self._map_search_query
+        ):
+            self._map_search_var.set(self._map_search_query)
+
+        self._map_panel.pack(fill="both", expand=True, padx=24, pady=24)
+        self._refresh_map_sort_headers()
+
+        if (
+            self._map_rows_container is not None
+            and self._map_rows_container.winfo_exists()
+        ):
+            self._refresh_map_table_rows(self._map_rows_container)
 
     def _render_user_item(self, item) -> None:
         panel = tk.Frame(self._content_inner, bg=theme.BG_PRIMARY)
@@ -1670,11 +2136,12 @@ class TabOverlayWindow:
         canvas.delete("all")
         canvas.create_image(center_x, center_y, image=photo, anchor="center")
 
-    def _on_image_wheel(self, event: tk.Event, state) -> None:
+    def _on_image_wheel(self, event: tk.Event, state) -> str:
         delta = 1.1 if event.delta > 0 else 0.9
         current = float(state["entry"].get("zoom", 1.0))
         state["entry"]["zoom"] = max(0.2, min(8.0, current * delta))
         self._draw_image(state)
+        return "break"
 
     def _start_pan(self, event: tk.Event, state) -> None:
         state["pan_x"] = event.x
@@ -1911,7 +2378,9 @@ class TabOverlayWindow:
         self._window.geometry(f"{width}x{height}+{left}+{top}")
 
     def show(self) -> None:
-        self._apply_centered_geometry()
+        if not self._has_centered_geometry:
+            self._apply_centered_geometry()
+            self._has_centered_geometry = True
         self._window.deiconify()
         try:
             self._window.lift()

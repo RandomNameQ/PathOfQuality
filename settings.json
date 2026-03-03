@@ -24,7 +24,7 @@
   "language": "en",
   "templates_dir": "assets/templates",
   "wasd": {
-    "enabled": true,
+    "enabled": false,
     "top_offset": 0,
     "bot_offset": 0,
     "left_offset": 0,
@@ -42,8 +42,13 @@
       "GRAVE"
     ],
     "overlay_open": [
-      "F8"
+      "SHIFT"
     ],
+    "overlay_open_sequence": [
+      "SHIFT",
+      "SHIFT"
+    ],
+    "overlay_open_interval_s": 0.3,
     "wasd": {
       "up": "W",
       "left": "A",
@@ -61,18 +66,36 @@
     "menu_items": [
       {
         "id": "user:1",
-        "name": "asd",
+        "name": "Betrayel 3.26",
         "images": [
           {
-            "path": "C:/Users/user/Downloads/TON UQBYbeE_Y27_11-MSFqO4Udr-YAihHuAEznyCQ5EHhevR71R.jpg",
-            "zoom": 0.8863848717161303,
-            "offset_x": 0.0,
-            "offset_y": 0.0
+            "path": "C:/Users/user/Downloads/3.26 betrayel light.webp",
+            "zoom": 1.0511824334504658,
+            "offset_x": 19.0,
+            "offset_y": 4.0
+          },
+          {
+            "path": "C:/Users/user/Downloads/3.26 betrayel dark.webp",
+            "zoom": 0.636399294053849,
+            "offset_x": 79.0,
+            "offset_y": -73.0
+          }
+        ]
+      },
+      {
+        "id": "user:2",
+        "name": "Vendor recipe",
+        "images": [
+          {
+            "path": "C:/Users/user/Downloads/vendor-recipe-cheatsheet.webp",
+            "zoom": 1.0833592876530485,
+            "offset_x": 34.0,
+            "offset_y": -10.0
           }
         ]
       }
     ],
-    "active_item_id": "program:map"
+    "active_item_id": "program:commands"
   },
   "mirror_mode": "auto",
   "wasd_enabled": true
