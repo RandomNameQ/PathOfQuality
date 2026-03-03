@@ -21,7 +21,12 @@ from src.ui.tab_overlay_window import TabOverlayWindow
 from src.ui.currency_overlay import CurrencyOverlay
 from src.ui.roi_selector import select_roi
 from src.ui.tray import TrayIcon
-from src.utils.settings import load_settings, save_settings, resource_path
+from src.utils.settings import (
+    load_settings,
+    load_works_config,
+    save_settings,
+    resource_path,
+)
 from src.i18n.locale import t, get_lang
 from src.currency.library import load_currencies
 from src.quickcraft.library import (
@@ -31,6 +36,7 @@ from src.quickcraft.library import (
 )
 
 ALLOWED_PROCESSES_FILE = resource_path(os.path.join("assets", "allowed_processes.json"))
+WORKS_CONFIG_FILE = "works.json"
 
 # Windows API for checking active process and mouse simulation
 if sys.platform.startswith("win"):
@@ -157,6 +163,12 @@ class Application:
         # Allowed processes are defined strictly in JSON (no implicit additions)
         self.allowed_processes: Set[str] = self._load_allowed_processes()
         self._focus_required = bool(self.settings.get("require_game_focus", True))
+        self._works_config = load_works_config(WORKS_CONFIG_FILE)
+        raw_bypass = self._works_config.get("bypass_when_focus_required", {})
+        self._works_bypass: Dict[str, bool] = {}
+        if isinstance(raw_bypass, dict):
+            for key, value in raw_bypass.items():
+                self._works_bypass[str(key)] = bool(value)
 
         # Initialize components
         self.capture: MSSCapture = None
@@ -344,18 +356,29 @@ class Application:
         # Focus-loss debounce for runtime overlays
         self._focus_loss_started: float = 0.0
 
-    def _has_effective_focus(self) -> bool:
-        """Return True when functionality should be enabled.
-
-        Effective focus is true when:
-        - focus requirement is disabled, or
-        - an allowed game process is focused.
-        """
+    def _is_feature_allowed(
+        self, feature_key: str, game_in_focus: Optional[bool] = None
+    ) -> bool:
+        """Return True when a feature may run under focus policy + works.json."""
         if not self._focus_required:
             return True
-        return self._is_allowed_process_active()
+        if game_in_focus is None:
+            game_in_focus = self._is_allowed_process_active()
+        if game_in_focus:
+            return True
+        return bool(self._works_bypass.get(feature_key, False))
+
+    def _has_effective_focus(
+        self, feature_key: str = "scan", game_in_focus: Optional[bool] = None
+    ) -> bool:
+        return self._is_feature_allowed(feature_key, game_in_focus)
 
     def _is_wasd_target_active(self) -> bool:
+        game_in_focus = self._is_allowed_process_active()
+        if not self._is_feature_allowed("wasd_controller", game_in_focus):
+            return False
+        if not game_in_focus:
+            return True
         if sys.platform.startswith("win"):
             try:
                 foreground_hwnd = ctypes.windll.user32.GetForegroundWindow()
@@ -367,7 +390,7 @@ class Application:
                     return True
             except Exception:
                 pass
-        return self._is_allowed_process_active()
+        return game_in_focus
 
     def _handle_wasd_toggle(self) -> None:
         with self._wasd_toggle_lock:
@@ -379,7 +402,9 @@ class Application:
             self._wasd_toggle_requests = 0
         return count
 
-    def _do_wasd_toggle(self) -> None:
+    def _do_wasd_toggle(self, game_in_focus: Optional[bool] = None) -> None:
+        if not self._is_feature_allowed("wasd_controller", game_in_focus):
+            return
         self._wasd_enabled = not self._wasd_enabled
         self.hud.set_wasd_enabled(self._wasd_enabled)
         self._wasd_cfg["enabled"] = self._wasd_enabled
@@ -499,8 +524,14 @@ class Application:
         hotkeys_cfg["overlay_open_interval_s"] = float(self._overlay_open_interval_s)
         save_settings(self.settings_path, self.settings)
 
-    def _toggle_tab_overlay(self) -> None:
+    def _toggle_tab_overlay(self, game_in_focus: Optional[bool] = None) -> None:
         if self.tab_overlay is None:
+            return
+        if not self._is_feature_allowed("tab_overlay", game_in_focus):
+            try:
+                self.tab_overlay.hide()
+            except Exception:
+                pass
             return
         self.tab_overlay.toggle()
 
@@ -546,7 +577,9 @@ class Application:
 
         return sequence, interval_s
 
-    def _handle_overlay_hotkey(self, token: str) -> bool:
+    def _handle_overlay_hotkey(
+        self, token: str, game_in_focus: Optional[bool] = None
+    ) -> bool:
         sequence = self._overlay_open_sequence
         if not sequence:
             return False
@@ -563,7 +596,7 @@ class Application:
             if self._overlay_sequence_progress >= len(sequence):
                 self._overlay_sequence_progress = 0
                 self._overlay_sequence_last_time = 0.0
-                self._toggle_tab_overlay()
+                self._toggle_tab_overlay(game_in_focus)
                 return True
             return False
 
@@ -849,16 +882,15 @@ class Application:
 
         try:
             while True:
+                event = self.hud.read(timeout=scan_interval_ms)
+                game_in_focus = self._is_allowed_process_active()
+
                 toggle_requests = self._consume_wasd_toggle_requests()
                 if toggle_requests % 2 == 1:
                     try:
-                        self._do_wasd_toggle()
+                        self._do_wasd_toggle(game_in_focus)
                     except Exception as exc:
                         print(f"[WASD] Toggle failed: {exc}")
-
-                event = self.hud.read(timeout=scan_interval_ms)
-                game_in_focus = self._is_allowed_process_active()
-                effective_focus = self._has_effective_focus()
 
                 if event == "EXIT" or self.tray.is_exit_requested():
                     break
@@ -1025,7 +1057,7 @@ class Application:
                     skip_frame_processing = True
 
                 elif event == "TAB_OVERLAY_OPEN":
-                    self._toggle_tab_overlay()
+                    self._toggle_tab_overlay(game_in_focus)
                     skip_frame_processing = True
 
                 elif event == "TAB_OVERLAY_HOTKEY_CHANGED":
@@ -1043,7 +1075,11 @@ class Application:
 
                 elif event == "CURRENCY_POSITIONING_ON":
                     self._currency_positioning_requested = True
-                    self._enable_currency_positioning()
+                    if self._is_feature_allowed("currency_positioning", game_in_focus):
+                        self._enable_currency_positioning()
+                    else:
+                        self._currency_positioning_requested = False
+                        self._disable_currency_positioning(save_changes=False)
                     skip_frame_processing = True
 
                 elif event == "CURRENCY_POSITIONING_OFF":
@@ -1054,33 +1090,31 @@ class Application:
                 if self.tray.is_exit_requested():
                     break
 
-                focus_active = game_in_focus or not self._focus_required
-
-                self._apply_focus_policy(effective_focus)
+                self._apply_focus_policy(game_in_focus)
 
                 if refresh_copy:
                     self._refresh_copy_overlays()
 
-                self._update_currency_overlay()
-                self._process_hotkeys()
+                self._update_currency_overlay(game_in_focus)
+                self._process_hotkeys(game_in_focus)
 
-                # Process mega QoL wheel events using effective focus
-                self._process_mega_qol_wheel(effective_focus)
+                self._process_mega_qol_wheel(game_in_focus)
 
-                # Allow positioning toggles even when the game is unfocused
-                self._handle_positioning_toggle()
+                self._handle_positioning_toggle(game_in_focus)
 
                 if skip_frame_processing:
                     continue
 
-                self._handle_overlay_toggle()
+                self._handle_overlay_toggle(game_in_focus)
 
                 # Handle triple ctrl click functionality
                 if self._triple_ctrl_click_enabled:
-                    self._handle_triple_ctrl_click()
+                    self._handle_triple_ctrl_click(game_in_focus)
 
-                # Scan when effective focus is true (game or app focused)
-                if effective_focus and self._scan_user_requested:
+                if (
+                    self._is_feature_allowed("scan", game_in_focus)
+                    and self._scan_user_requested
+                ):
                     self._scan_frame()
                 else:
                     self._clear_results()
@@ -1088,10 +1122,9 @@ class Application:
         finally:
             self._cleanup()
 
-    def _handle_overlay_toggle(self) -> None:
+    def _handle_overlay_toggle(self, game_in_focus: Optional[bool] = None) -> None:
         """Handle overlay enable/disable."""
-        # Hide overlay when effective focus is false
-        if not self._has_effective_focus():
+        if not self._is_feature_allowed("overlay_highlighter", game_in_focus):
             if self.overlay_enabled_last:
                 try:
                     self.overlay.hide()
@@ -1110,9 +1143,14 @@ class Application:
                 self.overlay.hide()
             self.overlay_enabled_last = overlay_enabled_curr
 
-    def _handle_positioning_toggle(self) -> None:
+    def _handle_positioning_toggle(self, game_in_focus: Optional[bool] = None) -> None:
         """Handle positioning mode toggle."""
-        positioning_enabled_curr = self.hud.get_positioning_enabled()
+        positioning_allowed = self._is_feature_allowed(
+            "currency_positioning", game_in_focus
+        )
+        positioning_enabled_curr = (
+            self.hud.get_positioning_enabled() and positioning_allowed
+        )
         if positioning_enabled_curr != self.positioning_enabled_last:
             try:
                 if positioning_enabled_curr:
@@ -1196,9 +1234,25 @@ class Application:
         except Exception:
             pass
 
-    def _update_currency_overlay(self, block: bool = False) -> None:
+    def _update_currency_overlay(
+        self, game_in_focus: Optional[bool] = None, block: bool = False
+    ) -> None:
         """Refresh quick craft overlay captures when active or positioning."""
         if self.currency_overlay is None:
+            return
+        runtime_allowed = self._is_feature_allowed(
+            "quickcraft_runtime_overlay", game_in_focus
+        )
+        positioning_allowed = self._is_feature_allowed(
+            "currency_positioning", game_in_focus
+        )
+        if not runtime_allowed and (
+            self._quickcraft_runtime_active or self._quickcraft_runtime_active_ids
+        ):
+            self._hide_quickcraft_overlay()
+        if self._currency_positioning_enabled and not positioning_allowed:
+            self._disable_currency_positioning(save_changes=False)
+        if not runtime_allowed and not positioning_allowed:
             return
         try:
             self.currency_overlay.refresh()
@@ -1325,8 +1379,16 @@ class Application:
                 return item
         return None
 
-    def _show_quickcraft_overlay(self, currency_id: str, force: bool = False) -> None:
+    def _show_quickcraft_overlay(
+        self,
+        currency_id: str,
+        force: bool = False,
+        game_in_focus: Optional[bool] = None,
+    ) -> None:
         if self.currency_overlay is None:
+            return
+        if not self._is_feature_allowed("quickcraft_runtime_overlay", game_in_focus):
+            self._hide_quickcraft_overlay()
             return
         if not force and self._quickcraft_runtime_active == currency_id:
             return
@@ -1353,9 +1415,10 @@ class Application:
         self._quickcraft_runtime_active = None
         self._quickcraft_runtime_active_ids = set()
 
-    def _handle_quickcraft_hotkey(self, token: str) -> None:
-        # Restrict to effective focus (game or app focused)
-        if not self._has_effective_focus():
+    def _handle_quickcraft_hotkey(
+        self, token: str, game_in_focus: Optional[bool] = None
+    ) -> None:
+        if not self._is_feature_allowed("quickcraft_hotkey", game_in_focus):
             return
         # Global hotkey takes precedence
         if self._quickcraft_global_hotkey and token == self._quickcraft_global_hotkey:
@@ -1365,7 +1428,7 @@ class Application:
                     self._disable_currency_positioning(save_changes=True)
                 except Exception:
                     pass
-            self._toggle_quickcraft_global()
+            self._toggle_quickcraft_global(game_in_focus)
             return
         currency_id = self._quickcraft_hotkey_map.get(token)
         if not currency_id:
@@ -1373,10 +1436,16 @@ class Application:
         if self._quickcraft_runtime_active == currency_id:
             self._hide_quickcraft_overlay()
         else:
-            self._show_quickcraft_overlay(currency_id, force=True)
+            self._show_quickcraft_overlay(
+                currency_id,
+                force=True,
+                game_in_focus=game_in_focus,
+            )
 
-    def _toggle_quickcraft_global(self) -> None:
-        if not self._has_effective_focus():
+    def _toggle_quickcraft_global(self, game_in_focus: Optional[bool] = None) -> None:
+        if not self._is_feature_allowed("quickcraft_hotkey", game_in_focus):
+            return
+        if not self._is_feature_allowed("quickcraft_runtime_overlay", game_in_focus):
             return
         # If anything active -> hide all
         if self._quickcraft_runtime_active_ids:
@@ -1488,11 +1557,14 @@ class Application:
         return bool(overlay_cfg.get("use_map_layout_overlay", True))
 
     def _handle_clipboard_map_hotkey(
-        self, token: str, now: Optional[float] = None
+        self,
+        token: str,
+        now: Optional[float] = None,
+        game_in_focus: Optional[bool] = None,
     ) -> None:
         if token != "C":
             return
-        if not self._has_effective_focus():
+        if not self._is_feature_allowed("map_layout_overlay", game_in_focus):
             return
         if not self._is_map_layout_overlay_enabled():
             return
@@ -1526,10 +1598,10 @@ class Application:
         else:
             print(f"[Map Clipboard] Map not found in map-data.json: {map_name}")
 
-    def _process_hotkeys(self) -> None:
+    def _process_hotkeys(self, game_in_focus: Optional[bool] = None) -> None:
         if self._hotkeys is None:
             # Fallback polling when hooks aren't available
-            self._poll_hotkeys_fallback()
+            self._poll_hotkeys_fallback(game_in_focus)
         else:
             polled = self._hotkeys.poll()
             if polled:
@@ -1537,17 +1609,17 @@ class Application:
                 for token in polled:
                     if token in {"CTRL", "CONTROL"}:
                         self._last_ctrl_hotkey_time = now
-                    self._handle_fast_destroy_hotkey(token, now)
-                    self._handle_clipboard_map_hotkey(token, now)
-                    if self._handle_overlay_hotkey(token):
+                    self._handle_fast_destroy_hotkey(token, now, game_in_focus)
+                    self._handle_clipboard_map_hotkey(token, now, game_in_focus)
+                    if self._handle_overlay_hotkey(token, game_in_focus):
                         continue
-                    self._handle_quickcraft_hotkey(token)
+                    self._handle_quickcraft_hotkey(token, game_in_focus)
             else:
                 # If hook is installed but no events, also run fallback to support keys Tk may swallow
-                self._poll_hotkeys_fallback()
+                self._poll_hotkeys_fallback(game_in_focus)
         # Process click-triggered actions
-        self._process_fast_destroy_click_action()
-        self._process_quickcraft_click_action()
+        self._process_fast_destroy_click_action(game_in_focus)
+        self._process_quickcraft_click_action(game_in_focus)
 
     def _token_to_vk(self, token: str) -> Optional[int]:
         if not token:
@@ -1582,7 +1654,7 @@ class Application:
         }
         return mapping.get(t)
 
-    def _poll_hotkeys_fallback(self) -> None:
+    def _poll_hotkeys_fallback(self, game_in_focus: Optional[bool] = None) -> None:
         if not sys.platform.startswith("win"):
             return
         now = time.time()
@@ -1612,18 +1684,25 @@ class Application:
                         self._last_ctrl_hotkey_time = now
                         self._key_down_state[token] = down
                         continue
-                    self._handle_fast_destroy_hotkey(token, now)
-                    self._handle_clipboard_map_hotkey(token, now)
-                    if not self._handle_overlay_hotkey(token):
-                        self._handle_quickcraft_hotkey(token)
+                    self._handle_fast_destroy_hotkey(token, now, game_in_focus)
+                    self._handle_clipboard_map_hotkey(token, now, game_in_focus)
+                    if not self._handle_overlay_hotkey(token, game_in_focus):
+                        self._handle_quickcraft_hotkey(token, game_in_focus)
             self._key_down_state[token] = down
 
     def _handle_fast_destroy_hotkey(
-        self, token: str, now: Optional[float] = None
+        self,
+        token: str,
+        now: Optional[float] = None,
+        game_in_focus: Optional[bool] = None,
     ) -> None:
         if token != "ALT":
             return
         if not self._fast_destroy_enabled:
+            return
+        if not self._is_feature_allowed("fast_destroy_hotkey", game_in_focus):
+            if self._fast_destroy_mode_active:
+                self._set_fast_destroy_mode(False)
             return
         if now is None:
             now = time.time()
@@ -1651,6 +1730,9 @@ class Application:
 
     def _update_fast_destroy_overlay(self) -> None:
         if not self._fast_destroy_mode_active or not self._fast_destroy_warning_overlay:
+            self._hide_fast_destroy_overlay()
+            return
+        if not self._is_feature_allowed("fast_destroy_warning_overlay"):
             self._hide_fast_destroy_overlay()
             return
         if not sys.platform.startswith("win") or self.hud is None:
@@ -1701,7 +1783,9 @@ class Application:
         self._fast_destroy_overlay_win = None
         self._fast_destroy_overlay_label = None
 
-    def _process_fast_destroy_click_action(self) -> None:
+    def _process_fast_destroy_click_action(
+        self, game_in_focus: Optional[bool] = None
+    ) -> None:
         if not sys.platform.startswith("win"):
             return
         if not self._fast_destroy_enabled or not self._fast_destroy_mode_active:
@@ -1710,7 +1794,7 @@ class Application:
 
         self._update_fast_destroy_overlay()
 
-        if not self._has_effective_focus():
+        if not self._is_feature_allowed("fast_destroy_click_action", game_in_focus):
             self._fast_destroy_prev_lmb = False
             return
 
@@ -1759,12 +1843,13 @@ class Application:
         except Exception:
             pass
 
-    def _process_quickcraft_click_action(self) -> None:
+    def _process_quickcraft_click_action(
+        self, game_in_focus: Optional[bool] = None
+    ) -> None:
         if self._fast_destroy_enabled and self._fast_destroy_mode_active:
             self._pending_click_currency_id = None
             return
-        # Only when effective focus is true (game or app focused)
-        if not self._has_effective_focus():
+        if not self._is_feature_allowed("quickcraft_click_action", game_in_focus):
             self._pending_click_currency_id = None
             return
         # Require either global (multiple) or single runtime overlay active
@@ -1972,7 +2057,7 @@ class Application:
         self._currency_positioning_enabled = False
         self.hud.set_currency_positioning(False)
 
-    def _handle_triple_ctrl_click(self) -> None:
+    def _handle_triple_ctrl_click(self, game_in_focus: Optional[bool] = None) -> None:
         """Handle double Ctrl press detection and mouse emulation lifecycle.
 
         Double press (within 300ms) starts emulation. Releasing Ctrl stops it.
@@ -1982,8 +2067,7 @@ class Application:
             return
 
         try:
-            # Only operate with effective focus (game or app focused)
-            if not self._has_effective_focus():
+            if not self._is_feature_allowed("triple_ctrl_click", game_in_focus):
                 if self._triple_ctrl_click_active:
                     self._stop_mouse_simulation()
                 return
@@ -2099,13 +2183,12 @@ class Application:
         # Don't override user's dock visibility setting
         # The dock visibility is controlled by the settings checkbox
 
-        # Copy Areas should only be visible in allowed processes
+        copy_allowed = self._is_feature_allowed("copy_overlay", game_in_focus)
         if game_in_focus:
             self._focus_loss_started = 0.0
             if self._focus_state_last is False:
                 self.hud.set_status_message("")
-            # Keep user's requested toggles; only apply effective overlay state
-            self.mirrors.set_copy_enabled(self._copy_user_requested)
+            self.mirrors.set_copy_enabled(self._copy_user_requested and copy_allowed)
         else:
             if self._focus_loss_started == 0.0:
                 try:
@@ -2127,18 +2210,32 @@ class Application:
                         level="warning",
                     )
                 if long_loss and self.overlay_enabled_last:
+                    if not self._is_feature_allowed(
+                        "overlay_highlighter", game_in_focus
+                    ):
+                        try:
+                            self.overlay.hide()
+                        except Exception:
+                            pass
+                        self.overlay_enabled_last = False
+            self.mirrors.set_copy_enabled(self._copy_user_requested and copy_allowed)
+            if long_loss and self._pending_click_currency_id is None:
+                if not self._is_feature_allowed(
+                    "quickcraft_runtime_overlay", game_in_focus
+                ):
                     try:
-                        self.overlay.hide()
+                        self._hide_quickcraft_overlay()
                     except Exception:
                         pass
-                    self.overlay_enabled_last = False
-            self.mirrors.set_copy_enabled(False)
-            # Hide any runtime currency overlays when not allowed
-            if long_loss and self._pending_click_currency_id is None:
-                try:
-                    self._hide_quickcraft_overlay()
-                except Exception:
-                    pass
+            if long_loss and self.tab_overlay is not None:
+                if not self._is_feature_allowed("tab_overlay", game_in_focus):
+                    try:
+                        self.tab_overlay.hide()
+                    except Exception:
+                        pass
+            if long_loss and self._fast_destroy_mode_active:
+                if not self._is_feature_allowed("fast_destroy_hotkey", game_in_focus):
+                    self._set_fast_destroy_mode(False)
 
         self._focus_state_last = game_in_focus
 
@@ -2292,7 +2389,7 @@ class Application:
             if delay:
                 time.sleep(delay)
 
-    def _process_mega_qol_wheel(self, focus_active: bool) -> None:
+    def _process_mega_qol_wheel(self, game_in_focus: Optional[bool] = None) -> None:
         if not sys.platform.startswith("win") or self._mouse is None:
             return
         # Always poll to avoid queue growth even when not focused/disabled
@@ -2308,7 +2405,9 @@ class Application:
                 any_down = True
                 self._mega_qol_last_wheel = now
 
-        if not self._mega_qol_enabled or not focus_active:
+        if not self._mega_qol_enabled:
+            return
+        if not self._is_feature_allowed("mega_qol_wheel", game_in_focus):
             return
 
         # Rearm after quiet period

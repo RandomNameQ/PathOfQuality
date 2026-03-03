@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "bypass_when_focus_required": {
+    "scan": false,
+    "copy_overlay": false,
+    "overlay_highlighter": false,
+    "tab_overlay": false,
+    "map_layout_overlay": false,
+    "quickcraft_hotkey": false,
+    "quickcraft_runtime_overlay": false,
+    "quickcraft_click_action": false,
+    "currency_positioning": false,
+    "mega_qol_wheel": false,
+    "wasd_controller": false,
+    "triple_ctrl_click": false,
+    "fast_destroy_hotkey": false,
+    "fast_destroy_click_action": false,
+    "fast_destroy_warning_overlay": false
+  }
+}

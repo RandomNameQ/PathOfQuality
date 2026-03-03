@@ -69,6 +69,30 @@ def get_default_settings() -> Dict[str, Any]:
     }
 
 
+def get_default_works_config() -> Dict[str, Any]:
+    """Return default feature bypass policy for focus requirement."""
+    return {
+        "version": 1,
+        "bypass_when_focus_required": {
+            "scan": False,
+            "copy_overlay": False,
+            "overlay_highlighter": False,
+            "tab_overlay": False,
+            "map_layout_overlay": False,
+            "quickcraft_hotkey": False,
+            "quickcraft_runtime_overlay": False,
+            "quickcraft_click_action": False,
+            "currency_positioning": False,
+            "mega_qol_wheel": False,
+            "wasd_controller": False,
+            "triple_ctrl_click": False,
+            "fast_destroy_hotkey": False,
+            "fast_destroy_click_action": False,
+            "fast_destroy_warning_overlay": False,
+        },
+    }
+
+
 def merge_dict(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
     """Recursively merge overlay dict into base dict."""
     for key, value in overlay.items():
@@ -168,3 +192,49 @@ def save_settings(path: str, settings: Dict[str, Any]) -> None:
             json.dump(settings, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+def load_works_config(path: str = "works.json") -> Dict[str, Any]:
+    """Load focus bypass config from JSON, merging with defaults."""
+    defaults = get_default_works_config()
+
+    target_path = path
+    if not os.path.isabs(target_path):
+        target_path = os.path.join(_app_base_dir(), target_path)
+
+    if os.path.exists(target_path):
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return merge_dict(defaults, data)
+        except Exception:
+            return defaults
+
+    bundled = resource_path(path)
+    try:
+        if os.path.exists(bundled):
+            with open(bundled, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            try:
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            except Exception:
+                pass
+            try:
+                with open(target_path, "w", encoding="utf-8") as wf:
+                    json.dump(data, wf, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            return merge_dict(defaults, data)
+    except Exception:
+        pass
+
+    try:
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    except Exception:
+        pass
+    try:
+        with open(target_path, "w", encoding="utf-8") as wf:
+            json.dump(defaults, wf, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return defaults
