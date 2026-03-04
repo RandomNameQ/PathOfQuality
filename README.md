@@ -24,32 +24,36 @@
 ## 🧩 Features (summary → details)
 
 1) Library — Scan Overlay
-- Finds saved icons on screen and displays overlays.
-- More: [docs/en/scan-overlay.md](./docs/en/scan-overlay.md)
+- Detects saved icon patterns on screen and displays non-activating overlays.
+- Best for monitoring specific visual states without changing game focus.
+- Docs: [docs/en/scan-overlay.md](./docs/en/scan-overlay.md)
 - Video tutorial (Scan & Copy Area setup): [YouTube](https://www.youtube.com/watch?v=P4fPhLa3OZU)
 
 ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_scan_overlay.gif)
 
 2) Library — Copy Overlay
-- Duplicates a selected region of the screen; optional condition: “show only when a chosen buff/debuff is NOT present” or “always show”.
-- More: [docs/en/copy-overlay.md](./docs/en/copy-overlay.md)
+- Duplicates a selected region of the screen as a separate overlay layer.
+- Supports conditional visibility: always show, or show only when a selected buff/debuff is missing.
+- Docs: [docs/en/copy-overlay.md](./docs/en/copy-overlay.md)
 - Video tutorial (Scan & Copy Area setup): [YouTube](https://www.youtube.com/watch?v=P4fPhLa3OZU)
 
 3) Tools — Currency — Quick Craft
-- Shows currency overlays and performs quick interactions via a hotkey (non‑activating, single‑click execution).
-- More: [docs/en/quick-craft.md](./docs/en/quick-craft.md)
+- Shows currency-aware overlays and executes configured quick interactions from a hotkey.
+- Designed for one-click flow while keeping overlays non-activating.
+- Docs: [docs/en/quick-craft.md](./docs/en/quick-craft.md)
 - Video tutorial (Quick Craft setup): [YouTube](https://www.youtube.com/watch?v=EY1q780P3GI)
 
 ![Demo GIF](https://raw.githubusercontent.com/RandomNameQ/PathOfQuality/main/video/show_quick_craft.gif)
 
 4) Tools — Mega QoL — Wheel Keys
-- Turning the mouse wheel (down) emulates a sequence of keys (1–4) with burst suppression.
-- More: [docs/en/wheel-keys.md](./docs/en/wheel-keys.md)
+- Mouse wheel down emulates a configurable key sequence (1-4) with burst suppression.
+- Useful for repetitive rotation input with stable timing.
+- Docs: [docs/en/wheel-keys.md](./docs/en/wheel-keys.md)
 
 5) Tools — Mega QoL — Double Ctrl Click
-- Press Ctrl twice to start left-click emulation; releasing Ctrl stops it.
-- More: [docs/en/double-ctrl-click.md](./docs/en/double-ctrl-click.md)
-- Quickly press Ctrl twice to start left‑click emulation; stops when Ctrl is released. No need click left mouse to stored items. Just ctrl+ctrl and hover mouse. Simple.
+- Double-press Ctrl to start left-click emulation; release Ctrl to stop it.
+- Helps with stash/inventory hover interactions without repeated physical clicks.
+- Docs: [docs/en/double-ctrl-click.md](./docs/en/double-ctrl-click.md)
 
 
 ---

@@ -24,7 +24,7 @@
   "language": "en",
   "templates_dir": "assets/templates",
   "wasd": {
-    "enabled": false,
+    "enabled": true,
     "top_offset": 0,
     "bot_offset": 0,
     "left_offset": 0,
