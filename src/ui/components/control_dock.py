@@ -1,19 +1,22 @@
 """
 Floating control dock for quick access actions.
 """
+
 import sys
 import ctypes
 import tkinter as tk
 from typing import Callable, Dict, Optional, Tuple
 
 from src.ui import theme
+
+
 class ControlDock:
     """Small overlay with circular buttons to control scanning and copy areas."""
 
     ACTIVE_COLOR = theme.ACCENT_GOLD
     INACTIVE_COLOR = theme.BG_TERTIARY
     BG_COLOR = theme.BG_SECONDARY
-    TEXT_ACTIVE = '#000000'
+    TEXT_ACTIVE = "#000000"
     TEXT_INACTIVE = theme.FG_PRIMARY
     BG_COLOR = theme.BG_SECONDARY
     BTN_SIZE = 44
@@ -69,6 +72,7 @@ class ControlDock:
         self._drag_window_origin: Optional[Tuple[int, int]] = None
         self._drag_active = False
         self._drag_moved = False
+        self._command_fired_on_press = False
         self._visible = True
         self._has_focus = False
         self._locked = bool(locked)
@@ -150,7 +154,11 @@ class ControlDock:
             font=font,
         )
 
-        canvas.bind("<ButtonPress-1>", self._start_drag, add="+")
+        canvas.bind(
+            "<ButtonPress-1>",
+            lambda event, cmd=command: self._handle_button_press(event, cmd),
+            add="+",
+        )
         canvas.bind("<B1-Motion>", self._on_drag, add="+")
         canvas.bind(
             "<ButtonRelease-1>",
@@ -164,22 +172,40 @@ class ControlDock:
 
         return {"canvas": canvas, "circle": circle, "label": label}
 
+    def _handle_button_press(self, event, command: Callable[[], None]) -> None:
+        self._command_fired_on_press = False
+        self._start_drag(event)
+        if self._locked:
+            self._run_button_command(command)
+            self._command_fired_on_press = True
+
     def _handle_button_release(self, _event, command: Callable[[], None]) -> None:
+        if self._command_fired_on_press:
+            self._command_fired_on_press = False
+            return
         if self._drag_moved:
             return
+        self._run_button_command(command)
+
+    def _run_button_command(self, command: Callable[[], None]) -> None:
         try:
             command()
         except Exception:
             pass
-        if self._on_button_action is not None:
-            try:
-                self._on_button_action()
-            except Exception:
-                pass
+        self._notify_button_action()
+
+    def _notify_button_action(self) -> None:
+        if self._on_button_action is None:
+            return
+        try:
+            self._on_button_action()
+        except Exception:
+            pass
 
     def _start_drag(self, event) -> None:
         if getattr(event, "num", 1) != 1:
             return
+        self._notify_button_action()
         if self._locked:
             self._drag_origin = None
             self._drag_window_origin = None
@@ -351,7 +377,7 @@ class ControlDock:
         self._notify_focus(False)
 
     def _apply_window_styles(self, no_move: bool = False) -> None:
-        if not sys.platform.startswith('win'):
+        if not sys.platform.startswith("win"):
             return
         try:
             hwnd = int(self._window.winfo_id())
@@ -402,11 +428,7 @@ class ControlDock:
                 self._on_lock_change(self._locked)
             except Exception:
                 pass
-        if self._on_button_action is not None:
-            try:
-                self._on_button_action()
-            except Exception:
-                pass
+        self._notify_button_action()
 
     def _update_lock_button(self) -> None:
         btn = self._buttons.get("lock")
@@ -434,5 +456,3 @@ class ControlDock:
 
     def set_click_active(self, active: bool) -> None:
         self._update_click_indicator(bool(active))
-
-

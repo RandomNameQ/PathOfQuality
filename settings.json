@@ -17,14 +17,14 @@
     "alpha": 1.0,
     "grab_anywhere": true,
     "dock_position": {
-      "left": 816,
+      "left": 768,
       "top": 1008
     }
   },
   "language": "en",
   "templates_dir": "assets/templates",
   "wasd": {
-    "enabled": true,
+    "enabled": false,
     "top_offset": 0,
     "bot_offset": 0,
     "left_offset": 0,
@@ -56,15 +56,25 @@
       "right": "D"
     }
   },
+  "quickcraft": {
+    "source_settle_delay_s": 0.1
+  },
   "triple_ctrl_click_enabled": true,
   "mega_qol": {
     "wheel_down_enabled": true,
-    "wheel_down_sequence": "W,1",
+    "wheel_down_sequence": "W,Q",
     "wheel_down_delay_ms": 50
   },
   "fast_destroy": {
     "enabled": true,
     "warning_overlay": true,
+    "activation_hotkey": [
+      "ALT",
+      "ALT"
+    ],
+    "deactivation_hotkey": [
+      "ALT"
+    ],
     "activation_interval_s": 0.3,
     "chat_open_delay_s": 0.05,
     "command_input_delay_s": 0.01,
@@ -77,13 +87,13 @@
         "name": "Betrayel",
         "images": [
           {
-            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\b67a3980591cd84bd88f0bb9de578ef70e37a51a.webp",
-            "zoom": 1.0,
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\a75d1d3c387b3d63b38e5fe83b11ab7cb4e73c2e.webp",
+            "zoom": 0.9,
             "offset_x": 0.0,
             "offset_y": 0.0
           },
           {
-            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\2585494679ace199ebf707dd0a85f3ac6257952d.webp",
+            "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\1cd4970b4c0d190687e0b0d206dda608c17bb581.webp",
             "zoom": 1.0,
             "offset_x": 0.0,
             "offset_y": 0.0
@@ -96,7 +106,7 @@
         "images": [
           {
             "path": "E:\\Project\\PathOfQuality\\assets\\overlay_images\\dfc7f73a64e8d50f8311188cb7c42fde008a696f.webp",
-            "zoom": 1.0,
+            "zoom": 0.9,
             "offset_x": 0.0,
             "offset_y": 0.0
           },
@@ -205,7 +215,7 @@
         ]
       }
     ],
-    "active_item_id": "user:8"
+    "active_item_id": "user:3"
   },
   "mirror_mode": "auto",
   "wasd_enabled": true

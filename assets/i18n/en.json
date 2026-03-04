@@ -71,6 +71,7 @@
   "overlay.desc": "Open floating overlay window and configure opening hotkey.",
   "fast_destroy.enable_fast_delete": "Enable fast delete",
   "fast_destroy.enable_warning_overlay": "Enable warning overlay",
+  "desc.fast_destroy_hotkeys": "Activation: {activation_hotkey}. Deactivation: {deactivation_hotkey}.",
   "desc.wasd": "Hold {movement_keys} to move (emulates mouse move + Mouse1 hold). Press {toggle_hotkey} to toggle WASD OFF/ON.",
   "wasd.enable": "Enable WASD movement",
   "wasd.center_offset_x": "Center offset X",

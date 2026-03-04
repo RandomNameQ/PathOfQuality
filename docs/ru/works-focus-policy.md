@@ -10,6 +10,7 @@
 1. Если `require_game_focus = false`, ограничения по фокусу отключены полностью.
 2. Если `require_game_focus = true`:
    - функционал работает, когда игра в фокусе;
+   - окно самого приложения (`PathOfQuality`) тоже считается «окном игры» для этой проверки;
    - при потере фокуса функционал блокируется;
    - но отдельные функции могут продолжать работать, если для них включен обход в `works.json`.
 
@@ -21,7 +22,8 @@
 
 ```json
 {
-  "version": 1,
+  "version": 3,
+  "dock_interaction_grace_ms": 350,
   "bypass_when_focus_required": {
     "scan": false,
     "copy_overlay": false,
@@ -59,6 +61,7 @@
 - `fast_destroy_hotkey` - включение/выключение Fast Destroy hotkey.
 - `fast_destroy_click_action` - действие Fast Destroy на клик ЛКМ.
 - `fast_destroy_warning_overlay` - предупреждающий Fast Destroy overlay.
+- `dock_interaction_grace_ms` - время (мс), в течение которого плавающий dock считается «активным взаимодействием» после клика/нажатия, чтобы dock не скрывался до срабатывания кнопки.
 
 ## Пример
 
@@ -66,7 +69,8 @@
 
 ```json
 {
-  "version": 1,
+  "version": 3,
+  "dock_interaction_grace_ms": 350,
   "bypass_when_focus_required": {
     "mega_qol_wheel": true,
     "tab_overlay": true

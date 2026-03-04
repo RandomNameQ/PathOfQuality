@@ -38,7 +38,7 @@ class MonitoringTab:
     def _create_widgets(self) -> None:
         """Create monitoring tab widgets."""
         # Header
-        header = ttk.Label(self.frame, text="Buff HUD", style="Title.TLabel")
+        header = ttk.Label(self.frame, text="Path Of Quality", style="Title.TLabel")
         header.pack(padx=12, pady=(16, 4))
 
         # Language switcher (overview)

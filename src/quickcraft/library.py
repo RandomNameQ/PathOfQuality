@@ -1,11 +1,14 @@
 """Persistence helpers for quick craft positioning."""
+
 import json
 import os
 from typing import Dict, Optional
 
 
-POSITIONS_FILE = os.path.join('assets', 'library', 'quick_craft_positions.json')
-GLOBAL_KEY = '__global__'
+POSITIONS_FILE = os.path.join("assets", "library", "quick_craft_positions.json")
+GLOBAL_KEY = "__global__"
+GLOBAL_SOURCE_SETTLE_DELAY_KEY = "source_settle_delay_s"
+DEFAULT_SOURCE_SETTLE_DELAY_S = 0.1
 
 
 def _ensure_directory() -> None:
@@ -15,7 +18,7 @@ def _ensure_directory() -> None:
 
 def _load_raw() -> Dict:
     try:
-        with open(POSITIONS_FILE, 'r', encoding='utf-8') as fh:
+        with open(POSITIONS_FILE, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         return data if isinstance(data, dict) else {}
     except FileNotFoundError:
@@ -36,14 +39,14 @@ def load_positions() -> Dict[str, Dict[str, object]]:
         if not isinstance(value, dict):
             continue
         try:
-            left = int(value.get('left', 0))
-            top = int(value.get('top', 0))
-            hotkey = value.get('hotkey')
+            left = int(value.get("left", 0))
+            top = int(value.get("top", 0))
+            hotkey = value.get("hotkey")
             if hotkey is None:
-                hotkey = ''
+                hotkey = ""
             else:
                 hotkey = str(hotkey).strip()
-            cleaned[str(key)] = {'left': left, 'top': top, 'hotkey': hotkey}
+            cleaned[str(key)] = {"left": left, "top": top, "hotkey": hotkey}
         except Exception:
             continue
     return cleaned
@@ -58,9 +61,9 @@ def save_positions(positions: Dict[str, Dict[str, object]]) -> None:
             continue
         try:
             payload[str(key)] = {
-                'left': int(value.get('left', 0)),
-                'top': int(value.get('top', 0)),
-                'hotkey': str(value.get('hotkey', '') or '').strip(),
+                "left": int(value.get("left", 0)),
+                "top": int(value.get("top", 0)),
+                "hotkey": str(value.get("hotkey", "") or "").strip(),
             }
         except Exception:
             continue
@@ -71,7 +74,7 @@ def save_positions(positions: Dict[str, Dict[str, object]]) -> None:
         payload[GLOBAL_KEY] = existing[GLOBAL_KEY]
 
     _ensure_directory()
-    with open(POSITIONS_FILE, 'w', encoding='utf-8') as fh:
+    with open(POSITIONS_FILE, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
 
@@ -82,9 +85,9 @@ def update_position(currency_id: str, left: int, top: int) -> None:
         return
     positions = load_positions()
     cfg = positions.get(str(currency_id), {})
-    cfg['left'] = int(left)
-    cfg['top'] = int(top)
-    cfg['hotkey'] = str(cfg.get('hotkey', '') or '').strip()
+    cfg["left"] = int(left)
+    cfg["top"] = int(top)
+    cfg["hotkey"] = str(cfg.get("hotkey", "") or "").strip()
     positions[str(currency_id)] = cfg
     save_positions(positions)
 
@@ -96,9 +99,9 @@ def update_hotkey(currency_id: str, hotkey: Optional[str]) -> None:
         return
     positions = load_positions()
     cfg = positions.get(str(currency_id), {})
-    cfg['left'] = int(cfg.get('left', 0))
-    cfg['top'] = int(cfg.get('top', 0))
-    cfg['hotkey'] = str(hotkey or '').strip()
+    cfg["left"] = int(cfg.get("left", 0))
+    cfg["top"] = int(cfg.get("top", 0))
+    cfg["hotkey"] = str(hotkey or "").strip()
     positions[str(currency_id)] = cfg
     save_positions(positions)
 
@@ -117,15 +120,34 @@ def remove_position(currency_id: str) -> None:
 def load_global_hotkey() -> str:
     data = _load_raw()
     try:
-        hot = str((data.get(GLOBAL_KEY) or {}).get('hotkey', '') or '').strip()
+        hot = str((data.get(GLOBAL_KEY) or {}).get("hotkey", "") or "").strip()
     except Exception:
-        hot = ''
+        hot = ""
     return hot
+
+
+def load_global_source_settle_delay_s(
+    default: float = DEFAULT_SOURCE_SETTLE_DELAY_S,
+) -> float:
+    data = _load_raw()
+    fallback = max(0.0, float(default))
+    try:
+        raw = (data.get(GLOBAL_KEY) or {}).get(
+            GLOBAL_SOURCE_SETTLE_DELAY_KEY,
+            fallback,
+        )
+        return max(0.0, float(raw))
+    except Exception:
+        return fallback
 
 
 def save_global_hotkey(hotkey: str) -> None:
     data = _load_raw()
-    data[GLOBAL_KEY] = {'hotkey': str(hotkey or '').strip()}
+    global_cfg = data.get(GLOBAL_KEY)
+    if not isinstance(global_cfg, dict):
+        global_cfg = {}
+    global_cfg["hotkey"] = str(hotkey or "").strip()
+    data[GLOBAL_KEY] = global_cfg
     _ensure_directory()
-    with open(POSITIONS_FILE, 'w', encoding='utf-8') as fh:
+    with open(POSITIONS_FILE, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)

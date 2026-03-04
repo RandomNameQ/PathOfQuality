@@ -3,7 +3,7 @@
   "name": {
     "en": "molten shell"
   },
-  "image_path": "assets\\library\\images\\f1fb7396-7e5d-414e-9463-fa3ba243e19a.png",
+  "image_path": "assets\\library\\images\\81ddb195-f9f1-4aa3-ab66-c796ec60fa21.png",
   "references": {
     "buffs": [],
     "debuffs": []
@@ -17,10 +17,10 @@
     "height": 60
   },
   "capture": {
-    "left": 1468,
-    "top": 1025,
-    "width": 51,
-    "height": 48
+    "left": 1525,
+    "top": 1024,
+    "width": 49,
+    "height": 50
   },
   "active": true,
   "transparency": 0.8408239700374532,

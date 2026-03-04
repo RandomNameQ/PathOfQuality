@@ -758,6 +758,18 @@ class TabOverlayWindow:
         self._clipboard_map_link_label = None
         self._clipboard_map_photo = None
 
+    def close_clipboard_map_overlay(self) -> None:
+        self._close_clipboard_map_overlay()
+
+    def is_clipboard_map_overlay_open(self) -> bool:
+        popup = self._clipboard_map_window
+        if popup is None:
+            return False
+        try:
+            return bool(popup.winfo_exists())
+        except Exception:
+            return False
+
     def show_map_overlay_for_map_name(self, map_name: str) -> bool:
         if not self._is_map_layout_overlay_enabled():
             return False
@@ -2760,6 +2772,15 @@ class TabOverlayWindow:
         self._close_layout_preview()
         self._close_clipboard_map_overlay()
         self._window.withdraw()
+
+    def is_visible(self) -> bool:
+        try:
+            return (
+                bool(self._window.winfo_exists())
+                and self._window.state() != "withdrawn"
+            )
+        except Exception:
+            return False
 
     def toggle(self) -> None:
         if self._window.state() == "withdrawn":

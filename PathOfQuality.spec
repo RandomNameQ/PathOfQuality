@@ -2,11 +2,8 @@
 
 import os
 
-from src.version import APP_VERSION
-
-_version = APP_VERSION
-_exe_name = f"PathOfQuality_{_version}"
-_dist_dir = os.path.join('dist', f'poq_{_version}')
+_exe_name = "Path Of Quality"
+_dist_dir = os.path.join('dist', 'poq')
 
 
 a = Analysis(

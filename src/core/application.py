@@ -30,6 +30,7 @@ from src.utils.settings import (
 from src.i18n.locale import t, get_lang
 from src.currency.library import load_currencies
 from src.quickcraft.library import (
+    load_global_source_settle_delay_s,
     load_positions as load_quickcraft_positions,
     save_positions as save_quickcraft_positions,
     load_global_hotkey,
@@ -37,6 +38,7 @@ from src.quickcraft.library import (
 
 ALLOWED_PROCESSES_FILE = resource_path(os.path.join("assets", "allowed_processes.json"))
 WORKS_CONFIG_FILE = "works.json"
+DEFAULT_QUICKCRAFT_SOURCE_SETTLE_DELAY_S = 0.1
 
 # Windows API for checking active process and mouse simulation
 if sys.platform.startswith("win"):
@@ -169,6 +171,13 @@ class Application:
         if isinstance(raw_bypass, dict):
             for key, value in raw_bypass.items():
                 self._works_bypass[str(key)] = bool(value)
+        try:
+            grace_ms = float(self._works_config.get("dock_interaction_grace_ms", 350))
+        except Exception:
+            grace_ms = 350.0
+        self._dock_interaction_grace_s = max(0.0, grace_ms / 1000.0)
+        self._self_process_names: Set[str] = self._get_self_process_names()
+        self._last_allowed_focus_ts: float = 0.0
 
         # Initialize components
         self.capture: MSSCapture = None
@@ -195,6 +204,9 @@ class Application:
         )
         self._quickcraft_hotkey_map: Dict[str, str] = {}
         self._quickcraft_global_hotkey: str = ""
+        self._quickcraft_source_settle_delay_s: float = (
+            self._load_quickcraft_source_settle_delay_s(migrate_legacy=True)
+        )
         self._quickcraft_runtime_active: Optional[str] = None
         self._quickcraft_runtime_active_ids: Set[str] = set()
         self._currencies_cache: List[Dict] = []
@@ -301,6 +313,7 @@ class Application:
         self._anchor_at_hotkey: Optional[tuple[int, int]] = None
         self._last_click_time: float = 0.0
         self._pending_click_currency_id: Optional[str] = None
+        self._last_clipboard_map_name: str = ""
         # Mega QoL settings
         mq = self.settings.get("mega_qol", {}) or {}
         self._mega_qol_enabled: bool = bool(mq.get("wheel_down_enabled", False))
@@ -315,6 +328,22 @@ class Application:
         fd = self.settings.get("fast_destroy", {}) or {}
         self._fast_destroy_enabled: bool = bool(fd.get("enabled", False))
         self._fast_destroy_warning_overlay: bool = bool(fd.get("warning_overlay", True))
+        self._fast_destroy_activation_hotkey: List[str] = self._parse_sequence_tokens(
+            fd.get("activation_hotkey", ["ALT", "ALT"])
+        )
+        if not self._fast_destroy_activation_hotkey:
+            self._fast_destroy_activation_hotkey = ["ALT", "ALT"]
+        self._fast_destroy_deactivation_hotkey: List[str] = self._parse_sequence_tokens(
+            fd.get("deactivation_hotkey", ["ALT"])
+        )
+        if not self._fast_destroy_deactivation_hotkey:
+            self._fast_destroy_deactivation_hotkey = ["ALT"]
+        self._fast_destroy_activation_hint = self._format_hotkey_tokens(
+            self._fast_destroy_activation_hotkey
+        )
+        self._fast_destroy_deactivation_hint = self._format_hotkey_tokens(
+            self._fast_destroy_deactivation_hotkey
+        )
         self._fast_destroy_activation_interval_s: float = max(
             0.01,
             float(fd.get("activation_interval_s", 0.3)),
@@ -341,6 +370,8 @@ class Application:
             {
                 "enabled": self._fast_destroy_enabled,
                 "warning_overlay": self._fast_destroy_warning_overlay,
+                "activation_hotkey": list(self._fast_destroy_activation_hotkey),
+                "deactivation_hotkey": list(self._fast_destroy_deactivation_hotkey),
                 "activation_interval_s": float(
                     self._fast_destroy_activation_interval_s
                 ),
@@ -765,6 +796,8 @@ class Application:
             mega_qol_delay_ms=self._mega_qol_delay_ms,
             fast_destroy_enabled=self._fast_destroy_enabled,
             fast_destroy_warning_overlay=self._fast_destroy_warning_overlay,
+            fast_destroy_activation_hint=self._fast_destroy_activation_hint,
+            fast_destroy_deactivation_hint=self._fast_destroy_deactivation_hint,
             wasd_enabled=self._wasd_enabled,
             wasd_center_offset_x=self._wasd_center_offset_x,
             wasd_center_offset_y=self._wasd_center_offset_y,
@@ -782,6 +815,7 @@ class Application:
         )
 
         self.hud.set_roi_info(roi.left, roi.top, roi.width, roi.height)
+        self.hud.set_dock_visibility_grace(self._dock_interaction_grace_s)
 
         # Initialize overlays
         self.overlay = OverlayHighlighter(self.hud.get_root())
@@ -809,11 +843,13 @@ class Application:
         self._apply_wasd_config(self.hud.get_wasd_config())
         self._focus_state_last = None
         self._last_allowed_hwnd = None
-        self.hud.set_status_message("")
         try:
-            self.hud.set_dock_visible(True)
+            game_in_focus = self._is_allowed_process_active()
+            self.hud.set_wasd_indicator_visibility(game_in_focus)
+            self.hud.set_dock_game_focused(game_in_focus)
         except Exception:
             pass
+        self.hud.set_status_message("")
 
     def _load_allowed_processes(self) -> Set[str]:
         """Load allowed process names from configuration file."""
@@ -884,6 +920,13 @@ class Application:
             while True:
                 event = self.hud.read(timeout=scan_interval_ms)
                 game_in_focus = self._is_allowed_process_active()
+                if not game_in_focus:
+                    try:
+                        game_in_focus = self.hud.is_dock_interaction_recent(
+                            self._dock_interaction_grace_s
+                        )
+                    except Exception:
+                        game_in_focus = False
 
                 toggle_requests = self._consume_wasd_toggle_requests()
                 if toggle_requests % 2 == 1:
@@ -1276,6 +1319,40 @@ class Application:
             trimmed[cid] = {"left": left, "top": top, "hotkey": hotkey}
         self._quickcraft_positions = trimmed
 
+    def _load_quickcraft_source_settle_delay_s(
+        self,
+        migrate_legacy: bool = False,
+    ) -> float:
+        quickcraft_cfg = self.settings.get("quickcraft")
+        if not isinstance(quickcraft_cfg, dict):
+            quickcraft_cfg = {}
+            self.settings["quickcraft"] = quickcraft_cfg
+
+        raw_delay = quickcraft_cfg.get(
+            "source_settle_delay_s",
+            DEFAULT_QUICKCRAFT_SOURCE_SETTLE_DELAY_S,
+        )
+        try:
+            delay_s = max(0.0, float(raw_delay))
+        except Exception:
+            delay_s = DEFAULT_QUICKCRAFT_SOURCE_SETTLE_DELAY_S
+
+        if migrate_legacy:
+            try:
+                legacy_delay_s = load_global_source_settle_delay_s(default=delay_s)
+            except Exception:
+                legacy_delay_s = delay_s
+            if (
+                abs(delay_s - DEFAULT_QUICKCRAFT_SOURCE_SETTLE_DELAY_S) < 1e-9
+                and abs(legacy_delay_s - delay_s) > 1e-9
+            ):
+                delay_s = legacy_delay_s
+                quickcraft_cfg["source_settle_delay_s"] = float(delay_s)
+                save_settings(self.settings_path, self.settings)
+
+        quickcraft_cfg["source_settle_delay_s"] = float(delay_s)
+        return float(delay_s)
+
     def _register_quickcraft_hotkeys(self) -> None:
         # Load per-item hotkeys and global hotkey
         mapping: Dict[str, str] = {}
@@ -1293,6 +1370,9 @@ class Application:
             self._quickcraft_global_hotkey = normalize_hotkey_name(load_global_hotkey())
         except Exception:
             self._quickcraft_global_hotkey = ""
+        self._quickcraft_source_settle_delay_s = (
+            self._load_quickcraft_source_settle_delay_s()
+        )
 
     def _reload_quickcraft_data(self) -> None:
         self._quickcraft_positions = load_quickcraft_positions()
@@ -1579,12 +1659,35 @@ class Application:
         if not (ctrl_down or ctrl_recent):
             return
 
+        overlay_was_open = False
+        if self.tab_overlay is not None:
+            try:
+                overlay_was_open = self.tab_overlay.is_clipboard_map_overlay_open()
+            except Exception:
+                overlay_was_open = False
+            if overlay_was_open:
+                try:
+                    self.tab_overlay.close_clipboard_map_overlay()
+                except Exception:
+                    pass
+
         map_name = ""
-        for attempt in range(3):
+        max_attempts = 8 if overlay_was_open else 3
+        for attempt in range(max_attempts):
             if attempt > 0:
                 time.sleep(0.04 * attempt)
             clipboard_text = self._read_clipboard_text()
-            map_name = self._extract_map_name_from_clipboard(clipboard_text)
+            candidate = self._extract_map_name_from_clipboard(clipboard_text)
+            if not candidate:
+                continue
+            if (
+                overlay_was_open
+                and self._last_clipboard_map_name
+                and candidate == self._last_clipboard_map_name
+                and attempt < (max_attempts - 1)
+            ):
+                continue
+            map_name = candidate
             if map_name:
                 break
         if not map_name:
@@ -1594,6 +1697,7 @@ class Application:
 
         shown = self.tab_overlay.show_map_overlay_for_map_name(map_name)
         if shown:
+            self._last_clipboard_map_name = map_name
             print(f"[Map Clipboard] Overlay shown for: {map_name}")
         else:
             print(f"[Map Clipboard] Map not found in map-data.json: {map_name}")
@@ -1843,6 +1947,112 @@ class Application:
         except Exception:
             pass
 
+    def _mouse_button_is_down(self, left: bool) -> Optional[bool]:
+        try:
+            vk = win32con.VK_LBUTTON if left else win32con.VK_RBUTTON
+            return (win32api.GetAsyncKeyState(vk) & 0x8000) != 0
+        except Exception:
+            return None
+
+    def _wait_cursor_position(
+        self,
+        x: int,
+        y: int,
+        timeout_s: float = 0.12,
+        tolerance_px: int = 2,
+    ) -> bool:
+        deadline = time.time() + max(0.0, float(timeout_s))
+        target_x = int(x)
+        target_y = int(y)
+        tol = max(0, int(tolerance_px))
+        while time.time() <= deadline:
+            try:
+                cur_x, cur_y = win32api.GetCursorPos()
+            except Exception:
+                return True
+            if abs(int(cur_x) - target_x) <= tol and abs(int(cur_y) - target_y) <= tol:
+                return True
+            time.sleep(0.004)
+        return False
+
+    def _move_cursor_and_wait(self, x: int, y: int, attempts: int = 3) -> bool:
+        tries = max(1, int(attempts))
+        for _ in range(tries):
+            self._move_cursor(int(x), int(y))
+            if self._wait_cursor_position(
+                int(x), int(y), timeout_s=0.1, tolerance_px=2
+            ):
+                return True
+            time.sleep(0.008)
+        return False
+
+    def _click_confirmed(self, left: bool, attempts: int = 3) -> bool:
+        state = self._mouse_button_is_down(left)
+        if state is None:
+            self._click(left=left)
+            return True
+
+        tries = max(1, int(attempts))
+        down_flag = MOUSEEVENTF_LEFTDOWN if left else MOUSEEVENTF_RIGHTDOWN
+        up_flag = MOUSEEVENTF_LEFTUP if left else MOUSEEVENTF_RIGHTUP
+        for _ in range(tries):
+            down_sent = False
+            up_sent = False
+            try:
+                down = INPUT()
+                down.type = INPUT_MOUSE
+                down.mi.dwFlags = down_flag
+                down_sent = bool(
+                    SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT)) == 1
+                )
+            except Exception:
+                down_sent = False
+
+            down_ok = False
+            if down_sent:
+                down_deadline = time.time() + 0.08
+                while time.time() <= down_deadline:
+                    button_state = self._mouse_button_is_down(left)
+                    if button_state is None:
+                        down_ok = True
+                        break
+                    if button_state:
+                        down_ok = True
+                        break
+                    time.sleep(0.003)
+
+            time.sleep(0.012)
+
+            try:
+                up = INPUT()
+                up.type = INPUT_MOUSE
+                up.mi.dwFlags = up_flag
+                up_sent = bool(
+                    SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT)) == 1
+                )
+            except Exception:
+                up_sent = False
+
+            up_ok = False
+            if up_sent:
+                up_deadline = time.time() + 0.1
+                while time.time() <= up_deadline:
+                    button_state = self._mouse_button_is_down(left)
+                    if button_state is None:
+                        up_ok = True
+                        break
+                    if not button_state:
+                        up_ok = True
+                        break
+                    time.sleep(0.003)
+
+            if down_ok and up_ok:
+                return True
+
+            time.sleep(0.012)
+
+        return False
+
     def _process_quickcraft_click_action(
         self, game_in_focus: Optional[bool] = None
     ) -> None:
@@ -1947,11 +2157,24 @@ class Application:
         # Execute sequence: move to SOURCE, right click, return, left click
         try:
             time.sleep(0.01)
-            self._move_cursor(cx, cy)
+            if not self._move_cursor_and_wait(cx, cy, attempts=4):
+                self._move_cursor(cx, cy)
+                time.sleep(0.03)
+            else:
+                time.sleep(0.02)
+
+            # Extra settle time after reaching source rect before right click
+            time.sleep(max(0.0, float(self._quickcraft_source_settle_delay_s)))
+
+            if not self._click_confirmed(left=False, attempts=4):
+                print(
+                    "[QuickCraft] Right click not confirmed at source; sequence aborted"
+                )
+                return
+
             time.sleep(0.02)
-            self._click(left=False)
-            time.sleep(0.02)
-            self._move_cursor(ax, ay)
+            if not self._move_cursor_and_wait(ax, ay, attempts=3):
+                self._move_cursor(ax, ay)
             time.sleep(0.02)
             self._click(left=True)
         except Exception:
@@ -2180,8 +2403,15 @@ class Application:
 
     def _apply_focus_policy(self, game_in_focus: bool) -> None:
         """Pause or resume application features based on foreground focus."""
-        # Don't override user's dock visibility setting
-        # The dock visibility is controlled by the settings checkbox
+        try:
+            self.hud.set_dock_game_focused(bool(game_in_focus))
+        except Exception:
+            pass
+
+        try:
+            self.hud.set_wasd_indicator_visibility(bool(game_in_focus))
+        except Exception:
+            pass
 
         copy_allowed = self._is_feature_allowed("copy_overlay", game_in_focus)
         if game_in_focus:
@@ -2241,14 +2471,16 @@ class Application:
 
     def _is_allowed_process_active(self) -> bool:
         """Check if one of the allowed game processes is in foreground (focus)."""
+        now = time.time()
         foreground_process = get_foreground_process_name()
 
         if foreground_process is None:
-            # Can't determine - assume not active
-            return False
+            # Foreground can be transiently unavailable during focus transitions.
+            return self._is_recent_allowed_focus(now)
 
         normalized = foreground_process.strip().lower()
-        is_game_focused = normalized in self.allowed_processes
+        is_self_window_focused = normalized in self._self_process_names
+        is_game_focused = normalized in self.allowed_processes or is_self_window_focused
 
         # Debug: print when state changes
         if (
@@ -2259,6 +2491,7 @@ class Application:
                 print(f"[Game Focus] Game in focus: {foreground_process}")
             self._last_foreground = foreground_process
         if is_game_focused:
+            self._last_allowed_focus_ts = now
             try:
                 hwnd = ctypes.windll.user32.GetForegroundWindow()
                 if hwnd:
@@ -2266,7 +2499,16 @@ class Application:
             except Exception:
                 pass
 
-        return is_game_focused
+        if not is_game_focused:
+            return self._is_recent_allowed_focus(now)
+        return True
+
+    def _is_recent_allowed_focus(self, now: Optional[float] = None) -> bool:
+        grace_s = max(0.0, float(getattr(self, "_dock_interaction_grace_s", 0.0)))
+        if grace_s <= 0.0:
+            return False
+        current = time.time() if now is None else float(now)
+        return (current - float(self._last_allowed_focus_ts)) <= grace_s
 
     def _cleanup(self) -> None:
         """Cleanup application resources."""
@@ -2335,11 +2577,15 @@ class Application:
         except Exception:
             pass
 
-    def _parse_sequence_tokens(self, seq: str) -> list[str]:
+    def _parse_sequence_tokens(self, seq: object) -> list[str]:
         tokens: list[str] = []
-        raw = (seq or "").replace(";", ",").replace(" ", ",")
-        for part in raw.split(","):
-            tok = part.strip().upper()
+        if isinstance(seq, (list, tuple)):
+            parts = seq
+        else:
+            raw = str(seq or "").replace(";", ",").replace(" ", ",")
+            parts = raw.split(",")
+        for part in parts:
+            tok = str(part).strip().upper()
             if tok:
                 tokens.append(tok)
         return tokens
@@ -2408,6 +2654,8 @@ class Application:
         if not self._mega_qol_enabled:
             return
         if not self._is_feature_allowed("mega_qol_wheel", game_in_focus):
+            return
+        if self.tab_overlay is not None and self.tab_overlay.is_visible():
             return
 
         # Rearm after quiet period

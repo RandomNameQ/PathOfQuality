@@ -1,5 +1,7 @@
 import threading
-from typing import Optional, Callable
+from typing import Optional, Any
+
+from src.utils.settings import resource_path
 
 try:
     import pystray
@@ -15,15 +17,24 @@ class TrayIcon:
     Системный трей-иконка с пунктом меню «Закрыть».
     Работает в отдельном потоке. Если зависимости недоступны, становится no-op.
     """
+
     def __init__(self) -> None:
-        self._icon: Optional['pystray.Icon'] = None
+        self._icon: Optional[Any] = None
         self._thread: Optional[threading.Thread] = None
         self._exit_requested: bool = False
 
-    def _create_image(self) -> Optional['Image']:
+    def _create_image(self) -> Optional[Any]:
         if Image is None:
             return None
-        img = Image.new('RGBA', (64, 64), (30, 30, 30, 255))
+        try:
+            icon_path = resource_path("poq_icon.png")
+            file_icon = Image.open(icon_path).convert("RGBA")
+            return file_icon.resize((64, 64))
+        except Exception:
+            pass
+        img = Image.new("RGBA", (64, 64), (30, 30, 30, 255))
+        if ImageDraw is None:
+            return img
         d = ImageDraw.Draw(img)
         d.ellipse((14, 14, 50, 50), fill=(0, 180, 0, 255))
         return img
@@ -40,8 +51,8 @@ class TrayIcon:
                 pass
 
         image = self._create_image()
-        menu = pystray.Menu(pystray.MenuItem('Закрыть', on_exit))
-        self._icon = pystray.Icon('BuffHUD', image, 'BuffHUD', menu)
+        menu = pystray.Menu(pystray.MenuItem("Закрыть", on_exit))
+        self._icon = pystray.Icon("BuffHUD", image, "BuffHUD", menu)
         try:
             self._icon.run()
         except Exception:

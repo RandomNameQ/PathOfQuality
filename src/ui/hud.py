@@ -2,12 +2,10 @@
 Simplified main HUD window using modular tab components.
 """
 
-import os
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List, Tuple, Optional
-from src.version import APP_VERSION
 from src.i18n.locale import t, get_lang, set_lang
 from src.buffs.library import (
     load_library,
@@ -53,6 +51,8 @@ from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
 from src.ui.dialogs.currency_editor import CurrencyEditorDialog
 from src.ui.dialogs.hotkey_capture import HotkeyCaptureDialog
 from src.ui.roi_selector import select_roi
+from src.utils.settings import resource_path
+from src.version import APP_VERSION
 
 
 class BuffHUD:
@@ -72,6 +72,8 @@ class BuffHUD:
         mega_qol_delay_ms: int = 50,
         fast_destroy_enabled: bool = False,
         fast_destroy_warning_overlay: bool = True,
+        fast_destroy_activation_hint: str = "Alt+Alt",
+        fast_destroy_deactivation_hint: str = "Alt",
         wasd_enabled: bool = False,
         wasd_center_offset_x: int = 0,
         wasd_center_offset_y: int = 0,
@@ -95,7 +97,7 @@ class BuffHUD:
             grab_anywhere: Deprecated. Native title-bar dragging is used.
         """
         self._root = tk.Tk()
-        self._root.title(f"Buff HUD v{APP_VERSION}")
+        self._root.title(f"Path Of Quality v{APP_VERSION}")
         self._root.resizable(True, True)
         self._app_icon = None
         self._apply_app_icon()
@@ -124,11 +126,15 @@ class BuffHUD:
         self._dock_position: Optional[Tuple[int, int]] = dock_position
         self._dock_locked: bool = True
         self._dock_visible: bool = False
+        self._dock_game_focused: bool = False
+        self._dock_focus_loss_started: float = 0.0
+        self._dock_visibility_grace_s: float = 0.35
         self._dock_has_focus: bool = False
         self._last_dock_interaction: float = 0.0
         self._dock_visible: bool = True
         self._wasd_indicator_window: Optional[tk.Toplevel] = None
         self._wasd_indicator_label: Optional[tk.Label] = None
+        self._wasd_indicator_visible: bool = False
 
         # Configure modern styles
         configure_modern_styles(self._root)
@@ -238,6 +244,8 @@ class BuffHUD:
             self._tab_fast_destroy_frame,
             enabled=fast_destroy_enabled,
             warning_overlay=fast_destroy_warning_overlay,
+            activation_hotkey_hint=fast_destroy_activation_hint,
+            deactivation_hotkey_hint=fast_destroy_deactivation_hint,
         )
         self._fast_destroy_tab.set_change_handler(self._on_fast_destroy_changed)
         self._wasd_tab = WasdTab(
@@ -404,8 +412,10 @@ class BuffHUD:
 
         # Sync dock visibility checkbox with actual state
         self._settings_tab.get_dock_visible_var().set(True)
+        self.set_dock_visible(True)
 
         self._root.protocol("WM_DELETE_WINDOW", self._on_exit)
+        self._root.after(120, self._ensure_main_window_visible)
 
     def _on_exit(self) -> None:
         """Handle exit request."""
@@ -413,15 +423,17 @@ class BuffHUD:
 
     def _apply_app_icon(self) -> None:
         try:
-            project_root = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..")
-            )
-            icon_path = os.path.join(project_root, "poq_icon.png")
-            if not os.path.exists(icon_path):
-                return
-
+            icon_path = resource_path("poq_icon.png")
             self._app_icon = tk.PhotoImage(file=icon_path)
             self._root.iconphoto(True, self._app_icon)
+        except Exception:
+            pass
+
+    def _ensure_main_window_visible(self) -> None:
+        try:
+            self._root.deiconify()
+            self._root.state("normal")
+            self._root.lift()
         except Exception:
             pass
 
@@ -448,6 +460,32 @@ class BuffHUD:
         """Handle dock visibility checkbox change."""
         visible = bool(self._settings_tab.get_dock_visible_var().get())
         self.set_dock_visible(visible)
+
+    def set_dock_game_focused(self, focused: bool) -> None:
+        """Update whether dock may be visible based on game focus."""
+        focused_now = bool(focused)
+        if focused_now:
+            self._dock_focus_loss_started = 0.0
+            effective_focus = True
+        else:
+            now = time.time()
+            if self._dock_focus_loss_started <= 0.0:
+                self._dock_focus_loss_started = now
+            elapsed = max(0.0, now - self._dock_focus_loss_started)
+            effective_focus = elapsed <= self._dock_visibility_grace_s
+
+        if self._dock_game_focused == effective_focus:
+            return
+        self._dock_game_focused = effective_focus
+        requested = bool(self._settings_tab.get_dock_visible_var().get())
+        self.set_dock_visible(requested)
+
+    def set_dock_visibility_grace(self, seconds: float) -> None:
+        try:
+            value = float(seconds)
+        except Exception:
+            value = 0.35
+        self._dock_visibility_grace_s = max(0.0, value)
 
     def _on_lang_changed(self, lang: Optional[str] = None) -> None:
         """Handle language change."""
@@ -1232,8 +1270,11 @@ class BuffHUD:
         try:
             indicator.configure(bg=bg)
             indicator.geometry(self._wasd_indicator_geometry())
-            indicator.deiconify()
-            indicator.lift()
+            if self._wasd_indicator_visible:
+                indicator.deiconify()
+                indicator.lift()
+            else:
+                indicator.withdraw()
         except Exception:
             return
 
@@ -1257,6 +1298,14 @@ class BuffHUD:
         """Update WASD enabled checkbox state."""
         self._wasd_tab.set_enabled(enabled)
         self._set_wasd_indicator_state(enabled)
+
+    def set_wasd_indicator_visibility(self, visible: bool) -> None:
+        """Show WASD indicator only when runtime context allows it."""
+        visible_now = bool(visible)
+        if self._wasd_indicator_visible == visible_now:
+            return
+        self._wasd_indicator_visible = visible_now
+        self._set_wasd_indicator_state(self._wasd_tab.get_enabled())
 
     def set_click_emulation_state(self, enabled: bool) -> None:
         """Update click emulation indicator state."""
@@ -1298,7 +1347,10 @@ class BuffHUD:
         """Show or hide the floating dock."""
         if self._control_dock is None:
             return
-        desired = bool(visible)
+        desired = bool(visible) and (
+            self._dock_game_focused
+            or self._recent_dock_interaction(self._dock_visibility_grace_s)
+        )
         if desired == self._dock_visible:
             return
         if desired:
@@ -1399,3 +1451,6 @@ class BuffHUD:
         if self._last_dock_interaction <= 0.0:
             return False
         return (time.time() - self._last_dock_interaction) <= timeout
+
+    def is_dock_interaction_recent(self, timeout: float = 1.0) -> bool:
+        return self._recent_dock_interaction(timeout)

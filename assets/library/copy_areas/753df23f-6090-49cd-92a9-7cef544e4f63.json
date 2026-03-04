@@ -1,0 +1,28 @@
+{
+  "id": "753df23f-6090-49cd-92a9-7cef544e4f63",
+  "name": {
+    "en": "cd shit"
+  },
+  "image_path": "assets\\library\\images\\3a36cdd5-93a3-4d2f-bb4f-d5932698689f.png",
+  "references": {
+    "buffs": [],
+    "debuffs": []
+  },
+  "capture": {
+    "left": 1469,
+    "top": 1022,
+    "width": 52,
+    "height": 50
+  },
+  "position": {
+    "left": 651,
+    "top": 721
+  },
+  "size": {
+    "width": 60,
+    "height": 60
+  },
+  "active": true,
+  "transparency": 1.0,
+  "topmost": true
+}

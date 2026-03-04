@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-set "NAME_BASE=PathOfQuality"
+set "NAME_BASE=Path Of Quality"
 set "MAIN=app.py"
 set "BUILD_VENV=.build-venv"
 set "CLEAN_VENV=0"
@@ -19,9 +19,9 @@ if not defined APP_VERSION (
   echo Failed to determine application version.
   goto :fail
 )
-set "NAME=%NAME_BASE%_%APP_VERSION%"
+set "NAME=%NAME_BASE%"
 set "DIST_ROOT=dist"
-set "OUTPUT_SUBDIR=poq_%APP_VERSION%"
+set "OUTPUT_SUBDIR=poq-version-%APP_VERSION%"
 set "OUTPUT_DIR=%DIST_ROOT%\%OUTPUT_SUBDIR%"
 echo Version detected: %APP_VERSION%
 
@@ -49,7 +49,9 @@ if exist dist rd /s /q dist
 echo [7/8] Build one-file, windowed executable
 call "%VPY%" -m PyInstaller --noconfirm --clean --onefile --windowed ^
   --name "%NAME%" ^
+  --icon "poq_icon.png" ^
   --add-data "assets;assets" ^
+  --add-data "poq_icon.png;." ^
   --add-data "map-data.json;." ^
   --add-data "settings.json;." ^
   "%MAIN%" || goto :fail

@@ -48,6 +48,9 @@ def get_default_settings() -> Dict[str, Any]:
                 "right": "D",
             },
         },
+        "quickcraft": {
+            "source_settle_delay_s": 0.1,
+        },
         "triple_ctrl_click_enabled": False,
         "mega_qol": {
             "wheel_down_enabled": False,
@@ -57,6 +60,8 @@ def get_default_settings() -> Dict[str, Any]:
         "fast_destroy": {
             "enabled": False,
             "warning_overlay": True,
+            "activation_hotkey": ["ALT", "ALT"],
+            "deactivation_hotkey": ["ALT"],
             "activation_interval_s": 0.3,
             "chat_open_delay_s": 0.01,
             "command_input_delay_s": 0.01,
@@ -72,7 +77,8 @@ def get_default_settings() -> Dict[str, Any]:
 def get_default_works_config() -> Dict[str, Any]:
     """Return default feature bypass policy for focus requirement."""
     return {
-        "version": 1,
+        "version": 3,
+        "dock_interaction_grace_ms": 350,
         "bypass_when_focus_required": {
             "scan": False,
             "copy_overlay": False,

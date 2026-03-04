@@ -18,9 +18,13 @@ class FastDestroyTab:
         parent: tk.Frame,
         enabled: bool = False,
         warning_overlay: bool = True,
+        activation_hotkey_hint: str = "Alt+Alt",
+        deactivation_hotkey_hint: str = "Alt",
     ) -> None:
         self.frame = parent
         self._on_change: Callable[[], None] | None = None
+        self._activation_hotkey_hint = str(activation_hotkey_hint)
+        self._deactivation_hotkey_hint = str(deactivation_hotkey_hint)
 
         self._enabled_var = tk.BooleanVar(value=bool(enabled))
         self._warning_overlay_var = tk.BooleanVar(value=bool(warning_overlay))
@@ -56,6 +60,35 @@ class FastDestroyTab:
         )
         self._chk_warning.pack(anchor="w", pady=(6, 0))
 
+        self._help_lbl = ttk.Label(
+            self._group,
+            text=self._build_hotkeys_text(),
+            style="Prompt.TLabel",
+            wraplength=520,
+            justify="left",
+        )
+        self._help_lbl.pack(fill="x", pady=(8, 0))
+
+    def _build_hotkeys_text(self) -> str:
+        raw_text = t(
+            "desc.fast_destroy_hotkeys",
+            "Activation: {activation_hotkey}. Deactivation: {deactivation_hotkey}.",
+        )
+        try:
+            return raw_text.format(
+                activation_hotkey=self._activation_hotkey_hint,
+                deactivation_hotkey=self._deactivation_hotkey_hint,
+            )
+        except Exception:
+            safe_text = str(raw_text)
+            safe_text = safe_text.replace(
+                "{activation_hotkey}", self._activation_hotkey_hint
+            )
+            safe_text = safe_text.replace(
+                "{deactivation_hotkey}", self._deactivation_hotkey_hint
+            )
+            return safe_text
+
     def _notify_change(self) -> None:
         if self._on_change:
             try:
@@ -84,5 +117,6 @@ class FastDestroyTab:
                     "Enable warning overlay",
                 )
             )
+            self._help_lbl.configure(text=self._build_hotkeys_text())
         except Exception:
             pass
