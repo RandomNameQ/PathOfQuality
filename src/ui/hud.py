@@ -46,6 +46,7 @@ from src.ui.tabs.fast_destroy_tab import FastDestroyTab
 from src.ui.tabs.overlay_tab import OverlayTab
 from src.ui.tabs.useful_tab import UsefulTab
 from src.ui.tabs.about_tab import AboutTab
+from src.ui.tabs.gamepad_tab import GamepadTab
 from src.ui.dialogs.buff_editor import BuffEditorDialog
 from src.ui.dialogs.copy_area_editor import CopyAreaEditorDialog
 from src.ui.dialogs.currency_editor import CurrencyEditorDialog
@@ -86,7 +87,8 @@ class BuffHUD:
         wasd_toggle_hint: str = "~",
         overlay_hotkey: str = "F8",
         use_map_layout_overlay: bool = True,
-    ) -> None:
+        gamepad_settings: Optional[Dict[str, object]] = None,
+) -> None:
         """
         Initialize BuffHUD.
 
@@ -172,6 +174,7 @@ class BuffHUD:
         self._tab_mega_qol_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_fast_destroy_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_wasd_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
+        self._tab_gamepad_frame = tk.Frame(self._tools_nb, bg=BG_COLOR)
         self._tab_overlay_frame = tk.Frame(self._root_notebook, bg=BG_COLOR)
 
         # Initialize tab components
@@ -264,6 +267,52 @@ class BuffHUD:
         self._wasd_tab.set_change_handler(self._on_wasd_changed)
         self._wasd_tab.set_open_config_handler(self._on_wasd_open_config)
         self._set_wasd_indicator_state(bool(wasd_enabled))
+
+        # Initialize Gamepad Tab
+        # Ensure gamepad_settings is a dict if it was None
+        gp_cfg = gamepad_settings or {}
+
+        def _safe_int(val: object, default: int) -> int:
+            if isinstance(val, (int, float)):
+                return int(val)
+            if isinstance(val, str):
+                try:
+                    return int(val)
+                except ValueError:
+                    return default
+            return default
+
+        bindings_raw = gp_cfg.get("bindings")
+        bindings_list = list(bindings_raw) if isinstance(bindings_raw, list) else []
+
+        def _safe_float(val: object, default: float) -> float:
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                try:
+                    return float(val)
+                except ValueError:
+                    return default
+            return default
+
+        self._gamepad_tab = GamepadTab(
+            self._tab_gamepad_frame,
+            enabled=bool(gp_cfg.get("enabled", True)),
+            preferred_index=_safe_int(gp_cfg.get("preferred_index"), -1),
+            poll_interval_ms=_safe_int(gp_cfg.get("poll_interval_ms"), 33),
+            log_max_items=_safe_int(gp_cfg.get("log_max_items"), 200),
+            bindings=bindings_list,
+            wasd_enabled=bool(gp_cfg.get("wasd_enabled", False)),
+            wasd_stick=str(gp_cfg.get("wasd_stick", "left")),
+            wasd_center_offset_x=_safe_int(gp_cfg.get("wasd_center_offset_x"), 0),
+            wasd_center_offset_y=_safe_int(gp_cfg.get("wasd_center_offset_y"), 0),
+            wasd_move_offset_pixels=_safe_int(gp_cfg.get("wasd_move_offset_pixels"), 100),
+            wasd_enable_skill_cursor=bool(gp_cfg.get("wasd_enable_skill_cursor", False)),
+            wasd_distance_skill=_safe_int(gp_cfg.get("wasd_distance_skill"), 0),
+            wasd_skill_cursor_delay_s=_safe_float(gp_cfg.get("wasd_skill_cursor_delay_s"), 0.0),
+            wasd_input_delay_s=_safe_float(gp_cfg.get("wasd_input_delay_s"), 0.0),
+        )
+        self._gamepad_tab.set_change_handler(self._on_gamepad_changed)
         self._overlay_tab = OverlayTab(
             self._tab_overlay_frame,
             overlay_hotkey=overlay_hotkey,
@@ -339,6 +388,7 @@ class BuffHUD:
             text=t("tab.fast_destroy", "Fast destroy"),
         )
         self._tools_nb.add(self._tab_wasd_frame, text=t("tab.wasd", "WASD"))
+        self._tools_nb.add(self._tab_gamepad_frame, text=t("tab.gamepad", "Gamepad"))
 
         # Load templates into monitoring tab
         self._monitoring_tab.load_templates(templates)
@@ -585,6 +635,12 @@ class BuffHUD:
 
     def _on_wasd_changed(self) -> None:
         self._events.append("WASD_CHANGED")
+
+    def _on_gamepad_changed(self) -> None:
+        self._events.append("GAMEPAD_CHANGED")
+
+    def _on_gamepad_log_clear(self) -> None:
+        self._events.append("GAMEPAD_LOG_CLEAR")
 
     def _on_fast_destroy_changed(self) -> None:
         self._events.append("FAST_DESTROY_CHANGED")
@@ -955,6 +1011,7 @@ class BuffHUD:
                 text=t("tab.fast_destroy", "Fast destroy"),
             )
             self._tools_nb.tab(self._tab_wasd_frame, text=t("tab.wasd", "WASD"))
+            self._tools_nb.tab(self._tab_gamepad_frame, text=t("tab.gamepad", "Gamepad"))
         except Exception:
             pass
 
@@ -980,6 +1037,10 @@ class BuffHUD:
             pass
         try:
             self._wasd_tab.refresh_texts()
+        except Exception:
+            pass
+        try:
+            self._gamepad_tab.refresh_texts()
         except Exception:
             pass
         try:
@@ -1401,6 +1462,13 @@ class BuffHUD:
             "skill_cursor_delay_s": float(self._wasd_tab.get_skill_cursor_delay_s()),
             "input_delay_s": float(self._wasd_tab.get_input_delay_s()),
         }
+
+    def get_gamepad_config(self) -> Dict[str, object]:
+        return self._gamepad_tab.get_config()
+
+    def set_gamepad_snapshot(self, snapshot: Dict[str, object], events: List[str]) -> None:
+        self._gamepad_tab.set_snapshot(snapshot)
+        self._gamepad_tab.append_events(events)
 
     def get_fast_destroy_config(self) -> Dict[str, object]:
         return {

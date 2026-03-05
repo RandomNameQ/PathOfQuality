@@ -24,7 +24,7 @@
   "language": "en",
   "templates_dir": "assets/templates",
   "wasd": {
-    "enabled": true,
+    "enabled": false,
     "top_offset": 0,
     "bot_offset": 0,
     "left_offset": 0,
@@ -216,6 +216,34 @@
       }
     ],
     "active_item_id": "user:3"
+  },
+  "gamepad": {
+    "enabled": true,
+    "preferred_index": -1,
+    "poll_interval_ms": 33,
+    "log_max_items": 200,
+    "show_raw_axes": true,
+    "bindings": [
+      {
+        "gamepad_button": "A",
+        "key": "w",
+        "enabled": true
+      },
+      {
+        "gamepad_button": "X",
+        "key": "w",
+        "enabled": true
+      }
+    ],
+    "wasd_enabled": true,
+    "wasd_stick": "left",
+    "wasd_center_offset_x": 0,
+    "wasd_center_offset_y": -50,
+    "wasd_move_offset_pixels": 100,
+    "wasd_enable_skill_cursor": true,
+    "wasd_distance_skill": 30,
+    "wasd_skill_cursor_delay_s": 0.1,
+    "wasd_input_delay_s": 0.1
   },
   "mirror_mode": "auto",
   "wasd_enabled": true

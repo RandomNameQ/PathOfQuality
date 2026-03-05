@@ -9,7 +9,7 @@ import json
 import subprocess
 import cv2
 import time
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from src.capture.mss_capture import MSSCapture
 from src.capture.base_capture import Region
 from src.detector.template_matcher import TemplateMatcher
@@ -35,6 +35,17 @@ from src.quickcraft.library import (
     save_positions as save_quickcraft_positions,
     load_global_hotkey,
 )
+
+try:
+    from src.qol.gamepad_input import (
+        build_snapshot,
+        diff_snapshot_events,
+        poll_controllers,
+    )
+except Exception:
+    build_snapshot = None  # type: ignore
+    diff_snapshot_events = None  # type: ignore
+    poll_controllers = None  # type: ignore
 
 ALLOWED_PROCESSES_FILE = resource_path(os.path.join("assets", "allowed_processes.json"))
 WORKS_CONFIG_FILE = "works.json"
@@ -148,6 +159,68 @@ def get_foreground_process_name() -> Optional[str]:
         pass
 
     return None
+
+
+def sanitize_gamepad_config(raw_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized: Dict[str, Any] = {
+        "enabled": True,
+        "preferred_index": -1,
+        "poll_interval_ms": 33,
+        "log_max_items": 200,
+    }
+
+    cfg: Dict[str, Any] = raw_cfg if isinstance(raw_cfg, dict) else {}
+
+    raw_enabled = cfg.get("enabled", True)
+    if isinstance(raw_enabled, bool):
+        sanitized["enabled"] = raw_enabled
+    elif isinstance(raw_enabled, (int, float)):
+        if raw_enabled == 1:
+            sanitized["enabled"] = True
+        elif raw_enabled == 0:
+            sanitized["enabled"] = False
+    elif isinstance(raw_enabled, str):
+        normalized = raw_enabled.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            sanitized["enabled"] = True
+        elif normalized in {"0", "false", "no", "off"}:
+            sanitized["enabled"] = False
+
+    try:
+        preferred_index = int(cfg.get("preferred_index", -1))
+    except Exception:
+        preferred_index = -1
+    sanitized["preferred_index"] = (
+        preferred_index if preferred_index in {-1, 0, 1, 2, 3} else -1
+    )
+
+    raw_poll_interval_ms = cfg.get("poll_interval_ms", 33)
+    try:
+        if isinstance(raw_poll_interval_ms, str):
+            poll_interval_ms = (
+                int(raw_poll_interval_ms)
+                if raw_poll_interval_ms.strip().isdigit()
+                else 33
+            )
+        else:
+            poll_interval_ms = int(raw_poll_interval_ms)
+    except Exception:
+        poll_interval_ms = 33
+    sanitized["poll_interval_ms"] = max(8, min(250, poll_interval_ms))
+
+    raw_log_max_items = cfg.get("log_max_items", 200)
+    try:
+        if isinstance(raw_log_max_items, str):
+            log_max_items = (
+                int(raw_log_max_items) if raw_log_max_items.strip().isdigit() else 200
+            )
+        else:
+            log_max_items = int(raw_log_max_items)
+    except Exception:
+        log_max_items = 200
+    sanitized["log_max_items"] = max(20, min(1000, log_max_items))
+
+    return sanitized
 
 
 class Application:
@@ -264,6 +337,14 @@ class Application:
             0.0,
             float(self._wasd_cfg.get("input_delay_s", 0.0)),
         )
+        _raw_gamepad_cfg = self.settings.get("gamepad", {})
+        if not isinstance(_raw_gamepad_cfg, dict):
+            _raw_gamepad_cfg = {}
+        self._gamepad_cfg = sanitize_gamepad_config(_raw_gamepad_cfg)
+        self._apply_gamepad_config(_raw_gamepad_cfg)
+        self._gamepad_prev_snapshot: Optional[Dict[str, Any]] = None
+        self._gamepad_active_index: int = -1
+        self._gamepad_last_packets: Dict[int, int] = {}
         self._wasd_movement_keys, self._wasd_toggle_hotkey = (
             self._get_wasd_hotkey_config(self.settings.get("hotkeys", {}))
         )
@@ -724,6 +805,355 @@ class Application:
             )
             self._start_wasd_controller()
 
+    _gamepad_bindings: List[Dict[str, Any]] = []
+    _gamepad_wasd_enabled: bool = False
+    _gamepad_wasd_stick: str = "left"
+    _gamepad_wasd_offset_x: int = 0
+    _gamepad_wasd_offset_y: int = 0
+    _gamepad_wasd_move_px: int = 100
+    _gamepad_prev_buttons: set = set()
+    _gamepad_mouse_held: bool = False
+    _gamepad_skill_cursor_enabled: bool = False
+    _gamepad_skill_distance_pct: int = 0
+    _gamepad_skill_cursor_delay_s: float = 0.0
+    _gamepad_skill_input_delay_s: float = 0.0
+    _gamepad_skill_deadline: float = 0.0
+    _gamepad_pending_keys: list = []
+
+    def _apply_gamepad_config(self, cfg: Dict[str, Any]) -> None:
+        self._gamepad_cfg = sanitize_gamepad_config(cfg)
+        self._gamepad_enabled = bool(self._gamepad_cfg["enabled"])
+        self._gamepad_preferred_index = int(self._gamepad_cfg["preferred_index"])
+        self._gamepad_poll_interval_ms = int(self._gamepad_cfg["poll_interval_ms"])
+        self._gamepad_log_max_items = int(self._gamepad_cfg["log_max_items"])
+        raw_bindings = cfg.get("bindings")
+        self._gamepad_bindings = list(raw_bindings) if isinstance(raw_bindings, list) else []
+        self._gamepad_wasd_enabled = bool(cfg.get("wasd_enabled", False))
+        self._gamepad_wasd_stick = str(cfg.get("wasd_stick", "left"))
+        self._gamepad_wasd_offset_x = int(cfg.get("wasd_center_offset_x", 0))
+        self._gamepad_wasd_offset_y = int(cfg.get("wasd_center_offset_y", 0))
+        self._gamepad_wasd_move_px = max(1, int(cfg.get("wasd_move_offset_pixels", 100)))
+        self._gamepad_skill_cursor_enabled = bool(cfg.get("wasd_enable_skill_cursor", False))
+        self._gamepad_skill_distance_pct = max(0, int(cfg.get("wasd_distance_skill", 0)))
+        self._gamepad_skill_cursor_delay_s = max(0.0, float(cfg.get("wasd_skill_cursor_delay_s", 0.0)))
+        self._gamepad_skill_input_delay_s = max(0.0, float(cfg.get("wasd_input_delay_s", 0.0)))
+
+    def _disabled_gamepad_snapshot(self) -> Dict[str, object]:
+        snapshot: Dict[str, object] = {
+            "status": "disabled",
+            "connected_indices": [],
+            "active_index": -1,
+            "buttons": [],
+            "left_stick": (0.0, 0.0),
+            "right_stick": (0.0, 0.0),
+            "triggers": (0.0, 0.0),
+        }
+        return snapshot
+
+    def _select_gamepad_active_index(
+        self,
+        states: List[Dict[str, Any]],
+        connected_indices: List[int],
+    ) -> int:
+        preferred_index = int(self._gamepad_preferred_index)
+        if preferred_index in {0, 1, 2, 3}:
+            return preferred_index
+
+        active_index = -1
+        if self._gamepad_active_index in connected_indices:
+            active_index = int(self._gamepad_active_index)
+        elif connected_indices:
+            active_index = int(connected_indices[0])
+
+        for idx in connected_indices:
+            packet_number = int(states[idx].get("packet_number", 0))
+            previous_packet = self._gamepad_last_packets.get(idx)
+            if previous_packet is not None and packet_number != previous_packet:
+                if idx != active_index:
+                    active_index = int(idx)
+                break
+
+        return active_index
+
+    def _build_gamepad_poll_payload(
+        self,
+        states: List[Dict[str, Any]],
+    ) -> Tuple[Dict[str, object], Optional[Dict[str, Any]]]:
+        connected_indices = [
+            int(state.get("index", -1))
+            for state in states
+            if bool(state.get("connected", False))
+        ]
+        connected_indices.sort()
+
+        active_index = self._select_gamepad_active_index(states, connected_indices)
+        self._gamepad_active_index = active_index
+
+        normalized_snapshot: Optional[Dict[str, Any]] = None
+        status = "unavailable"
+        buttons: List[str] = []
+        left_stick = (0.0, 0.0)
+        right_stick = (0.0, 0.0)
+        triggers = (0.0, 0.0)
+
+        if active_index in {0, 1, 2, 3} and active_index < len(states):
+            active_state = states[active_index]
+            status = str(active_state.get("status", "unavailable"))
+            if build_snapshot is not None:
+                normalized_snapshot = build_snapshot(active_state)
+            if normalized_snapshot is not None:
+                button_state = normalized_snapshot.get("buttons", {})
+                if isinstance(button_state, dict):
+                    buttons = [
+                        str(name)
+                        for name, pressed in button_state.items()
+                        if bool(pressed)
+                    ]
+                axes = normalized_snapshot.get("axes", {})
+                if isinstance(axes, dict):
+                    left_stick = (
+                        float(axes.get("thumb_lx", 0.0)),
+                        float(axes.get("thumb_ly", 0.0)),
+                    )
+                    right_stick = (
+                        float(axes.get("thumb_rx", 0.0)),
+                        float(axes.get("thumb_ry", 0.0)),
+                    )
+                trigger_raw = normalized_snapshot.get("triggers", {})
+                if isinstance(trigger_raw, dict):
+                    triggers = (
+                        max(0.0, min(1.0, float(trigger_raw.get("left", 0)) / 255.0)),
+                        max(0.0, min(1.0, float(trigger_raw.get("right", 0)) / 255.0)),
+                    )
+        elif connected_indices:
+            status = "ok"
+        elif any(str(state.get("status", "")) == "not_connected" for state in states):
+            status = "not_connected"
+
+        for state in states:
+            state_index = int(state.get("index", -1))
+            if state_index in {0, 1, 2, 3}:
+                self._gamepad_last_packets[state_index] = int(
+                    state.get("packet_number", 0)
+                )
+
+        snapshot: Dict[str, object] = {
+            "status": status,
+            "connected_indices": connected_indices,
+            "active_index": active_index,
+            "buttons": buttons,
+            "left_stick": left_stick,
+            "right_stick": right_stick,
+            "triggers": triggers,
+        }
+        return snapshot, normalized_snapshot
+
+    def _execute_gamepad_actions(self, snapshot: Dict[str, object]) -> None:
+        """Execute keybinds and gamepad WASD movement with skill cursor."""
+        if not sys.platform.startswith("win"):
+            return
+
+        import time as _time
+
+        buttons = set(snapshot.get("buttons", []))
+        prev = self._gamepad_prev_buttons
+        pressed = buttons - prev
+        released = prev - buttons
+        self._gamepad_prev_buttons = set(buttons)
+
+        user32 = ctypes.windll.user32
+        now = _time.perf_counter()
+
+        # Flush pending skill-delayed key taps
+        still_pending = []
+        for due, vk in self._gamepad_pending_keys:
+            if now >= due:
+                self._send_key_event(vk, down=True)
+                self._send_key_event(vk, down=False)
+            else:
+                still_pending.append((due, vk))
+        self._gamepad_pending_keys = still_pending
+
+        # Determine if stick is active (needed for skill cursor)
+        stick_key = "left_stick" if self._gamepad_wasd_stick == "left" else "right_stick"
+        stick = snapshot.get(stick_key, (0.0, 0.0))
+        if not isinstance(stick, (list, tuple)) or len(stick) < 2:
+            stick = (0.0, 0.0)
+        sx, sy = float(stick[0]), float(stick[1])
+        stick_active = abs(sx) > 0.05 or abs(sy) > 0.05
+
+        # Keybind execution
+        if pressed:
+            for b in self._gamepad_bindings:
+                gp = b.get("gamepad_button","")
+                k = b.get("key","")
+                en = b.get("enabled",True)
+                vk = self._resolve_vk(k) if k else None
+                print(f"  bind: gp={gp!r} key={k!r} enabled={en} vk={vk} match={gp in pressed}")
+        for binding in self._gamepad_bindings:
+            if not binding.get("enabled", True):
+                continue
+            gp_btn = str(binding.get("gamepad_button", ""))
+            key_name = str(binding.get("key", ""))
+            if not gp_btn or not key_name:
+                continue
+
+            vk = self._resolve_vk(key_name)
+            if vk is None:
+                continue
+
+            if gp_btn in pressed:
+                if (
+                    stick_active
+                    and self._gamepad_wasd_enabled
+                    and self._gamepad_skill_cursor_enabled
+                    and self._gamepad_skill_distance_pct > 0
+                ):
+                    self._gamepad_skill_deadline = now + self._gamepad_skill_cursor_delay_s
+                    self._gamepad_move_cursor_with_skill(snapshot, user32, sx, sy)
+                    delay = self._gamepad_skill_input_delay_s
+                    if delay > 0:
+                        self._gamepad_pending_keys.append((now + delay, vk))
+                    else:
+                        self._send_key_event(vk, down=True)
+                        self._send_key_event(vk, down=False)
+                else:
+                    self._send_key_event(vk, down=True)
+            elif gp_btn in released:
+                if not (
+                    self._gamepad_skill_cursor_enabled
+                    and self._gamepad_skill_distance_pct > 0
+                    and self._gamepad_wasd_enabled
+                    and stick_active
+                ):
+                    self._send_key_event(vk, down=False)
+
+        # Gamepad WASD movement
+        if not self._gamepad_wasd_enabled:
+            if self._gamepad_mouse_held:
+                self._gamepad_mouse_held = False
+                self._send_mouse_event(up=True)
+            return
+
+        if stick_active:
+            if not self._gamepad_mouse_held:
+                self._gamepad_mouse_held = True
+                self._send_mouse_event(down=True)
+
+            dx = int(sx * self._gamepad_wasd_move_px)
+            dy = int(-sy * self._gamepad_wasd_move_px)
+
+            skill_jx, skill_jy = 0, 0
+            skill_active = (
+                self._gamepad_skill_cursor_enabled
+                and self._gamepad_skill_distance_pct > 0
+                and self._gamepad_skill_deadline > now
+            )
+            if skill_active:
+                any_bound_btn = any(
+                    b.get("gamepad_button", "") in buttons
+                    for b in self._gamepad_bindings
+                    if b.get("enabled", True)
+                )
+                if any_bound_btn or self._gamepad_skill_deadline > now:
+                    skill_jx, skill_jy = self._gamepad_compute_skill_jump(sx, sy)
+
+            hwnd = user32.GetForegroundWindow()
+            if hwnd:
+                rect = wintypes.RECT()
+                if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                    cx = (rect.left + rect.right) // 2 + self._gamepad_wasd_offset_x
+                    cy = (rect.top + rect.bottom) // 2 + self._gamepad_wasd_offset_y
+                    user32.SetCursorPos(cx + dx + skill_jx, cy + dy + skill_jy)
+        else:
+            if self._gamepad_mouse_held:
+                self._gamepad_mouse_held = False
+                self._send_mouse_event(up=True)
+
+    def _gamepad_compute_skill_jump(self, sx: float, sy: float) -> tuple:
+        """Compute skill cursor jump offset from stick direction and distance %."""
+        if abs(sx) < 0.01 and abs(sy) < 0.01:
+            return (0, 0)
+        user32 = ctypes.windll.user32
+        screen_w = max(1, int(user32.GetSystemMetrics(0)))
+        screen_h = max(1, int(user32.GetSystemMetrics(1)))
+        pct = self._gamepad_skill_distance_pct / 100.0
+        # Normalize stick direction
+        mag = max(0.001, (sx * sx + sy * sy) ** 0.5)
+        nx, ny = sx / mag, sy / mag
+        jx = int(nx * screen_w * pct)
+        jy = int(-ny * screen_h * pct)
+        return (jx, jy)
+
+    def _gamepad_move_cursor_with_skill(
+        self, snapshot: Dict[str, object], user32: Any, sx: float, sy: float
+    ) -> None:
+        """Immediately move cursor to movement+skill position (for skill key intercept)."""
+        dx = int(sx * self._gamepad_wasd_move_px)
+        dy = int(-sy * self._gamepad_wasd_move_px)
+        jx, jy = self._gamepad_compute_skill_jump(sx, sy)
+        hwnd = user32.GetForegroundWindow()
+        if hwnd:
+            rect = wintypes.RECT()
+            if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                cx = (rect.left + rect.right) // 2 + self._gamepad_wasd_offset_x
+                cy = (rect.top + rect.bottom) // 2 + self._gamepad_wasd_offset_y
+                user32.SetCursorPos(cx + dx + jx, cy + dy + jy)
+
+    @staticmethod
+    def _resolve_vk(key_name: str) -> int | None:
+        """Resolve a key name (tkinter keysym) to a Windows VK code."""
+        name = key_name.strip()
+        if not name:
+            return None
+
+        mouse_map = {"Mouse1": 0x01, "Mouse2": 0x02, "Mouse3": 0x04, "Mouse4": 0x05, "Mouse5": 0x06}
+        if name in mouse_map:
+            return mouse_map[name]
+
+        special = {
+            "space": 0x20, "Return": 0x0D, "Escape": 0x1B, "Tab": 0x09,
+            "BackSpace": 0x08, "Delete": 0x2E, "Insert": 0x2D,
+            "Shift_L": 0xA0, "Shift_R": 0xA1, "Control_L": 0xA2, "Control_R": 0xA3,
+            "Alt_L": 0xA4, "Alt_R": 0xA5, "Caps_Lock": 0x14,
+            "Up": 0x26, "Down": 0x28, "Left": 0x25, "Right": 0x27,
+            "Home": 0x24, "End": 0x23, "Prior": 0x21, "Next": 0x22,
+            "F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73,
+            "F5": 0x74, "F6": 0x75, "F7": 0x76, "F8": 0x77,
+            "F9": 0x78, "F10": 0x79, "F11": 0x7A, "F12": 0x7B,
+            "grave": 0xC0, "asciitilde": 0xC0,
+            "minus": 0xBD, "equal": 0xBB,
+            "bracketleft": 0xDB, "bracketright": 0xDD,
+            "semicolon": 0xBA, "apostrophe": 0xDE,
+            "comma": 0xBC, "period": 0xBE, "slash": 0xBF,
+            "backslash": 0xDC,
+        }
+        if name in special:
+            return special[name]
+
+        if len(name) == 1:
+            ch = name.upper()
+            if 'A' <= ch <= 'Z':
+                return ord(ch)
+            if '0' <= ch <= '9':
+                return ord(ch)
+
+        return None
+
+    @staticmethod
+    def _send_key_event(vk: int, down: bool = True) -> None:
+        user32 = ctypes.windll.user32
+        flags = 0 if down else 0x0002
+        user32.keybd_event(vk, 0, flags, 0)
+
+    @staticmethod
+    def _send_mouse_event(down: bool = False, up: bool = False) -> None:
+        user32 = ctypes.windll.user32
+        if down:
+            user32.mouse_event(0x0002, 0, 0, 0, 0)
+        if up:
+            user32.mouse_event(0x0004, 0, 0, 0, 0)
+
     def _start_wasd_controller(self) -> None:
         if self._wasd_controller is None:
             return
@@ -806,6 +1236,7 @@ class Application:
             wasd_distance_skill=self._wasd_distance_skill,
             wasd_skill_cursor_delay_s=self._wasd_skill_cursor_delay_s,
             wasd_input_delay_s=self._wasd_input_delay_s,
+            gamepad_settings=self.settings.get("gamepad", {}),
             wasd_movement_hint=self._wasd_movement_hint,
             wasd_toggle_hint=self._wasd_toggle_hint,
             overlay_hotkey=self._overlay_open_hotkey,
@@ -909,6 +1340,9 @@ class Application:
     def run(self) -> None:
         """Run main application loop."""
         scan_interval_ms = int(self.settings.get("scan_interval_ms", 50))
+        gamepad_poll_ms = max(1, int(self._gamepad_poll_interval_ms))
+        gamepad_poll_s = float(gamepad_poll_ms) / 1000.0
+        next_gamepad_poll_ts = 0.0
 
         print(
             f"ROI: left={self.roi.left}, top={self.roi.top}, width={self.roi.width}, height={self.roi.height}"
@@ -1061,6 +1495,12 @@ class Application:
                     self.settings["wasd"] = self._wasd_cfg
                     save_settings(self.settings_path, self.settings)
 
+                elif event == "GAMEPAD_CHANGED":
+                    cfg = self.hud.get_gamepad_config()
+                    self._apply_gamepad_config(cfg)
+                    self.settings["gamepad"] = cfg
+                    save_settings(self.settings_path, self.settings)
+
                 elif event == "FAST_DESTROY_CHANGED":
                     cfg = self.hud.get_fast_destroy_config()
                     self._fast_destroy_enabled = bool(cfg.get("enabled", False))
@@ -1145,7 +1585,53 @@ class Application:
 
                 self._handle_positioning_toggle(game_in_focus)
 
+                now_monotonic = time.monotonic()
+                if not self._gamepad_enabled:
+                    self._gamepad_prev_snapshot = None
+                    self._gamepad_active_index = -1
+                    self.hud.set_gamepad_snapshot(self._disabled_gamepad_snapshot(), [])
+                    if next_gamepad_poll_ts < now_monotonic:
+                        next_gamepad_poll_ts = now_monotonic + gamepad_poll_s
+                elif now_monotonic >= next_gamepad_poll_ts:
+                    events: List[str] = []
+                    if poll_controllers is not None:
+                        states = poll_controllers()
+                        snapshot, normalized_snapshot = (
+                            self._build_gamepad_poll_payload(states)
+                        )
+                        if (
+                            normalized_snapshot is not None
+                            and diff_snapshot_events is not None
+                        ):
+                            events = diff_snapshot_events(
+                                self._gamepad_prev_snapshot,
+                                normalized_snapshot,
+                            )
+                        self._gamepad_prev_snapshot = normalized_snapshot
+                    else:
+                        snapshot: Dict[str, object] = {
+                            "status": "unavailable",
+                            "connected_indices": [],
+                            "active_index": -1,
+                            "buttons": [],
+                            "left_stick": (0.0, 0.0),
+                            "triggers": (0.0, 0.0),
+                        }
+                        self._gamepad_prev_snapshot = None
+
+                    self.hud.set_gamepad_snapshot(snapshot, events)
+                    try:
+                        self._execute_gamepad_actions(snapshot)
+                    except Exception:
+                        pass
+                    next_gamepad_poll_ts = max(
+                        next_gamepad_poll_ts + gamepad_poll_s,
+                        now_monotonic + gamepad_poll_s,
+                    )
+
                 if skip_frame_processing:
+                    gamepad_poll_ms = max(1, int(self._gamepad_poll_interval_ms))
+                    gamepad_poll_s = float(gamepad_poll_ms) / 1000.0
                     continue
 
                 self._handle_overlay_toggle(game_in_focus)
@@ -1161,6 +1647,9 @@ class Application:
                     self._scan_frame()
                 else:
                     self._clear_results()
+
+                gamepad_poll_ms = max(1, int(self._gamepad_poll_interval_ms))
+                gamepad_poll_s = float(gamepad_poll_ms) / 1000.0
 
         finally:
             self._cleanup()

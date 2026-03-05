@@ -71,6 +71,13 @@ def get_default_settings() -> Dict[str, Any]:
             "menu_items": [],
             "active_item_id": "program:map",
         },
+        "gamepad": {
+            "enabled": True,
+            "preferred_index": -1,
+            "poll_interval_ms": 33,
+            "log_max_items": 200,
+            "show_raw_axes": True,
+        },
     }
 
 
