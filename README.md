@@ -1,5 +1,5 @@
 <h1 align="center">PathOfQuality</h1>
-Setup <a href="https://www.youtube.com/watch?v=HEV9aSgVf4g></a>
+Setup <a href="https://www.youtube.com/watch?v=HEV9aSgVf4g"></a>
 <p align="center">
   <b>Windows overlay toolkit to streamline Path of Exile gameplay</b><br/>
   <sub>Built to improve the gaming experience based on personal in‑game practice</sub>
